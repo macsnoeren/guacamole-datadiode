@@ -34,6 +34,8 @@ fsm_state=0
 length_value_string=""
 length_value=0
 processed_data=""
+processing_opcode=True
+opcode=""
 
 def udp_proxy(src, dst):
     """Run UDP proxy.
@@ -120,21 +122,26 @@ def process_data(data):
     for b in data:
         process_byte(b)
 
+# Validate protocol
+# todo: based on opcode data length could be validated
+# todo: the opcodes retrieved can be checked whether it is belonging to the real opcode list of guacamole
 def process_byte(b):
     global fsm_state
     global length_value_string
     global length_value
     global processed_data
+    global processing_opcode
+    global opcode
 
     processed_data=processed_data+b
     
     if fsm_state == 0: # get the length
+        processed_data=""
         if b >= '0' and b <='9':
             length_value_string=b
             fsm_state = 1
         else:
             print("ERROR(0) '"  + processed_data + "'")
-            processed_data=""
             fsm_state = 0
 
     elif fsm_state == 1: # read the length until dot .
@@ -143,6 +150,7 @@ def process_byte(b):
         elif b == '.':
             if length_value_string.isnumeric():
                 length_value=int(length_value_string)
+                print("LENGTH: '" + length_value_string + "'")
                 fsm_state = 2
             else:
                 print("ERROR(1.1) '"  + processed_data + "'")
@@ -155,6 +163,10 @@ def process_byte(b):
     elif fsm_state == 2: # read the value until counter is zero
         if length_value == 0:
             if b == ',' or b == ';': # ready and start with length again
+                if processing_opcode:
+                    print("OPCODE: '" + opcode + "'")
+                processing_opcode = b == ';'
+                opcode=""
                 #print("CORRECT!")
                 fsm_state = 0
             else:
@@ -164,6 +176,8 @@ def process_byte(b):
         else:
             #if b != ',' and b != '.' and b != ';':
             length_value=length_value-1
+            if processing_opcode:
+                opcode=opcode+b
             #else:
             #    print("ERROR(2) '"  + processed_data + "'")
             #    processed_data=""
