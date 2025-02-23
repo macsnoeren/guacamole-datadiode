@@ -108,24 +108,24 @@ def tcp_proxy(src, dst):
                 d = LOCAL_DATA_HANDLER(data)
                 if len(str(data)) > 3:
                     #print("SRC: (" + str(len(str(data))) + ") " + str(data))
-                    process_data(data.decode("utf-8"))
+                    process_data("SRC", data.decode("utf-8"))
                 s_dst.sendall(d)
             elif s == s_dst:
                 d = REMOTE_DATA_HANDLER(data)
                 if len(str(data)) > 3:
-                    process_data(data.decode("utf-8"))
+                    process_data("DST", data.decode("utf-8"))
                     #print("DST: (" + str(len(str(data))) + ") " + str(data))
                 s_src.sendall(d)
 # end-of-function tcp_proxy    
 
-def process_data(data):
+def process_data(s, data):
     for b in data:
-        process_byte(b)
+        process_byte(s, b)
 
 # Validate protocol
 # todo: based on opcode data length could be validated
 # todo: the opcodes retrieved can be checked whether it is belonging to the real opcode list of guacamole
-def process_byte(b):
+def process_byte(s, b):
     global fsm_state
     global length_value_string
     global length_value
@@ -150,7 +150,7 @@ def process_byte(b):
         elif b == '.':
             if length_value_string.isnumeric():
                 length_value=int(length_value_string)
-                print("LENGTH: '" + length_value_string + "'")
+                #print("LENGTH: '" + length_value_string + "'")
                 fsm_state = 2
             else:
                 print("ERROR(1.1) '"  + processed_data + "'")
@@ -164,7 +164,7 @@ def process_byte(b):
         if length_value == 0:
             if b == ',' or b == ';': # ready and start with length again
                 if processing_opcode:
-                    print("OPCODE: '" + opcode + "'")
+                    print("OPCODE: (" + s + "): '" + opcode + "'")
                 processing_opcode = b == ';'
                 opcode=""
                 #print("CORRECT!")
