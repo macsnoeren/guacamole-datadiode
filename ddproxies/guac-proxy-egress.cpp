@@ -12,11 +12,11 @@
 
 using namespace std;
 
-constexpr int TCP_SERVER_GUACAMOLE_PORT = 4822;
+constexpr int TCP_SERVER_GUACAMOLE_PORT = 4823;
 constexpr int BUFFER_SIZE = 1024;//8192;
 constexpr char UDP_SERVER_OUT_HOSTNAME[] = "127.0.0.1";
-constexpr int UDP_SERVER_OUT_PORT = 10000;
-constexpr int UDP_SERVER_IN_PORT = 20000;
+constexpr int UDP_SERVER_OUT_PORT = 20000;
+constexpr int UDP_SERVER_IN_PORT = 10000;
 
 void error (const char* msg ) {
   perror(msg);
@@ -28,18 +28,7 @@ void error (const char* msg ) {
   protocol. What is received there is send over UDP to us. This data needs to
   be send to the Guacamole front-end.
 */
-void udp_receive_data_guacd_in (bool* running, int clientSocketFd, struct sockaddr_in* saClient) {
-
-  /*
-  while (*running) {
-    if ( sendto(clientSocketFd, "Hoi\n", strlen("Hoi\n"), MSG_NOSIGNAL, (struct sockaddr *) &saClient, sizeof(saClient) ) < 0 ) {
-      perror("TCPServer::send: Socket error.");
-      return;
-    }
-    sleep(5);
-  }
-  */
-  
+void udp_receive_data_guacd_in (bool* running, int clientSocketFd, struct sockaddr_in* saClient) {  
   char buffer[BUFFER_SIZE] = {0};
 
   // Initialize the UDP server
@@ -84,46 +73,30 @@ void udp_receive_data_guacd_in (bool* running, int clientSocketFd, struct sockad
 }
 
 /*
-  The main application listens to the TCP/IP port for Guacamole web client and
-  sends the messages over UDP to the other proxy-egress of the data-diode.
+  The main application sets up a TCP/IP connection with the guacd server.
+  When it receives data it is send to the UDP server of the ingress proxy.
 */
 int main (int argc, char *argv[]) {
   cout << argv[0] << " version 0.1 (test)" << endl;
 
   bool running = true;
 
-  /* TCP/IP Server variables */
+  /* TCP/IP Client variables */
+  string hostnameS = "localhost";
   struct sockaddr_in saServer;
   struct sockaddr_in saClient;
   socklen_t slClient;
   int socketFd;
-  int opt = 1;
-
-  if ( (socketFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0 ) {
+  socklen_t iLen = sizeof(struct sockaddr_in);
+  
+  if ( (socketFd = socket(AF_INET, SOCK_STREAM, 0)) < 0 ) {
     perror("Socket failure");
     exit(0);
   }
 
-  if ( setsockopt(socketFd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
-    perror("Failure setsockopt");
-    exit(0);
-  }
-
   saServer.sin_family = AF_INET;
-  saServer.sin_addr.s_addr = INADDR_ANY;
-  saServer.sin_port = htons(TCP_SERVER_GUACAMOLE_PORT);
-
-  if ( bind(socketFd, (struct sockaddr*)&saServer, sizeof(saServer)) < 0) {
-    perror("Bind failed");
-    exit(0);
-  }
-
-  if ( listen(socketFd, 1) < 0 ) {
-    perror("Failure listen to port");
-    exit(0);
-  }
-
-  cout << "TCP/IP server listening on port " << TCP_SERVER_GUACAMOLE_PORT << endl;
+  saServer.sin_port   = htons(TCP_SERVER_GUACAMOLE_PORT);
+  saServer.sin_addr.s_addr = inet_addr("127.0.0.1");//*((struct in_addr*) pHost->h_addr);
 
   // Setup the UDP client
   string hostname = "localhost";
@@ -151,25 +124,24 @@ int main (int argc, char *argv[]) {
   saUDPServer.sin_addr   = *((struct in_addr*) pUDPHost->h_addr);
  
   while ( running ) {
-    cout << "Waiting for a client to connect" << endl;
-    int clientSocketFd = accept4(socketFd, (struct sockaddr*)&saClient, &slClient, 0);
-    if ( clientSocketFd < 0) {
-      perror("Failure accepting new client");
-      return 1;
+    cout << "Trying to connect to server on port " << TCP_SERVER_GUACAMOLE_PORT << endl;
+    if ( connect(socketFd,(struct sockaddr *) &saServer, sizeof(struct sockaddr_in)) < 0 ) {
+      perror("TCPClient::initSocket: Connection error.");
+      return 2;
     }
-    
-    cout << "Client connected to the server" << endl;
+
+    cout << "Connected with client" << endl;
     
     char buffer[BUFFER_SIZE] = {0};
     socklen_t len;
     bool active = true;
     
     // Start the thread that forward the received UDP packets to the TCP/IP server
-    thread threadUdpReceiveDataGuacdIn(udp_receive_data_guacd_in, &active, clientSocketFd, &saClient);
+    thread threadUdpReceiveDataGuacdIn(udp_receive_data_guacd_in, &active, socketFd, &saClient);
     
     cout << "Waiting on data from the TCP/IP client" << endl;
     while ( active ) {
-      int n = recvfrom(clientSocketFd, buffer, BUFFER_SIZE, 0, (struct sockaddr *) &saClient, &len);
+      int n = recvfrom(socketFd, buffer, BUFFER_SIZE, 0, (struct sockaddr *) &saClient, &len);
       if ( n < 0 ) {
 	perror("TCPServer::receive: Error!");
 	active = false;
@@ -186,7 +158,7 @@ int main (int argc, char *argv[]) {
       }
     }
     
-    close(clientSocketFd);
+    close(socketFd);
 	  
     threadUdpReceiveDataGuacdIn.join();  
   }
