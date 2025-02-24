@@ -1,0 +1,17 @@
+(kicad_sch
+	(version 20231120)
+	(generator "eeschema")
+	(generator_version "8.0")
+	(uuid "62ade568-5571-4643-8346-9fdf82f878c8")
+	(paper "A4")
+	(title_block
+		(date "2025-02-24")
+		(company "JMNL Innovation")
+	)
+	(lib_symbols)
+	(sheet_instances
+		(path "/"
+			(page "1")
+		)
+	)
+)
