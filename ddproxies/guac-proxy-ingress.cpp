@@ -8,6 +8,8 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <netdb.h>
+#include <syslog.h>
+#include <sys/stat.h>
 #include <thread>
 
 using namespace std;
@@ -90,6 +92,39 @@ void udp_receive_data_guacd_in (bool* running, int clientSocketFd, struct sockad
 int main (int argc, char *argv[]) {
   cout << argv[0] << " version 0.1 (test)" << endl;
 
+  // Deamonize
+  /*  
+  pid_t pid, sid;
+
+   pid = fork();
+   if (pid > 0) {
+      exit(EXIT_SUCCESS);
+   } else if (pid < 0) {
+      exit(EXIT_FAILURE);
+   }
+
+   umask(0);
+
+   openlog("proxy-ingress", LOG_NOWAIT | LOG_PID, LOG_USER);
+   syslog(LOG_NOTICE, "Successfully started proxe-ingress");
+
+   sid = setsid();
+   if(sid < 0) {
+      syslog(LOG_ERR, "Could not generate session ID for child process");
+      exit(EXIT_FAILURE);
+   }
+
+   if((chdir("/")) < 0) {
+      syslog(LOG_ERR, "Could not change working directory to /");
+      exit(EXIT_FAILURE);
+   }
+
+   close(STDIN_FILENO);
+   close(STDOUT_FILENO);
+   close(STDERR_FILENO);
+  */
+  // End Deamonize
+  
   bool running = true;
 
   /* TCP/IP Server variables */
