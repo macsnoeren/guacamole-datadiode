@@ -119,7 +119,7 @@ int main (int argc, char *argv[]) {
   }
 
   // Create the UDPClient to send data from Guacamole as UDP package to the proxy at the other side of the data-diode
-  UDPClient udpClient("localhost", UDP_SERVER_OUT_PORT);
+  UDPClient udpClient("127.0.0.1", UDP_SERVER_OUT_PORT);
   if ( udpClient.initialize() < 0 ) {
     return -1;
   }
@@ -141,7 +141,7 @@ int main (int argc, char *argv[]) {
       while ( active ) {
         ssize_t n = tcpServerClient->receiveFrom(buffer, BUFFER_SIZE);
 
-        if ( n < 0 ) {
+        if ( n <= 0 ) {
           cout << "Problem with the TCP/IP connection with Guacamole" << endl;
           active = false;
 
@@ -151,9 +151,8 @@ int main (int argc, char *argv[]) {
        
           // Send to UDP packet to the other side of the data-diode
           if ( udpClient.sendTo(buffer, strlen(buffer)) < 0 ) {
-            perror("Problem UDP/IP sendTo");
-              cout << "Problem with sending UDP/IP packet" << endl;
-              active = false;
+            cout << "Problem with sending UDP/IP packet" << endl;
+            active = false;
           }
         }
       }
