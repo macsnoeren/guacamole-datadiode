@@ -25,6 +25,8 @@ If not, see https://www.gnu.org/licenses/.
 #include <sys/stat.h>
 #include <thread>
 
+#include <include/tcpserver.hpp>
+
 using namespace std;
 
 // Global defines that configures the application

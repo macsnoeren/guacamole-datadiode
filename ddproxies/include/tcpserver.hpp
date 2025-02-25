@@ -30,19 +30,59 @@ If not, see https://www.gnu.org/licenses/.
 // Interface to provide a client that is only able to send messages to the TCP/IP client of the server
 class iTCPServerClientSendOnly {
 public:
-    sendto(char* buffer, size_t bufferLength) = 0;          
+    int sendto(char* buffer, size_t bufferLength);          
+};
+
+// When a client is connected to the TCP/IP server, this class represent the client connection.
+class TCPServerClient: public iTCPServerClientSendOnly {
+private:
+    int socketFd;
+    struct sockaddr_in socketAddrClient;
+    socklen_t socketLenClient;
+
+public:
+    TCPServerClient (int socketFd, struct sockaddr_in socketAddrClient, socklen_t socketLenClient) {
+        this->socketFd = socketFd;
+        this->socketAddrClient = socketAddrClient;
+        this->socketLenClient = socketLenClient;
+    }
+
+    ~TCPServerClient () {
+    }
+
+    void error (const char* error) {
+        std::cout << "ERROR: " << error << std::endl;
+    }
+
+    iTCPServerClientSendOnly* getTCPServerClientSendOnly() {
+        return this;
+    }
+
+    int sendto(char* buffer, size_t bufferLength) {
+        return 0;
+    }
+
+    int receiveFrom (char* buffer, size_t bufferLength) {
+        int n = recvfrom(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrClient, &this->socketLenClient);
+        if ( n < 0 ) {
+            this->error("receiveFrom: Error!");
+        }
+        buffer[n] = '\0';
+        return 0;
+    }      
+    
 };
 
 // The class that actual implement the TCP/IP server and can start and stop it.
 class TCPServer {
 private:
     struct sockaddr_in socketAddrServer;
-    int socket;
+    int socketFd;
     int port;
     int opt;
     bool running;
 
-    void error (string error) {
+    void error (const char* error) {
         std::cout << "ERROR: " << error << std::endl;
     }
 
@@ -54,12 +94,12 @@ public:
     }
 
     int initialize() {
-        if ( (this->socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0 ) {
+        if ( (this->socketFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0 ) {
             this->error("initialize: Socket failure");
             return -1;
         }
         
-        if ( setsockopt(this->socket, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &this->opt, sizeof(this->opt))) {
+        if ( setsockopt(this->socketFd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &this->opt, sizeof(this->opt))) {
             this->error("initialize: Failure setsockopt");
             return -2;
         }
@@ -72,62 +112,35 @@ public:
     }
 
     int start () {
-        if ( bind(this->socket, (struct sockaddr*)&this->socketAddrServer, sizeof(this->socketAddrServer)) < 0) {
+        if ( bind(this->socketFd, (struct sockaddr*)&this->socketAddrServer, sizeof(this->socketAddrServer)) < 0) {
             this->error("start: Bind failed");
             return -1;
         }
     
-        if ( listen(this->socket, 1) < 0 ) { // TODO: total connections that can be made to the server
+        if ( listen(this->socketFd, 1) < 0 ) { // TODO: total connections that can be made to the server
             this->error("start: Failure listen to port");
             return -2;
         }
 
-        cout << "start: TCP/IP server listening on port " << this->port << endl;
+        std::cout << "start: TCP/IP server listening on port " << this->port << std::endl;
 
         return 0;
     }
 
-    TCPServerClient accept () {
-        cout << "accept: Waiting for a client to connect" << endl;
+    TCPServerClient* accept () {
+        std::cout << "accept: Waiting for a client to connect" << std::endl;
 
         struct sockaddr_in socketAddrClient;
         socklen_t socketLenClient;
 
-        int clientSocket = accept4(this->socket, (struct sockaddr*)&socketAddrClient, &socketLenClient, 0);
+        int clientSocket = accept4(this->socketFd, (struct sockaddr*)&socketAddrClient, &socketLenClient, 0);
         if ( clientSocket < 0) {
-            perror("Failure accepting new client");
-            return 1;
+            this->error("accept: Failure accepting new client");
+            return NULL;
         }
 
+        std::cout << "accept: Client connected" << std::endl;
 
-
-    
-
-};
-
-// When a client is connected to the TCP/IP server, this class represent the client connection.
-class TCPServerClient {
-private:
-    struct sockaddr_in socketAddrClient;
-
-
-public:
-    TCPServerClient () {
+        return new TCPServerClient(clientSocket, socketAddrClient, socketLenClient);
     }
-
-    ~TCPServerClient () {
-    }
-
-int receiveFrom (char* buffer, size_t bufferLength) {
-    int n = recvfrom(this->socket, buffer, bufferLength, 0, (struct sockaddr *) &this->sockerAddrClient, &len);
-  if ( n < 0 ) {
-perror("TCPServer::receive: Error!");
-active = false;
-  }
-  
-  buffer[n] = '\0';
-  cout << "Received: " << buffer;
-  
-}
-
 };
