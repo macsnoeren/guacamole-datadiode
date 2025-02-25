@@ -30,6 +30,7 @@ If not, see https://www.gnu.org/licenses/.
 using namespace std;
 
 // Global defines that configures the application
+constexpr char VERSION[] = "0.1 (test)";
 constexpr int TCP_SERVER_GUACAMOLE_PORT = 4823;
 constexpr int BUFFER_SIZE = 1024;//8192;
 constexpr char UDP_SERVER_OUT_HOSTNAME[] = "127.0.0.1";

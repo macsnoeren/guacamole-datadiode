@@ -27,10 +27,10 @@ If not, see https://www.gnu.org/licenses/.
 #include <sys/stat.h>
 #include <thread>
 
-// Interface to provide a client that is only able to send messages to the TCP/IP client of the server
+// Interface class to provide a client that is only able to send messages to the TCP/IP client of the server
 class iTCPServerClientSendOnly {
 public:
-    int sendto(char* buffer, size_t bufferLength);          
+    virtual ssize_t sendTo(char* buffer, size_t bufferLength) = 0;          
 };
 
 // When a client is connected to the TCP/IP server, this class represent the client connection.
@@ -48,6 +48,7 @@ public:
     }
 
     ~TCPServerClient () {
+        close(this->socketFd);
     }
 
     void error (const char* error) {
@@ -58,17 +59,12 @@ public:
         return this;
     }
 
-    int sendto(char* buffer, size_t bufferLength) {
-        return 0;
+    ssize_t sendTo(char* buffer, size_t bufferLength) {
+        return sendto(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrClient, this->socketLenClient);	
     }
 
-    int receiveFrom (char* buffer, size_t bufferLength) {
-        int n = recvfrom(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrClient, &this->socketLenClient);
-        if ( n < 0 ) {
-            this->error("receiveFrom: Error!");
-        }
-        buffer[n] = '\0';
-        return 0;
+    ssize_t receiveFrom (char* buffer, size_t bufferLength) {
+        return recvfrom(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrClient, &this->socketLenClient);
     }      
     
 };
@@ -81,16 +77,18 @@ private:
     int port;
     int opt;
     bool running;
+    int maxConnections;
 
     void error (const char* error) {
         std::cout << "ERROR: " << error << std::endl;
     }
 
 public:
-    TCPServer(int port): port(port), opt(1), running(false) {
+    TCPServer(int port, int maxConnections = 1): port(port), opt(1), running(false), maxConnections(maxConnections) {
     }
 
     ~TCPServer() {
+        close(this->socketFd);
     }
 
     int initialize() {
@@ -117,7 +115,7 @@ public:
             return -1;
         }
     
-        if ( listen(this->socketFd, 1) < 0 ) { // TODO: total connections that can be made to the server
+        if ( listen(this->socketFd, this->maxConnections) < 0 ) { // TODO: total connections that can be made to the server
             this->error("start: Failure listen to port");
             return -2;
         }
