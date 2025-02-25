@@ -47,4 +47,4 @@ REMOTE_DATA_HANDLER = lambda x:'constant_value'
 In this case the real guacd listens to 4823 and the proxy listens to 4822 the default port of guacd.
 
 ## License
-Code is released under [MIT license](https://github.com/macsnoeren/guacamole-datadiode/blob/main/LICENSE).
+Code is released under [MIT license](https://github.com/macsnoeren/guacamole-datadiode/blob/main/pyproxy/LICENSE).
