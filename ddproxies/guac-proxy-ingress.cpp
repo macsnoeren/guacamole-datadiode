@@ -1,3 +1,16 @@
+/*
+Copyright (C) 2025 Maurice Snoeren
+
+This program is free software: you can redistribute it and/or modify it under the terms of 
+the GNU General Public License as published by the Free Software Foundation, version 3.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; 
+without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
+See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with this program.
+If not, see https://www.gnu.org/licenses/.
+*/
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,34 +27,28 @@
 
 using namespace std;
 
+// Global defines that configures the application
+constexpr char VERSION = "0.1 (test)";
 constexpr int TCP_SERVER_GUACAMOLE_PORT = 4822;
-constexpr int BUFFER_SIZE = 1024;//8192;
+constexpr int BUFFER_SIZE = 1024;
 constexpr char UDP_SERVER_OUT_HOSTNAME[] = "127.0.0.1";
 constexpr int UDP_SERVER_OUT_PORT = 10000;
 constexpr int UDP_SERVER_IN_PORT = 20000;
 
-void error (const char* msg ) {
-  perror(msg);
-  exit(1);
-}
-
 /*
-  The other proxy is connected with TCP/IP with the guacd using the Guacamole
-  protocol. What is received there is send over UDP to us. This data needs to
-  be send to the Guacamole front-end.
+ * This function runs as a seperate thread. It create an UDP/IP server to receive data
+ * from the proxy at the other side of the data-diode. If data is received this is validated
+ * and send to the Guacamole web client that is connected to the TCP/IP server to this proxy.
+ * 
+ * @param bool running: indicate that the proxy node is still running if false the thread needs
+ *                      to close and return.
+ *        int clientSocketFd: the socket that can be used to send data to the connected Guacamole
+ *                      client.
+ *        struct sockaddr_in* saClient: the socket address assiocated with the socket that is used
+ *                      to send data to the Guacamole client. 
+ * @return void
 */
 void udp_receive_data_guacd_in (bool* running, int clientSocketFd, struct sockaddr_in* saClient) {
-
-  /*
-  while (*running) {
-    if ( sendto(clientSocketFd, "Hoi\n", strlen("Hoi\n"), MSG_NOSIGNAL, (struct sockaddr *) &saClient, sizeof(saClient) ) < 0 ) {
-      perror("TCPServer::send: Socket error.");
-      return;
-    }
-    sleep(5);
-  }
-  */
-  
   char buffer[BUFFER_SIZE] = {0};
 
   // Initialize the UDP server
@@ -86,11 +93,17 @@ void udp_receive_data_guacd_in (bool* running, int clientSocketFd, struct sockad
 }
 
 /*
-  The main application listens to the TCP/IP port for Guacamole web client and
-  sends the messages over UDP to the other proxy-egress of the data-diode.
+ * The main application that create a TCP/IP server where the Guacamole web client is connecting
+ * to. When the Guacamole client is connected, a threat is created to handle the reverse data from
+ * the proxy at the other side of the data-diode. When data is received by the Guacamole client this
+ * data is send to the proxy to the other side of the data-diode using the UDP/IP protocol.
+ * 
+ * @param int argc: number of arguments that have been given at the command line.
+ *        chat* argv[]: the actual pointer to the arguments that have been given by the command line.
+ * @return int that indicate the exit code of the application.
 */
 int main (int argc, char *argv[]) {
-  cout << argv[0] << " version 0.1 (test)" << endl;
+  cout << argv[0] << VERSION << endl;
 
   // Deamonize
   /*  
