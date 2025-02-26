@@ -5,3 +5,55 @@ It could be interesting to create hardware for the data-diode. Some idea is to u
 - https://alexforencich.com/wiki/en/verilog/ethernet/start
 - https://github.com/alexforencich/verilog-ethernet/tree/master
 - https://bitsimnow.se/wp-content/uploads/2020/02/Data_Sheet_Bit1GUdpEthernet_A.pdf
+
+# Verilog / HDL
+
+```verilog
+module validate_guacamole (
+    input clk,
+    input [7:0] data,
+
+    output error = 0
+);
+
+reg [3:0] state = 0;
+reg [15:0] length = 0;
+reg opcode = 1;
+
+always @(posedge clk)
+case(state)
+  0: if ( data >= "0" && data <= "9" ) begin
+        length <= data - "0";
+        error <= 0;
+        state <= 1;
+    end else error <= 1;
+    
+  1: if ( data >= "0" && data <= "9" ) begin
+        length <= length*10 + (data - "0");
+        error <= 0;
+    end else if ( data == "." ) begin
+        error <= 0;
+        state <= 2;
+    end else begin
+        error <= 1;
+        state <= 0;
+    end
+    
+  2: if ( length == 0 ) begin
+        if ( data == "," ) begin
+            opcode <= 0;
+            error <= 0;
+            state <= 0;
+        end else if ( data == ";" ) begin
+            opcode <= 1;
+            error <= 0;
+            state <= 0;
+        end else begin
+            error <= 1;
+            state <= 0;
+        end
+    end else length <= length - 1;
+endcase
+
+endmodule
+```
