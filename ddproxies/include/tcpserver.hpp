@@ -30,7 +30,7 @@ If not, see https://www.gnu.org/licenses/.
 // Interface class to provide a client that is only able to send messages to the TCP/IP client of the server
 class iTCPServerClientSendOnly {
 public:
-    virtual ssize_t sendTo(char* buffer, size_t bufferLength) = 0;          
+    virtual ssize_t sendTo(const char* buffer, size_t bufferLength) = 0;          
 };
 
 // When a client is connected to the TCP/IP server, this class represent the client connection.
@@ -59,13 +59,17 @@ public:
         return this;
     }
 
-    ssize_t sendTo(char* buffer, size_t bufferLength) {
+    ssize_t sendTo(const char* buffer, size_t bufferLength) {
         return sendto(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrClient, this->socketLenClient);	
     }
 
     ssize_t receiveFrom (char* buffer, size_t bufferLength) {
         return recvfrom(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrClient, &this->socketLenClient);
-    }      
+    }
+
+    int closeSocket () {
+        return close(this->socketFd);
+    }
     
 };
 
