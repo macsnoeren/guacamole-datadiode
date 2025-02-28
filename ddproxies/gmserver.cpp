@@ -113,6 +113,7 @@ void thread_guacamole_client (bool* running, TCPServerClient* tcpGuacamoleClient
     if ( n  > 0 ) { // Received message from Guacamole client
       buffer[n] = '\0';
       cout << "Received data: " << buffer;
+      // TODO: Add assiocation of the client to the data
       queueSend->push(string(buffer));
 
     } else if ( n == 0 ) { // Peer properly shutted down!
@@ -139,6 +140,7 @@ void thread_dispatch_guacamole_client (bool* running, queue<string>* queueRecv, 
     while ( !queueRecv->empty() ) {
       cout << "Dispatching data to Guacamole client: " << queueRecv->front();
       // TODO: Do the real dispatching
+      // TODO: Get assiocation of the client to the data
       queueRecv->pop();
     }
     sleep(0);
@@ -188,7 +190,7 @@ int main (int argc, char *argv[]) {
       }
     }
 
-    // TODO: removing threads
+    // TODO: removing threads -> of hoeft dat nou niet met detach?!
     // Remove threads that stopped working from the list.
     //for (list<thread>::iterator i=threadServerClients.begin(); i != threadServerClients.end(); i++) {
     //  if ( i->joinable() ) {
