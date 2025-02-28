@@ -20,14 +20,13 @@ If not, see https://www.gnu.org/licenses/.
 #include <queue>
 #include <list>
 
-#include <include/udpclient.hpp>
+#include <include/udpserver.hpp>
 #include <include/tcpclient.hpp>
 
 constexpr int BUFFER_SIZE = 1024;
-constexpr int GMx_PORT = 10000; // OUT
+constexpr int GMx_PORT = 20000; // IN
 constexpr const char GMx_HOST[] = "127.0.0.1";
-constexpr int DATADIODE_SEND_PORT = 40000;
-constexpr const char DATA_DIODE_SEND_HOST[] = "127.0.0.1";
+constexpr int DATADIODE_RECV_PORT = 40000;
 
 using namespace std;
 
@@ -40,24 +39,25 @@ void signal_sigpipe_cb (int signum) {
   // Do nothing!
 }
 
-void thread_datadiode_send (bool* running, queue<string>* queueSend) {
+void thread_datadiode_recv (bool* running, queue<string>* queueRecv) {
   char buffer[BUFFER_SIZE];
 
-  UDPClient udpClient(DATA_DIODE_SEND_HOST, DATADIODE_SEND_PORT);
-  udpClient.initialize();
+  UDPServer udpServer(DATADIODE_RECV_PORT);
+  udpServer.initialize();
+  udpServer.start();
 
   while ( *running ) {
-    while ( !queueSend->empty() ) {
-      cout << "Sending over the data-diode send: " << queueSend->front();
-      ssize_t n = udpClient.sendTo(queueSend->front().c_str(), queueSend->front().length());
-      if ( n >= 0 ) {
-        queueSend->pop();
-      } else {
-        cout << "Error with client during sending data" << endl;
-        // TODO: What do we need to do here?!
-      }
+    cout << "Waiting on data from data-diode" << endl;
+    ssize_t n = udpServer.receiveFrom(buffer, BUFFER_SIZE);
+    if ( n  > 0 ) { // Received message from receiving data-diode
+      buffer[n] = '\0';
+      cout << "Received data-diode data: " << buffer;
+      queueRecv->push(string(buffer));
+      
+    } else { // Problem with the client
+      cout << "Error with the client connection" << endl;
+      // What to do?!
     }
-
     sleep(0);
   }
   cout << "Thread sending data-diode stopped" << endl;
@@ -71,9 +71,9 @@ int main (int argc, char *argv[]) {
 
   signal(SIGPIPE, signal_sigpipe_cb); // SIGPIPE closes application and is issued when sendto is called when peer is closed.
 
-  queue<string> queueDataDiodeSend;
+  queue<string> queueDataDiodeRecv;
 
-  thread threadDataDiodeSend(thread_datadiode_send, &running, &queueDataDiodeSend);
+  thread threadDataDiodeRecv(thread_datadiode_recv, &running, &queueDataDiodeRecv);
 
   TCPClient tcpClientGmServer(GMx_HOST, GMx_PORT);
   tcpClientGmServer.initialize();
@@ -85,23 +85,20 @@ int main (int argc, char *argv[]) {
 
       bool active = true;
       while ( active ) {
-        cout << "Waiting on data from the GMServer" << endl;
-        ssize_t n = tcpClientGmServer.receiveFrom(buffer, BUFFER_SIZE);
-        if ( n  > 0 ) { // Received message from receiving data-diode
-          buffer[n] = '\0';
-          cout << "Receive data: " << buffer;
-          queueDataDiodeSend.push(string(buffer));
-
-        } else if ( n == 0 ) { // Peer properly shutted down!
-          cout << "Client connection shutted down" << endl;
-          tcpClientGmServer.closeSocket();
-          active = false;
-          
-        } else { // Problem with the client
-          cout << "Error with the client connection" << endl;
-          tcpClientGmServer.closeSocket();      
-          active = false;
+        while ( active && !queueDataDiodeRecv.empty() ) {
+          cout << "Sending over the data-diode send: " << queueDataDiodeRecv.front();
+          ssize_t n = tcpClientGmServer.sendTo(queueDataDiodeRecv.front().c_str(), queueDataDiodeRecv.front().length());
+          if ( n >= 0 ) {
+            queueDataDiodeRecv.pop();
+          } else {
+            cout << "Error with client during sending data" << endl;
+            tcpClientGmServer.closeSocket();
+            active = false;
+            perror("MM");
+            sleep(5);
+          }
         }
+        sleep(0);
       }
     }
     sleep(1);

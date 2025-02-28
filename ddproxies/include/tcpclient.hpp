@@ -50,10 +50,11 @@ public:
 
     int start () {
         if ( (this->socketFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0 ) {
+//        if ( (this->socketFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0 ) {
             this->error("initialize: Socket failure");
             return -1;
         }
-        
+
         bzero(&this->socketAddrServer, sizeof(struct sockaddr_in));
 
         this->socketAddrServer.sin_family = AF_INET;
@@ -67,8 +68,8 @@ public:
         std::cout << "ERROR: " << error << std::endl;
     }
 
-    ssize_t sendTo(char* buffer, size_t bufferLength) {
-        return sendto(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrServer, this->socketLen);	
+    ssize_t sendTo(const char* buffer, size_t bufferLength) {
+        return sendto(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrServer, sizeof(this->socketAddrServer));	
     }
 
     ssize_t receiveFrom (char* buffer, size_t bufferLength) {
