@@ -45,19 +45,21 @@ public:
     }
 
     int initialize () {
-       if ( (this->socketFd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0 ) {
-            this->error("initialize: Socket failure");
-            return -1;
-        }
-        
-        this->socketAddrServer.sin_family = AF_INET;
-        this->socketAddrServer.sin_addr.s_addr = inet_addr(this->host.c_str());
-        this->socketAddrServer.sin_port = htons(this->port);
-
         return 0;
     }
 
     int start () {
+        if ( (this->socketFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0 ) {
+            this->error("initialize: Socket failure");
+            return -1;
+        }
+        
+        bzero(&this->socketAddrServer, sizeof(struct sockaddr_in));
+
+        this->socketAddrServer.sin_family = AF_INET;
+        this->socketAddrServer.sin_addr.s_addr = inet_addr(this->host.c_str());
+        this->socketAddrServer.sin_port = htons(this->port);
+
         return connect(this->socketFd, (struct sockaddr*) &this->socketAddrServer, sizeof(struct sockaddr_in));
     }
 

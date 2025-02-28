@@ -25,7 +25,7 @@ If not, see https://www.gnu.org/licenses/.
 
 constexpr int BUFFER_SIZE = 1024;
 constexpr int GMSERVER_PORT = 10000;
-constexpr const char GMSERVER_HOST[] = "10.0.2.15";
+constexpr const char GMSERVER_HOST[] = "127.0.0.1";
 constexpr int DATADIODE_SEND_PORT = 40000;
 constexpr const char DATA_DIODE_SEND_HOST[] = "127.0.0.1";
 
@@ -93,6 +93,7 @@ int main (int argc, char *argv[]) {
           queueDataDiodeSend.push(string(buffer));
 
         } else if ( n == 0 ) { // Peer properly shutted down!
+          cout << "Client connection shutted down" << endl;
           tcpClientGmServer.closeSocket();
           active = false;
           
@@ -103,7 +104,7 @@ int main (int argc, char *argv[]) {
         }
       }
     }
-    sleep(5);
+    sleep(1);
   }
   return 0;
 }
