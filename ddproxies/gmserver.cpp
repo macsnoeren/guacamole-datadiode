@@ -15,6 +15,7 @@ If not, see https://www.gnu.org/licenses/.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
 #include <thread>
 #include <queue>
 #include <list>
@@ -28,6 +29,10 @@ constexpr int DATADIODE_SEND_PORT = 10000;
 constexpr int DATADIODE_RECV_PORT = 20000;
 
 using namespace std;
+
+void signal_sigpipe_cb (int signum) {
+  cout << "SIGPIPE received!" << endl;
+}
 
 void thread_datadiode_send (bool* running, queue<string>* queueSend) {
   char buffer[BUFFER_SIZE];
@@ -43,8 +48,10 @@ void thread_datadiode_send (bool* running, queue<string>* queueSend) {
       bool active = true;
       cout << "Sending data-diode client connected" << endl;
       while ( active ) {
-        while ( !queueSend->empty() ) {
+        while ( active && !queueSend->empty() ) {
+          cout << "Sending data-diode send: " << queueSend->front();
           ssize_t n = tcpClient->sendTo(queueSend->front().c_str(), queueSend->front().length());
+          cout << "return: " << n << endl;
           if ( n >= 0 ) {
             queueSend->pop();
           } else {
@@ -78,7 +85,7 @@ void thread_datadiode_recv (bool* running, queue<string>* queueRecv) {
         ssize_t n = tcpClient->receiveFrom(buffer, BUFFER_SIZE);
         if ( n  > 0 ) { // Received message from receiving data-diode
           buffer[n] = '\0';
-          cout << "Receive data=diode data: " << buffer;
+          cout << "Receive data-diode data: " << buffer;
           queueRecv->push(string(buffer));
 
         } else if ( n == 0 ) { // Peer properly shutted down!
@@ -125,6 +132,20 @@ void thread_guacamole_client (bool* running, TCPServerClient* tcpGuacamoleClient
   cout << "Closing Guacamole client" << endl;
 }
 
+void thread_dispatch_guacamole_client (bool* running, queue<string>* queueRecv, list<TCPServerClient*>* tcpServerClients) {
+
+  cout << "Thread Guacamole client dispatcher started" << endl;
+  while ( *running ) {
+    while ( !queueRecv->empty() ) {
+      cout << "Dispatching data to Guacamole client: " << queueRecv->front();
+      // TODO: Do the real dispatching
+      queueRecv->pop();
+    }
+    sleep(0);
+  }
+  cout << "Thread dispatch guacamole clients stopped" << endl;
+}
+
 /*
  * Main will create two threads that create each a TCP/IP server to receive and
  * send data over the data-diodes. Main itself will create a TCP/IP server to
@@ -133,6 +154,8 @@ void thread_guacamole_client (bool* running, TCPServerClient* tcpGuacamoleClient
 int main (int argc, char *argv[]) {
   bool running = true;
 
+  signal(SIGPIPE, signal_sigpipe_cb);
+
   list<TCPServerClient*> tcpServerClients;
   list<thread> threadServerClients;
   queue<string> queueDataDiodeSend;
@@ -140,6 +163,7 @@ int main (int argc, char *argv[]) {
 
   thread threadDataDiodeSend(thread_datadiode_send, &running, &queueDataDiodeSend);
   thread threadDataDiodeRecv(thread_datadiode_recv, &running, &queueDataDiodeRecv);
+  thread threadDispatchGuacamoleClient(thread_dispatch_guacamole_client, &running, &queueDataDiodeRecv, &tcpServerClients);
 
   TCPServer tcpServerGuacamole(GUACAMOLE_PORT, GUACAMOLE_MAX_CLIENTS);
   tcpServerGuacamole.initialize();
@@ -152,7 +176,9 @@ int main (int argc, char *argv[]) {
       tcpServerClients.push_back(tcpGuacamoleClient);
       cout << "Guacamole client connected" << endl;
       
-      threadServerClients.push_back(thread(thread_guacamole_client, &running, tcpGuacamoleClient, &queueDataDiodeSend, &queueDataDiodeRecv));
+      //threadServerClients.push_back(thread(thread_guacamole_client, &running, tcpGuacamoleClient, &queueDataDiodeSend, &queueDataDiodeRecv));
+      thread t(thread_guacamole_client, &running, tcpGuacamoleClient, &queueDataDiodeSend, &queueDataDiodeRecv);
+      t.detach();
     }
 
     // Remove clients that are stopped working from the list.
@@ -162,6 +188,7 @@ int main (int argc, char *argv[]) {
       }
     }
 
+    // TODO: removing threads
     // Remove threads that stopped working from the list.
     //for (list<thread>::iterator i=threadServerClients.begin(); i != threadServerClients.end(); i++) {
     //  if ( i->joinable() ) {
