@@ -30,10 +30,28 @@ constexpr int DATADIODE_RECV_PORT = 20000;
 
 using namespace std;
 
+/*
+ * Required to catch SIGPIPE signal to prevent the closing of the application.
+ * The SIGPIPE signal is triggered by socket.sendto when the socket has been
+ * closed by the peer.
+ */
 void signal_sigpipe_cb (int signum) {
-  cout << "SIGPIPE received!" << endl;
+  // Do nothing!
 }
 
+/*
+ * This thread handles the data that is required to be send to the sending 
+ * data-diode. The data is eventually send to the guacd server. A queue is
+ * used and when there are messages, this is send to the data-diode proxy.
+ * The queue is filled by the messages that are send by the Guacamole web
+ * client. The data-diode proxy connect to the TCP/IP server that is created
+ * by this thread.
+ * @param bool* running: pointer to the running flag. If false the thread
+ *        need to close.
+ *        qeueu<string>* queueSend: the queue that contains the string
+ *        messages.
+ * @return void
+ */
 void thread_datadiode_send (bool* running, queue<string>* queueSend) {
   char buffer[BUFFER_SIZE];
 
@@ -51,7 +69,6 @@ void thread_datadiode_send (bool* running, queue<string>* queueSend) {
         while ( active && !queueSend->empty() ) {
           cout << "Sending data-diode send: " << queueSend->front();
           ssize_t n = tcpClient->sendTo(queueSend->front().c_str(), queueSend->front().length());
-          cout << "return: " << n << endl;
           if ( n >= 0 ) {
             queueSend->pop();
           } else {
@@ -68,6 +85,9 @@ void thread_datadiode_send (bool* running, queue<string>* queueSend) {
   cout << "Thread sending data-diode stopped" << endl;
 }
 
+/*
+ * 
+ */
 void thread_datadiode_recv (bool* running, queue<string>* queueRecv) {
   char buffer[BUFFER_SIZE];
 
@@ -156,7 +176,7 @@ void thread_dispatch_guacamole_client (bool* running, queue<string>* queueRecv, 
 int main (int argc, char *argv[]) {
   bool running = true;
 
-  signal(SIGPIPE, signal_sigpipe_cb);
+  signal(SIGPIPE, signal_sigpipe_cb); // SIGPIPE closes application and is issued when sendto is called when peer is closed.
 
   list<TCPServerClient*> tcpServerClients;
   list<thread> threadServerClients;
@@ -199,16 +219,6 @@ int main (int argc, char *argv[]) {
      // }
     //}
   }
-
-  //TCPServer tcpServerSend(10000, 1);
-  //tcpServerSend.initialize();
-  //tcpServerSend.start();
-
-  //TCPServer tcpServerReceive(20000, 1);
-  //tcpServerReceive.initialize();
-  //tcpServerReceive.start();
-
-  //thread threadServerReceive(thread_tcp_server_receiver, &running, &tcpServerReceive, &tcpServerGuacamole);
   
   for (list<thread>::iterator i=threadServerClients.begin(); i != threadServerClients.end(); i++) {
 		i->join();

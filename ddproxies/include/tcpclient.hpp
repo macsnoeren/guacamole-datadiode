@@ -44,7 +44,7 @@ public:
         close(this->socketFd);
     }
 
-    int initialize() {
+    int initialize () {
        if ( (this->socketFd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0 ) {
             this->error("initialize: Socket failure");
             return -1;
@@ -57,6 +57,10 @@ public:
         return 0;
     }
 
+    int start () {
+        return connect(this->socketFd, (struct sockaddr*) &this->socketAddrServer, sizeof(struct sockaddr_in));
+    }
+
     void error (const char* error) {
         std::cout << "ERROR: " << error << std::endl;
     }
@@ -65,9 +69,12 @@ public:
         return sendto(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrServer, this->socketLen);	
     }
 
-    // Not tested!
     ssize_t receiveFrom (char* buffer, size_t bufferLength) {
         return recvfrom(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrServer, &this->socketLen);
-    }      
+    }
+
+    int closeSocket () {
+        return close(this->socketFd);
+    }
     
 };

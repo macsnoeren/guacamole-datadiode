@@ -61,7 +61,7 @@ public:
         std::cout << "ERROR: " << error << std::endl;
     }
 
-    ssize_t sendTo(char* buffer, size_t bufferLength) {
+    ssize_t sendTo(const char* buffer, size_t bufferLength) {
         return sendto(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrServer, sizeof(this->socketAddrServer));	
     }
 
