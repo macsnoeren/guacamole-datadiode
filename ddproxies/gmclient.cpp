@@ -41,11 +41,54 @@ void signal_sigpipe_cb (int signum) {
   // Do nothing!
 }
 
+void thread_guacd_client_send(bool* running, string gmsID, TCPClient* tcpClient, queue<string>* queueSend) {
+  while ( *running ) {
+    while ( !queueSend->empty() ) {
+      cout << "Dispatching data to guacd client: " << queueSend->front();
+      ssize_t n = tcpClient->sendTo(queueSend->front().c_str(), queueSend->front().length());
+      if ( n >= 0 ) {
+        queueSend->pop();
+      } else {
+        cout << "Error with client during sending data" << endl;
+        // TODO: What do we need to do here?!
+      }
+    }
+    sleep(0);
+  }
+}
+
 void thread_guacd_client (bool* running, string gmsID, TCPClient* tcpClient, queue<string>* queueSend) {
   char buffer[BUFFER_SIZE];
   
+  while ( *running ) {
+    bool active = true;
+    while ( active ) {
+      cout << "Waiting on data from the GMServer" << endl;
+      ssize_t n = tcpClient->receiveFrom(buffer, BUFFER_SIZE);
+      if ( n  > 0 ) { // Received message from receiving data-diode
+        buffer[n] = '\0';
+        cout << "Receive data: " << buffer;
+        queueSend->push(string(buffer));
 
+      } else if ( n == 0 ) { // Peer properly shutted down!
+        cout << "Client connection shutted down" << endl;
+        tcpClient->closeSocket();
+        active = false;
+        
+      } else { // Problem with the client
+        cout << "Error with the client connection" << endl;
+        tcpClient->closeSocket();      
+        active = false;
+      }
+    }
+    sleep(1);
+  }
   
+  delete tcpClient;
+  tcpClient = NULL;
+
+  // TODO: How to remove the tcpClient
+
   cout << "Closing guacd client" << endl;
 }
 
@@ -137,20 +180,30 @@ void thread_datadiode_recv (bool* running, unordered_map<string, TCPClient*>* tc
 
               cout << "FOUND GMS_OPCODE: '" << gmsOpcode << "' with value '" << gmsValue << "'" << endl;
 
-              if ( strncmp(gmsOpcode, "GMS_NEW", 10) == 0 ) {
+              if ( strcmp(gmsOpcode, "GMS_NEW") == 0 ) {
                 cout << "*** NEW CONNECTION ****" << endl;
-                if ( tcpClients->find(gmsValue) != tcpClients->end() ) { // Does not exist so create it
+                cout << "Size: " << tcpClients->size() << endl;
+                if ( tcpClients->find(gmsValue) == tcpClients->end() ) { // Does not exist so create it
                   TCPClient* tcpClient = new TCPClient(GUACD_HOST, GUACD_PORT);
-                  tcpClients->insert({gmsValue, tcpClient});
-                  thread t(thread_guacd_client, running, string(gmsValue), tcpClient, queueSend);
-                  t.detach();
+                  tcpClient->initialize();
+                  if ( tcpClient->start() == 0 ) {
+                    tcpClients->insert({gmsValue, tcpClient});
+                    thread t1(thread_guacd_client, running, string(gmsValue), tcpClient, queueSend);
+                    t1.detach();
+                    thread t2(thread_guacd_client_send, running, string(gmsValue), tcpClient, queueSend);
+                    t2.detach();
+                  } else {
+                    cout << "ERROR: Cannot connect to guacd server!" << endl;
+                    string gmsClose = "9.GMS_CLOSE," + string(gmsValue) + ";";
+                    queueSend->push(gmsClose); // Send to the other side this connection cannot connect
+                  }
                 } else {
                   cout << "WARNING: TCPClient does already exist!" << endl;
                 }
     
-              } else if ( strncmp(gmsOpcode, "GMS_SEL", 10) == 0 ) {
+              } else if ( strcmp(gmsOpcode, "GMS_SEL") == 0 ) {
                 cout << "*** SELECT CONNECTION ***" << endl;
-                if ( tcpClients->find(gmsValue) == tcpClients->end() ) { // Yes! Exists!
+                if ( tcpClients->find(string(gmsValue)) != tcpClients->end() ) { // Yes! Exists!
                   gmsID = gmsValue;
                 } else {
                   cout << "ERROR: Could not find the requested connection.";
@@ -160,7 +213,7 @@ void thread_datadiode_recv (bool* running, unordered_map<string, TCPClient*>* tc
 
               } else if ( strncmp(gmsOpcode, "GMS_CLOSE", 12) == 0 ) {
                 cout << "*** CLOSE CONNECTION ****" << endl;
-                if ( tcpClients->find(gmsValue) == tcpClients->end() ) { // Yes! Exists!
+                if ( tcpClients->find(string(gmsValue)) != tcpClients->end() ) { // Yes! Exists!
                   gmsID = gmsValue;
                   // TODO: How to do this?
                 } else {
