@@ -44,12 +44,16 @@ private:
     PROTOCOL_VALIDATOR_STATE state;
     PROTOCOL_VALIDATOR_ELEMENT element;
 
-    std::string stringLength;
-    std::string processedData;
-    std::string opcode;
-    long valueLength;
+    std::string stringLength;  // Contains the characters of the length
+    std::string processedData; // Contains the processed data to show when an error occurs
+    std::string opcode;        // The opcode that has been found.
+    long valueLength;          // The real length converted from the string to be used by the validation.
 
 protected:
+    /*
+     * Process the Guacamole protocol on byte level.
+     * @param char c: the byte extracted from the data stream.
+     */
     void processByte (char c) {
         this->processedData += c;
 
@@ -117,84 +121,12 @@ public:
 
     }
 
+    /*
+     * This function is used to transfer the data that is received from Guacamole to be validated.
+     */
     void processData (char* data, ssize_t dataLength) {
         for ( ssize_t i=0; i < dataLength; i++ ) {
             this->processByte(data[i]);
         }
     }
-
-
-
 };
-
-/* python validator
-
-def process_data(s, data):
-    for b in data:
-        process_byte(s, b)
-
-# Validate protocol
-# todo: based on opcode data length could be validated
-# todo: the opcodes retrieved can be checked whether it is belonging to the real opcode list of guacamole
-def process_byte(s, b):
-    global fsm_state
-    global length_value_string
-    global length_value
-    global processed_data
-    global processing_opcode
-    global opcode
-
-    processed_data=processed_data+b
-    
-    if fsm_state == 0: # get the length
-        processed_data=""
-        if b >= '0' and b <='9':
-            length_value_string=b
-            fsm_state = 1
-        else:
-            print("ERROR(0) '"  + processed_data + "'")
-            fsm_state = 0
-
-    elif fsm_state == 1: # read the length until dot .
-        if b >= '0' and b <='9':
-            length_value_string=length_value_string+b
-        elif b == '.':
-            if length_value_string.isnumeric():
-                length_value=int(length_value_string)
-                #print("LENGTH: '" + length_value_string + "'")
-                fsm_state = 2
-            else:
-                print("ERROR(1.1) '"  + processed_data + "'")
-                processed_data=""
-                fsm_state = 0
-        else:
-            print("ERROR(1)")
-            fsm_state = 0
-        
-    elif fsm_state == 2: # read the value until counter is zero
-        if length_value == 0:
-            if b == ',' or b == ';': # ready and start with length again
-                if processing_opcode:
-                    print("OPCODE: (" + s + "): '" + opcode + "'")
-                processing_opcode = b == ';'
-                opcode=""
-                #print("CORRECT!")
-                fsm_state = 0
-            else:
-                print("ERROR(2.1) '"  + processed_data + "'")
-                processed_data=""
-                fsm_state = 0
-        else:
-            #if b != ',' and b != '.' and b != ';':
-            length_value=length_value-1
-            if processing_opcode:
-                opcode=opcode+b
-            #else:
-            #    print("ERROR(2) '"  + processed_data + "'")
-            #    processed_data=""
-            #    fsm_state = 0
-    else:
-        print("ERROR UNKNOWN STATE")
-        fsm_state=0
-
-*/
