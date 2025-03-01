@@ -20,7 +20,7 @@ If not, see https://www.gnu.org/licenses/.
 #include <queue>
 #include <list>
 
-#include <include/tcpserver.hpp>
+#include <tcpserver.hpp>
 
 constexpr int BUFFER_SIZE = 1024;
 constexpr int GUACAMOLE_PORT = 4822;

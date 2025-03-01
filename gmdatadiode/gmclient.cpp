@@ -21,8 +21,8 @@ If not, see https://www.gnu.org/licenses/.
 #include <list>
 #include <unordered_map>
 
-#include <include/tcpserver.hpp>
-#include <include/tcpclient.hpp>
+#include <tcpserver.hpp>
+#include <tcpclient.hpp>
 
 constexpr int BUFFER_SIZE = 1024;
 constexpr int GUACD_PORT = 4822;

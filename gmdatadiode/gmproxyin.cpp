@@ -20,8 +20,8 @@ If not, see https://www.gnu.org/licenses/.
 #include <queue>
 #include <list>
 
-#include <include/udpclient.hpp>
-#include <include/tcpclient.hpp>
+#include <udpclient.hpp>
+#include <tcpclient.hpp>
 
 constexpr int BUFFER_SIZE = 1024;
 constexpr int GMx_PORT = 10000; // OUT
