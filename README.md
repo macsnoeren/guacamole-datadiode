@@ -17,7 +17,7 @@ Apache Guacamole: https://guacamole.apache.org/
 
 Guacamole consist of a guacamole webserver that connects with a guacd service using the Guacamole protocol. The guacd service makes the real connections with the remote hosts. At this moment the first design idea is to put the hardware-based device between the Guacamole webserver and the guacd service.
 
-![design](https://raw.githubusercontent.com/macsnoeren/guacamole-datadiode/refs/heads/main/documentation/images/gucamole_data_diode_design.png)
+![design](https://raw.githubusercontent.com/macsnoeren/guacamole-datadiode/refs/heads/main/documentation/images/guacamole_data_diode_design.png)
 
 That means that the Guacd is part of the critical infrastructure and the interface to this service is protected with the hardware-based device. Attackers that gets control over the Guacamole webserver shall not be able to lateral move over the hardware-based device to the guacd. The hardware-based device only transfer application data and not network data.
 
