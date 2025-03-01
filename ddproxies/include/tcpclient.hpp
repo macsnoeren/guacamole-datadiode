@@ -50,7 +50,6 @@ public:
 
     int start () {
         if ( (this->socketFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0 ) {
-//        if ( (this->socketFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0 ) {
             this->error("initialize: Socket failure");
             return -1;
         }
