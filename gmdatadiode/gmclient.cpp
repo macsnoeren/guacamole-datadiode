@@ -18,7 +18,6 @@ If not, see https://www.gnu.org/licenses/.
 #include <signal.h>
 #include <thread>
 #include <queue>
-#include <list>
 #include <unordered_map>
 
 #include <tcpserver.hpp>

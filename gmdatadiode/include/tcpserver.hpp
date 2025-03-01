@@ -39,16 +39,26 @@ private:
     int socketFd;
     struct sockaddr_in socketAddrClient;
     socklen_t socketLenClient;
+    std::string id;
 
 public:
     TCPServerClient (int socketFd, struct sockaddr_in socketAddrClient, socklen_t socketLenClient) {
         this->socketFd = socketFd;
         this->socketAddrClient = socketAddrClient;
         this->socketLenClient = socketLenClient;
+        this->id = "";
     }
 
     ~TCPServerClient () {
         close(this->socketFd);
+    }
+
+    std::string getId () {
+        return this->id;
+    }
+
+    void setId( std::string id ) {
+        this->id = id;
     }
 
     void error (const char* error) {

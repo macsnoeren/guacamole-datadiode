@@ -16,15 +16,17 @@ If not, see https://www.gnu.org/licenses/.
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
+#include <time.h>
 #include <thread>
 #include <queue>
-#include <list>
+#include <random>
+#include <unordered_map>
 
 #include <tcpserver.hpp>
 
 constexpr int BUFFER_SIZE = 1024;
-constexpr int GUACAMOLE_PORT = 4822;
 constexpr int GUACAMOLE_MAX_CLIENTS = 25;
+constexpr int GUACAMOLE_PORT = 4822;
 constexpr int DATADIODE_SEND_PORT = 10000;
 constexpr int DATADIODE_RECV_PORT = 20000;
 
@@ -86,7 +88,13 @@ void thread_datadiode_send (bool* running, queue<string>* queueSend) {
 }
 
 /*
- * 
+ * This thread handles the data it receives from the data-diode the
+ * is connected to the guacd. It pushed the data to the queue.
+ * @param bool* running: pointer to the running flag. If false the thread
+ *        need to close.
+ *        qeueu<string>* queueRecv: the queue that contains the string
+ *        messages.
+ * @return void
  */
 void thread_datadiode_recv (bool* running, queue<string>* queueRecv) {
   char buffer[BUFFER_SIZE];
@@ -124,7 +132,7 @@ void thread_datadiode_recv (bool* running, queue<string>* queueRecv) {
   cout << "Thread receiving data-diode stopped" << endl;
 }
 
-void thread_guacamole_client (bool* running, TCPServerClient* tcpGuacamoleClient, queue<string>* queueSend, queue<string>* queueRecv) {
+void thread_guacamole_client_recv (bool* running, TCPServerClient* tcpGuacamoleClient, queue<string>* queueSend, queue<string>* queueRecv) {
   char buffer[BUFFER_SIZE];
   bool active = true;
 
@@ -154,7 +162,7 @@ void thread_guacamole_client (bool* running, TCPServerClient* tcpGuacamoleClient
   cout << "Closing Guacamole client" << endl;
 }
 
-void thread_dispatch_guacamole_client (bool* running, queue<string>* queueSend, queue<string>* queueRecv, list<TCPServerClient*>* tcpServerClients) {
+void thread_guacamole_client_send (bool* running, queue<string>* queueSend, queue<string>* queueRecv, unordered_map<string, TCPServerClient*>* guacamoleClients) {
 
   cout << "Thread Guacamole client dispatcher started" << endl;
   while ( *running ) {
@@ -180,44 +188,44 @@ int main (int argc, char *argv[]) {
 
   signal(SIGPIPE, signal_sigpipe_cb); // SIGPIPE closes application and is issued when sendto is called when peer is closed.
 
-  list<TCPServerClient*> tcpServerClients;
-  list<thread> threadServerClients;
   queue<string> queueDataDiodeSend;
   queue<string> queueDataDiodeRecv;
+  unordered_map<string, TCPServerClient*> guacamoleClients;
 
-  thread threadDataDiodeSend(thread_datadiode_send, &running, &queueDataDiodeSend);
-  thread threadDataDiodeRecv(thread_datadiode_recv, &running, &queueDataDiodeRecv);
-  thread threadDispatchGuacamoleClient(thread_dispatch_guacamole_client, &running, &queueDataDiodeSend, &queueDataDiodeRecv, &tcpServerClients);
-
+  // Create the necessary threads
+  thread t1(thread_datadiode_send, &running, &queueDataDiodeSend);
+  thread t2(thread_datadiode_recv, &running, &queueDataDiodeRecv);
+  thread t3(thread_guacamole_client_send, &running, &queueDataDiodeSend, &queueDataDiodeRecv, &guacamoleClients);
+  t1.detach();
+  t2.detach();
+  t3.detach();
+  
+  // Create the TCP/IP server to accept connections from the Guacamole web client
   TCPServer tcpServerGuacamole(GUACAMOLE_PORT, GUACAMOLE_MAX_CLIENTS);
   tcpServerGuacamole.initialize();
   tcpServerGuacamole.start();
 
   while ( running ) {
-    cout << "Waiting on Guacamole client connection" << endl;
+    cout << "Waiting on a Guacamole client connection" << endl;
     TCPServerClient* tcpGuacamoleClient = tcpServerGuacamole.accept();
     if ( tcpGuacamoleClient != NULL ) {
-      tcpServerClients.push_back(tcpGuacamoleClient);
       cout << "Guacamole client connected" << endl;
-      queueDataDiodeSend.push("7.GMS_NEW,2.ID;"); // TODO: Real ID
       
-      //threadServerClients.push_back(thread(thread_guacamole_client, &running, tcpGuacamoleClient, &queueDataDiodeSend, &queueDataDiodeRecv));
-      thread t(thread_guacamole_client, &running, tcpGuacamoleClient, &queueDataDiodeSend, &queueDataDiodeRecv);
-      t.detach();
-    }
+      // Create unique ID
+      time_t timer = time(nullptr);
+      char id[80] = "";
+      char gmsnew[100] = "";
+      sprintf(id, "%ld%ld", timer, random() + random() + random());
+      sprintf(gmsnew, "7.GMS_NEW,%d.%s;", strlen(id), id);
+      cout << "GMPROT: "  << gmsnew << endl;
 
-    // Remove clients that stopped working from the list.
-    for (list<TCPServerClient*>::iterator i=tcpServerClients.begin(); i != tcpServerClients.end(); i++) {
-      if ( (*i) == NULL ) {
-        tcpServerClients.erase(i);
-      }
+      tcpGuacamoleClient->setId(string(id));
+      queueDataDiodeSend.push(string(gmsnew));
+      
+      thread t1(thread_guacamole_client_recv, &running, tcpGuacamoleClient, &queueDataDiodeSend, &queueDataDiodeRecv);
+      t1.detach();
     }
   }
-  
-  for (list<thread>::iterator i=threadServerClients.begin(); i != threadServerClients.end(); i++) {
-		i->join();
-	}
-
   return 0;
 }
 
