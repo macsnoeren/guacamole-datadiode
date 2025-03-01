@@ -1,4 +1,4 @@
-# guacamole-datadiode
+# Guacamole data-diode
 
 While cyber criminals and nation state cyber hackers are more and more able to use zero-days in their attacks. The need for hardware-based security has born. Especially, for critical and vital computing systems, someone should not rely sololy on software based security systems. In the last year (2024) the big firewall suppliers all have had severe vulnerabilities in their products. The Danish critical infrastructure has been attack where zero-days have been used in the Zyxel equipment.
 
@@ -14,9 +14,7 @@ Apache Guacamole: https://guacamole.apache.org/
 
 Guacamole consist of a guacamole webserver that connects with a guacd service using the Guacamole protocol. The guacd service makes the real connections with the remote hosts. At this moment the first design idea is to put the hardware-based device between the Guacamole webserver and the guacd service.
 
-Actual: Guacamole webserver <=> Guacd <=> VNC/RDP/SSH/...
-
-Design idea: Guacamole webserver <=> HARDWARE-BASED DEVICE <=> Guacd <=> VNC/RDP/SSH/...
+![design](https://raw.githubusercontent.com/macsnoeren/guacamole-datadiode/refs/heads/main/documentation/images/gucamole_data_diode_design.png)
 
 That means that the Guacd is part of the critical infrastructure and the interface to this service is protected with the hardware-based device. Attackers that gets control over the Guacamole webserver shall not be able to lateral move over the hardware-based device to the guacd. The hardware-based device only transfer application data and not network data.
 
