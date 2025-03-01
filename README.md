@@ -1,3 +1,6 @@
+![badge-development-in-progress](https://img.shields.io/badge/development-in_progress-blue)
+![badge-version-0-1-test](https://img.shields.io/badge/version-0.1_(test)-yellow)
+
 # Guacamole data-diode
 
 While cyber criminals and nation state cyber hackers are more and more able to use zero-days in their attacks. The need for hardware-based security has born. Especially, for critical and vital computing systems, someone should not rely sololy on software based security systems. In the last year (2024) the big firewall suppliers all have had severe vulnerabilities in their products. The Danish critical infrastructure has been attack where zero-days have been used in the Zyxel equipment.
