@@ -52,7 +52,7 @@ private:
 protected:
     /*
      * Process the Guacamole protocol on byte level.
-     * @param char c: the byte extracted from the data stream.
+     * @param char c the byte extracted from the data stream.
      */
     void processByte (char c) {
         this->processedData += c;
@@ -123,6 +123,8 @@ public:
 
     /*
      * This function is used to transfer the data that is received from Guacamole to be validated.
+     * @param char* data the data that has been received.
+     *        ssize_t dataLength the length of the data that is in the char array.
      */
     void processData (char* data, ssize_t dataLength) {
         for ( ssize_t i=0; i < dataLength; i++ ) {

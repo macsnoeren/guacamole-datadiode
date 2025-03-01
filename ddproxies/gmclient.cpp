@@ -53,7 +53,7 @@ void signal_sigpipe_cb (int signum) {
  *        messages.
  * @return void
  */
-void thread_datadiode_send (bool* running, list<TCPClient*> tcpClients, queue<string>* queueSend) {
+void thread_datadiode_send (bool* running, list<TCPClient*>* tcpClients, queue<string>* queueSend) {
   char buffer[BUFFER_SIZE];
 
   TCPServer tcpServerSend(DATADIODE_SEND_PORT, 1);
@@ -89,7 +89,7 @@ void thread_datadiode_send (bool* running, list<TCPClient*> tcpClients, queue<st
 /*
  * Here new clients needs to be made by the function if a new connection comes by.
  */
-void thread_datadiode_recv (bool* running, list<TCPClient*> tcpClients, queue<string>* queueRecv) {
+void thread_datadiode_recv (bool* running, list<TCPClient*>* tcpClients, queue<string>* queueRecv) {
   char buffer[BUFFER_SIZE];
 
   TCPServer tcpServerRecv(DATADIODE_RECV_PORT, 1);
@@ -107,7 +107,40 @@ void thread_datadiode_recv (bool* running, list<TCPClient*> tcpClients, queue<st
         if ( n  > 0 ) { // Received message from receiving data-diode
           buffer[n] = '\0';
           cout << "Receive data-diode data: " << buffer;
-          queueRecv->push(string(buffer));
+
+          // GMSProtocol over Guacamole protocol: d.GMS_SSS,d.VVV;
+          int offset = 0;
+          if ( strstr(buffer, ".GMS_") != NULL ) { // Found
+            char gmsOpcode[20] = "";
+            char gmsValue[20] = "";
+            char* dot1 = strchr(buffer, '.'); // This exist and does not result in a NULL pointer
+            char* com = strchr(dot1, ',');    // We can safely use dot1 in the other search terms.
+            char* dot2 = strchr(dot1+1, '.');
+            char* sem = strchr(dot1, ';');
+
+            // Check if the elements are found, otherwise the GMS is not formulated correctly and
+            // will result into a Segfault if not checked!
+            if ( com != NULL && dot2 != NULL && sem != NULL ) {
+              strncpy(gmsOpcode, dot1+1, com-dot1-1);
+              strncpy(gmsValue, dot2+1, sem-dot2-1);
+              offset = sem-buffer+1;
+              cout << "FOUND GMS_OPCODE: '" << gmsOpcode << "' with value '" << gmsValue << "'" << endl;
+
+              if ( strncmp(gmsOpcode, "GMS_NEW", 10) == 0 ) {
+                offset = 10;
+                cout << "*** NEW CONNECTION ****" << endl;
+    
+              } else if ( strncmp(gmsOpcode, "GMS_SEL", 10) == 0 ) {
+                offset = 10;
+                cout << "*** SELECT CONNECTION ***" << endl;
+    
+              } else if ( strncmp(gmsOpcode, "GMS_CLOSE", 12) == 0 ) {
+                offset = 12;
+                cout << "*** CLOSE CONNECTION ****" << endl;          
+              }
+            }
+          }
+          queueRecv->push(string(buffer + offset));
 
         } else if ( n == 0 ) { // Peer properly shutted down!
           tcpClient->closeSocket();
