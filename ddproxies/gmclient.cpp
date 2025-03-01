@@ -19,13 +19,14 @@ If not, see https://www.gnu.org/licenses/.
 #include <thread>
 #include <queue>
 #include <list>
+#include <unordered_map>
 
 #include <include/tcpserver.hpp>
 #include <include/tcpclient.hpp>
 
 constexpr int BUFFER_SIZE = 1024;
-constexpr int GUACAMOLE_PORT = 4822;
-constexpr int GUACAMOLE_MAX_CLIENTS = 25;
+constexpr int GUACD_PORT = 4822;
+constexpr char GUACD_HOST[] = "127.0.0.1";
 constexpr int DATADIODE_SEND_PORT = 10000;
 constexpr int DATADIODE_RECV_PORT = 20000;
 
@@ -38,6 +39,14 @@ using namespace std;
  */
 void signal_sigpipe_cb (int signum) {
   // Do nothing!
+}
+
+void thread_guacd_client (bool* running, string gmsID, unordered_map<string, TCPClient*>* tcpClients, queue<string>* queueSend) {
+    char buffer[BUFFER_SIZE];
+  bool active = true;
+
+  
+  cout << "Closing guacd client" << endl;
 }
 
 /*
@@ -53,7 +62,7 @@ void signal_sigpipe_cb (int signum) {
  *        messages.
  * @return void
  */
-void thread_datadiode_send (bool* running, list<TCPClient*>* tcpClients, queue<string>* queueSend) {
+void thread_datadiode_send (bool* running, queue<string>* queueSend) {
   char buffer[BUFFER_SIZE];
 
   TCPServer tcpServerSend(DATADIODE_SEND_PORT, 1);
@@ -89,8 +98,9 @@ void thread_datadiode_send (bool* running, list<TCPClient*>* tcpClients, queue<s
 /*
  * Here new clients needs to be made by the function if a new connection comes by.
  */
-void thread_datadiode_recv (bool* running, list<TCPClient*>* tcpClients, queue<string>* queueRecv) {
+void thread_datadiode_recv (bool* running, unordered_map<string, TCPClient*>* tcpClients, queue<string>* queueSend, queue<string>* queueRecv) {
   char buffer[BUFFER_SIZE];
+  static string gmsID = "";
 
   TCPServer tcpServerRecv(DATADIODE_RECV_PORT, 1);
   tcpServerRecv.initialize();
@@ -124,23 +134,44 @@ void thread_datadiode_recv (bool* running, list<TCPClient*>* tcpClients, queue<s
               strncpy(gmsOpcode, dot1+1, com-dot1-1);
               strncpy(gmsValue, dot2+1, sem-dot2-1);
               offset = sem-buffer+1;
+
               cout << "FOUND GMS_OPCODE: '" << gmsOpcode << "' with value '" << gmsValue << "'" << endl;
 
               if ( strncmp(gmsOpcode, "GMS_NEW", 10) == 0 ) {
-                offset = 10;
                 cout << "*** NEW CONNECTION ****" << endl;
+                if ( tcpClients->find(gmsValue) != tcpClients->end() ) { // Does not exist so create it
+                  TCPClient* tcpClient = new TCPClient(GUACD_HOST, GUACD_PORT);
+                  tcpClients->insert({gmsValue, tcpClient});
+                  thread t(thread_guacd_client, running, string(gmsValue), tcpClients, queueSend);
+                  t.detach();
+                } else {
+                  cout << "WARNING: TCPClient does already exist!" << endl;
+                }
     
               } else if ( strncmp(gmsOpcode, "GMS_SEL", 10) == 0 ) {
-                offset = 10;
                 cout << "*** SELECT CONNECTION ***" << endl;
-    
+                if ( tcpClients->find(gmsValue) == tcpClients->end() ) { // Yes! Exists!
+                  gmsID = gmsValue;
+                } else {
+                  cout << "ERROR: Could not find the requested connection.";
+                  string gmsClose = "9.GMS_CLOSE," + string(gmsValue) + ";"; 
+                  queueSend->push(gmsClose); // Send to the other side this connection is closed
+                }
+
               } else if ( strncmp(gmsOpcode, "GMS_CLOSE", 12) == 0 ) {
-                offset = 12;
-                cout << "*** CLOSE CONNECTION ****" << endl;          
+                cout << "*** CLOSE CONNECTION ****" << endl;
+                if ( tcpClients->find(gmsValue) == tcpClients->end() ) { // Yes! Exists!
+                  gmsID = gmsValue;
+                  // How to do this?
+                } else {
+                  cout << "ERROR: Closing connection that does not exist.";
+                }
               }
             }
           }
-          queueRecv->push(string(buffer + offset));
+          if ( strlen(buffer) > 0 && buffer[0] != '\n' && buffer[0] != '\0' ) {
+            queueRecv->push(string(buffer + offset));
+          }
 
         } else if ( n == 0 ) { // Peer properly shutted down!
           tcpClient->closeSocket();
@@ -158,14 +189,6 @@ void thread_datadiode_recv (bool* running, list<TCPClient*>* tcpClients, queue<s
   cout << "Thread receiving data-diode stopped" << endl;
 }
 
-void thread_guacd_client (bool* running, /* here tcp client */ queue<string>* queueRecv) {
-  char buffer[BUFFER_SIZE];
-  bool active = true;
-
-  
-  cout << "Closing guacd client" << endl;
-}
-
 /*
  * Main will create two threads that create each a TCP/IP server to receive and
  * send data over the data-diodes. Main itself will create a TCP/IP server to
@@ -176,23 +199,16 @@ int main (int argc, char *argv[]) {
 
   signal(SIGPIPE, signal_sigpipe_cb); // SIGPIPE closes application and is issued when sendto is called when peer is closed.
 
-  list<TCPClient*> tcpClients;
+  unordered_map<string, TCPClient*> tcpClients;
   queue<string> queueDataDiodeSend;
   queue<string> queueDataDiodeRecv;
 
-  thread threadDataDiodeSend(thread_datadiode_send, &running, &tcpClients, &queueDataDiodeSend);
-  thread threadDataDiodeRecv(thread_datadiode_recv, &running, &tcpClients, &queueDataDiodeRecv);
+  thread threadDataDiodeSend(thread_datadiode_send, &running, &queueDataDiodeSend);
+  thread threadDataDiodeRecv(thread_datadiode_recv, &running, &tcpClients, &queueDataDiodeSend, &queueDataDiodeRecv);
 
   while ( running ) {
     sleep(30);
     queueDataDiodeSend.push("13.GMS_HEARTBEAT;");
-
-    // Remove clients that stopped working from the list.
-    for (list<TCPClient*>::iterator i=tcpClients.begin(); i != tcpClients.end(); i++) {
-      if ( (*i) == NULL ) {
-        tcpClients.erase(i);
-      }
-    }
   }
   
   return 0;
