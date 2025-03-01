@@ -10,7 +10,7 @@ This project is investigating a hardware-based security solution for the Guacamo
 
 Apache Guacamole: https://guacamole.apache.org/
 
-# First design idea
+# Design
 
 Guacamole consist of a guacamole webserver that connects with a guacd service using the Guacamole protocol. The guacd service makes the real connections with the remote hosts. At this moment the first design idea is to put the hardware-based device between the Guacamole webserver and the guacd service.
 
