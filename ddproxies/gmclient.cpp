@@ -41,9 +41,9 @@ void signal_sigpipe_cb (int signum) {
   // Do nothing!
 }
 
-void thread_guacd_client (bool* running, string gmsID, unordered_map<string, TCPClient*>* tcpClients, queue<string>* queueSend) {
-    char buffer[BUFFER_SIZE];
-  bool active = true;
+void thread_guacd_client (bool* running, string gmsID, TCPClient* tcpClient, queue<string>* queueSend) {
+  char buffer[BUFFER_SIZE];
+  
 
   
   cout << "Closing guacd client" << endl;
@@ -142,7 +142,7 @@ void thread_datadiode_recv (bool* running, unordered_map<string, TCPClient*>* tc
                 if ( tcpClients->find(gmsValue) != tcpClients->end() ) { // Does not exist so create it
                   TCPClient* tcpClient = new TCPClient(GUACD_HOST, GUACD_PORT);
                   tcpClients->insert({gmsValue, tcpClient});
-                  thread t(thread_guacd_client, running, string(gmsValue), tcpClients, queueSend);
+                  thread t(thread_guacd_client, running, string(gmsValue), tcpClient, queueSend);
                   t.detach();
                 } else {
                   cout << "WARNING: TCPClient does already exist!" << endl;
@@ -162,7 +162,7 @@ void thread_datadiode_recv (bool* running, unordered_map<string, TCPClient*>* tc
                 cout << "*** CLOSE CONNECTION ****" << endl;
                 if ( tcpClients->find(gmsValue) == tcpClients->end() ) { // Yes! Exists!
                   gmsID = gmsValue;
-                  // How to do this?
+                  // TODO: How to do this?
                 } else {
                   cout << "ERROR: Closing connection that does not exist.";
                 }
