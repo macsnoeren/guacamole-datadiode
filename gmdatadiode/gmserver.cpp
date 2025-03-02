@@ -76,7 +76,7 @@ void thread_datadiode_send (bool* running, queue<string>* queueSend) {
       cout << "Sending data-diode client connected" << endl;
       while ( active ) {
         while ( active && !queueSend->empty() ) {
-          cout << "Sending data-diode send: " << queueSend->front();
+          cout << "Sending data-diode send: " << queueSend->front() << endl;
           ssize_t n = tcpClient->sendTo(queueSend->front().c_str(), queueSend->front().length());
           if ( n >= 0 ) {
             queueSend->pop();
@@ -150,7 +150,7 @@ void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuac
 
   while ( *running && tcpGuacamoleClientHandle->running ) {
     ssize_t n = tcpGuacamoleClient->receiveFrom(buffer, BUFFER_SIZE);
-    if ( n  > 0 ) { // Received message from Guacamole client
+    if ( tcpGuacamoleClientHandle->running && n  > 0 ) { // Received message from Guacamole client, possible that the socket has been closed
       buffer[n] = '\0';
       cout << "Received data: " << buffer;
 
@@ -181,9 +181,9 @@ void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuac
 
   // Delete the tcpClient and set running to false, so the main application is able to delete the handle itself.
   delete tcpGuacamoleClientHandle->tcpClient;
-  tcpGuacamoleClientHandle->tcpClient = NULL;
-
   cout << "Closing Guacamole web client" << endl;
+
+  tcpGuacamoleClientHandle->tcpClient = NULL;
 }
 
   // GMSProtocol over Guacamole protocol: d.GMS_SSS,d.VVV;
@@ -221,9 +221,8 @@ void thread_guacamole_client_send (bool* running, unordered_map<string, TCPServe
       if ( findGmsOpcode( queueRecv->front().c_str(), opcode, value, &offset ) ) { // Found GMS info
         if ( guacamoleClients->find(string(value)) != guacamoleClients->end() ) { // Found assiocated 
           TCPServerClientHandle* tcpServerClientHandle = guacamoleClients->at(string(value));
-          if ( opcode == "GMS_SEL" ) {
+          if ( strcmp(opcode, "GMS_SEL") == 0 ) {
             ssize_t n = tcpServerClientHandle->tcpClient->sendTo(queueRecv->front().c_str()+offset, queueRecv->front().length()-offset);
-            queueRecv->pop();
             if ( n < 0 ) {
               cout << "thread_guacamole_client_send: Error with client during sending data" << endl;
               tcpServerClientHandle->running = false;
@@ -235,7 +234,8 @@ void thread_guacamole_client_send (bool* running, unordered_map<string, TCPServe
               queueSend->push(string(gmsclose));
             }
 
-          } else if ( opcode == "GMS_CLOSE" ) {
+          } else if ( strcmp(opcode, "GMS_CLOSE") == 0 ) {
+            cout << "thread_guacamole_client_send: Close request of Guacamole client from guacd" << endl;
             tcpServerClientHandle->tcpClient->closeSocket(); // Close the socket
             tcpServerClientHandle->running = false; // Stop the thread!
 
@@ -249,13 +249,38 @@ void thread_guacamole_client_send (bool* running, unordered_map<string, TCPServe
           queueSend->push(string(gmsclose));
         }
       }
+      queueRecv->pop();
     }
 
     // Go through the hashmap and when running is false and client is NULL, it can be removed.
-    for (unordered_map<string, TCPServerClientHandle*>::iterator it = guacamoleClients->begin(); it!=guacamoleClients->end(); ++it) {
-      if ( it->second->running == false && it->second->tcpClient == NULL ) {
-        cout << "thread_guacamole_client_send: Trash Guacamole client '" << it->first << "'" << endl;
+    // TODO: Hier gaat wat fout!
+    /*or (unordered_map<string, TCPServerClientHandle*>::iterator it = guacamoleClients->begin(); it!=guacamoleClients->end(); ++it) {
+      //cout << "ID: " << it->first << ", SECOND: " << it->second << endl;
+      if ( it->second == NULL ) {
+        cout << "thread_guacamole_client_send: Final cleanup" << endl;
         guacamoleClients->erase(it);
+
+      } else if ( it->second->running == false && it->second->tcpClient == NULL ) {
+        cout << "thread_guacamole_client_send: Trash Guacamole client '" << it->first << "'" << endl;
+        delete it->second;
+        (*guacamoleClients)[it->first] = NULL;
+      }
+    }*/
+    //cout << "MAP SIZE: " << guacamoleClients->size() << endl;
+
+    unordered_map<string, TCPServerClientHandle*>::iterator it = guacamoleClients->begin();
+    while ( it!=guacamoleClients->end() ) {
+      if ( it->second == NULL ) {
+        cout << "thread_guacamole_client_send: Final cleanup" << endl;
+        it = guacamoleClients->erase(it);
+
+      } else if ( it->second->running == false && it->second->tcpClient == NULL ) {
+        cout << "thread_guacamole_client_send: Trash Guacamole client '" << it->first << "'" << endl;
+        delete it->second;
+        (*guacamoleClients)[it->first] = NULL;
+
+      } else {
+        ++it;
       }
     }
 
@@ -300,6 +325,8 @@ int main (int argc, char *argv[]) {
   TCPServer tcpServerGuacamole(GUACAMOLE_PORT, GUACAMOLE_MAX_CLIENTS);
   tcpServerGuacamole.initialize();
   tcpServerGuacamole.start();
+
+  sleep(5); // Let the data-diode connect first
 
   while ( running ) {
     cout << "Waiting on a Guacamole client connection" << endl;
