@@ -180,6 +180,10 @@ void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuac
   tcpGuacamoleClientHandle->tcpClient = NULL;
 }
 
+/*
+ * When data is received from the data-diode, it needs to be dispatched to the correct Guacamole client.
+ * This thread is responsible for this.
+ */
 void thread_guacamole_client_send (bool* running, unordered_map<string, TCPServerClientHandle*>* guacamoleClients, queue<string>* queueSend, queue<string>* queueRecv) {
   cout << "Thread Guacamole client dispatcher started" << endl;
   while ( *running ) {
