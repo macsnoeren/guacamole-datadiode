@@ -58,7 +58,7 @@ void thread_datadiode_recv (bool* running, queue<string>* queueRecv) {
       cout << "Error with the client connection" << endl;
       // What to do?!
     }
-    sleep(0);
+    usleep(5000);
   }
   cout << "Thread sending data-diode stopped" << endl;
 }
@@ -94,8 +94,6 @@ int main (int argc, char *argv[]) {
             cout << "Error with client during sending data" << endl;
             tcpClientGmServer.closeSocket();
             active = false;
-            perror("MM");
-            sleep(5);
           }
         }
         sleep(0);

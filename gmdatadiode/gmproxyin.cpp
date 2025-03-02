@@ -57,7 +57,7 @@ void thread_datadiode_send (bool* running, queue<string>* queueSend) {
         // TODO: What do we need to do here?!
       }
     }
-    sleep(0);
+    usleep(5000);
   }
   cout << "thread_datadiode_send: Thread sending data-diode stopped" << endl;
 }

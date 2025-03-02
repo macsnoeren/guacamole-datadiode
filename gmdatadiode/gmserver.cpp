@@ -80,10 +80,10 @@ void thread_datadiode_send (bool* running, queue<string>* queueSend) {
             active = false;
           }
         }
-        sleep(0);
+        usleep(5000);
       }
     }
-    sleep(0);
+    usleep(5000);
   }
   cout << "Thread sending data-diode stopped" << endl;
 }
@@ -245,7 +245,7 @@ void thread_guacamole_client_send (bool* running, unordered_map<string, TCPServe
       }
     }
 
-    sleep(0);
+    usleep(5000);
   }
   
   cout << "Thread dispatch guacamole clients stopped" << endl;

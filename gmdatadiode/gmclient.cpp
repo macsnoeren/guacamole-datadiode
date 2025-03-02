@@ -71,7 +71,7 @@ void thread_guacd_client_recv (bool* running, TCPClientHandle* tcpClientHandle, 
       tcpClient->closeSocket();      
       tcpClientHandle->running = false;
     }
-    sleep(1);
+    sleep(0);
   }
   
   delete tcpClientHandle->tcpClient;
@@ -118,7 +118,7 @@ void thread_datadiode_send (bool* running, queue<string>* queueSend) {
             active = false;
           }
         }
-        sleep(0);
+        usleep(5000);
       }
     }
     sleep(0);
@@ -270,7 +270,7 @@ int main (int argc, char *argv[]) {
         ++it;
       }
     }
-    sleep(0);
+    usleep(5000);
   }
   
   return 0;
