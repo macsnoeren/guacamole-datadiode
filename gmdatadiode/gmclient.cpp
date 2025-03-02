@@ -16,6 +16,7 @@ If not, see https://www.gnu.org/licenses/.
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
+#include <getopt.h>
 #include <thread>
 #include <queue>
 #include <unordered_map>
@@ -32,6 +33,13 @@ constexpr int DATADIODE_SEND_PORT = 10000;
 constexpr int DATADIODE_RECV_PORT = 20000;
 
 using namespace std;
+
+struct Arguments {
+  string guacd_host;
+  int guacd_port;
+  int ddin_port;
+  int ddout_port;
+};
 
 /*
  * Required to catch SIGPIPE signal to prevent the closing of the application.
@@ -167,11 +175,62 @@ void thread_datadiode_recv (bool* running, unordered_map<string, TCPClientHandle
 }
 
 /*
+ * Print the help of all the options to the console
+ */
+void help() {
+  cout << "Usage: gmclient [OPTION]" << endl << endl;
+  cout << "Options and their default values" << endl;
+  cout << "  -g, --guacd-host  host where guacd is running to connect with [default: 127.0.0.1]" << endl;
+  cout << "  -p, --guacd-port  port where the guacd service is running     [default: 4822]" << endl;
+  cout << "  -i, --ddin-port   port that the gmproxyin needs to connect to [default: 10000]" << endl;
+  cout << "  -o, --ddout-port  port that the gmproxyou needs to connect to [default: 20000]" << endl;
+  cout << "  -h, --help    show this help page." << endl << endl;
+  cout << "More documentation can be found on https://github.com/macsnoeren/guacamole-datadiode." << endl;
+}
+
+/*
  * Main will create two threads that create each a TCP/IP server to receive and
  * send data over the data-diodes. Main itself will create a TCP/IP server to
  * accept connections from the Guacamole web client.
  */
 int main (int argc, char *argv[]) {
+  /* options */
+  Arguments arguments;
+
+  const char* const short_options = ":g:p:i:o:h";
+  static struct option long_options[] = {
+    {"guacd-host", optional_argument, nullptr, 'g'},
+    {"guacd-port", optional_argument, nullptr, 'p'},
+    {"ddin-port", optional_argument, nullptr, 'i'},
+    {"ddout-port", optional_argument, nullptr, 'o'},
+    {"help", no_argument, 0, 'h'},
+    {0, 0, 0, 0}
+  }; 
+
+  int opt;
+  while ( (opt = getopt_long(argc, argv, short_options, long_options, nullptr)) != -1 ) { 
+    switch(opt) {
+      case 'h':
+        help(); return 0;
+        break;
+      case 'g':
+        cout << "option: " << string(optarg) << endl;
+        break;
+      case 'p':
+        cout << "option: " << stoi(optarg) << endl;
+        break;
+      case 'i':
+        cout << "option: " << stoi(optarg) << endl;
+        break;
+      case 'o':
+        cout << "option: " << stoi(optarg) << endl;
+        break;
+    }
+
+  }
+
+
+  /* main */
   bool running = true;
 
   signal(SIGPIPE, signal_sigpipe_cb); // SIGPIPE closes application and is issued when sendto is called when peer is closed.
