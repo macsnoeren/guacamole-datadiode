@@ -188,6 +188,7 @@ void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuac
 
   // GMSProtocol over Guacamole protocol: d.GMS_SSS,d.VVV;
 bool findGmsOpcode (const char* data, char* gmsOpcode, char* gmsValue, long* offset) {
+  cout << "findGmsOpcode: '" << data << "', gmsOpcode: '" << gmsOpcode << "', gmsValue: '" << gmsValue << "'" << endl;
   *offset = 0;
   if ( strstr(data, ".GMS_") != NULL ) { // Found GMS opcode
     char* dot1 = strchr((char*) data, '.'); // This exist and does not result in a NULL pointer
@@ -200,6 +201,8 @@ bool findGmsOpcode (const char* data, char* gmsOpcode, char* gmsValue, long* off
     if ( com != NULL && dot2 != NULL && sem != NULL ) {
       strncpy(gmsOpcode, dot1+1, com-dot1-1);
       strncpy(gmsValue, dot2+1, sem-dot2-1);
+      gmsOpcode[com-dot1-1] = '\0';
+      gmsValue[sem-dot2-1] = '\0';
       *offset = sem-data+1;
       cout << "FOUND GMS_OPCODE: '" << gmsOpcode << "' with value '" << gmsValue << "'" << endl;
       return true;
@@ -251,22 +254,6 @@ void thread_guacamole_client_send (bool* running, unordered_map<string, TCPServe
       }
       queueRecv->pop();
     }
-
-    // Go through the hashmap and when running is false and client is NULL, it can be removed.
-    // TODO: Hier gaat wat fout!
-    /*or (unordered_map<string, TCPServerClientHandle*>::iterator it = guacamoleClients->begin(); it!=guacamoleClients->end(); ++it) {
-      //cout << "ID: " << it->first << ", SECOND: " << it->second << endl;
-      if ( it->second == NULL ) {
-        cout << "thread_guacamole_client_send: Final cleanup" << endl;
-        guacamoleClients->erase(it);
-
-      } else if ( it->second->running == false && it->second->tcpClient == NULL ) {
-        cout << "thread_guacamole_client_send: Trash Guacamole client '" << it->first << "'" << endl;
-        delete it->second;
-        (*guacamoleClients)[it->first] = NULL;
-      }
-    }*/
-    //cout << "MAP SIZE: " << guacamoleClients->size() << endl;
 
     unordered_map<string, TCPServerClientHandle*>::iterator it = guacamoleClients->begin();
     while ( it!=guacamoleClients->end() ) {
