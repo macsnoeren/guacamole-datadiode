@@ -258,7 +258,7 @@ void thread_guacamole_client_send (bool* running, unordered_map<string, TCPServe
         guacamoleClients->erase(it);
       }
     }
-    
+
     sleep(0);
   }
   
@@ -319,7 +319,7 @@ int main (int argc, char *argv[]) {
       
       // Send the new connection to the other side.
       char gmsnew[50] = "";
-      sprintf(gmsnew, "7.GMS_NEW,%d.%s;", strlen(id), id);
+      sprintf(gmsnew, "7.GMS_NEW,%d.%s;", id.length(), id.c_str());
       cout << "GMPROT: "  << gmsnew << endl;
       queueDataDiodeSend.push(string(gmsnew));
       
