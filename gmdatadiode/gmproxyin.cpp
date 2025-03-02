@@ -48,18 +48,18 @@ void thread_datadiode_send (bool* running, queue<string>* queueSend) {
 
   while ( *running ) {
     while ( !queueSend->empty() ) {
-      cout << "Sending over the data-diode send: " << queueSend->front();
+      cout << "thread_datadiode_send: Sending over the data-diode send: " << queueSend->front();
       ssize_t n = udpClient.sendTo(queueSend->front().c_str(), queueSend->front().length());
       if ( n >= 0 ) {
         queueSend->pop();
       } else {
-        cout << "Error with client during sending data" << endl;
+        cout << "thread_datadiode_send: Error with client during sending data" << endl;
         // TODO: What do we need to do here?!
       }
     }
     sleep(0);
   }
-  cout << "Thread sending data-diode stopped" << endl;
+  cout << "thread_datadiode_send: Thread sending data-diode stopped" << endl;
 }
 
 /*
