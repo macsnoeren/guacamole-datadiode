@@ -126,6 +126,7 @@ void thread_datadiode_recv (bool* running, queue<string>* queueRecv) {
           tcpClient->closeSocket();      
           active = false;
         }
+        sleep(0);
       }
     }
     sleep(0);
@@ -307,7 +308,6 @@ int main (int argc, char *argv[]) {
       // Send the new connection to the other side.
       char gmsnew[50] = "";
       sprintf(gmsnew, "7.GMS_NEW,%d.%s;", id.length(), id.c_str());
-      cout << "GMPROT: "  << gmsnew << endl;
       queueDataDiodeSend.push(string(gmsnew));
       
       thread t1(thread_guacamole_client_recv, &running, tcpServerClientHandle, &queueDataDiodeSend, &queueDataDiodeRecv);

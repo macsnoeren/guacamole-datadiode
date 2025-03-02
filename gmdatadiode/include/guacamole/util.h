@@ -16,13 +16,21 @@ If not, see https://www.gnu.org/licenses/.
 #include <string.h>
 
 #include <tcpserver.hpp>
+#include <tcpclient.hpp>
 
 // A struct to maintain the state of a TCPServerClient
 struct TCPServerClientHandle {
     TCPServerClient* tcpClient;
     bool running;
     std::string ID;
-  };
+};
+
+// A struct to maintain the state of a TCPClient
+struct TCPClientHandle {
+    TCPClient* tcpClient;
+    bool running;
+    std::string ID;
+};
 
 // GMSProtocol over Guacamole protocol: d.GMS_SSS,d.VVV;
 bool findGmsOpcode (const char* data, char* gmsOpcode, char* gmsValue, long* offset) {

@@ -57,7 +57,6 @@ void thread_datadiode_send (bool* running, queue<string>* queueSend) {
         // TODO: What do we need to do here?!
       }
     }
-
     sleep(0);
   }
   cout << "Thread sending data-diode stopped" << endl;
@@ -102,6 +101,7 @@ int main (int argc, char *argv[]) {
           tcpClientGmServer.closeSocket();      
           active = false;
         }
+        sleep(0);
       }
     }
     sleep(1);
