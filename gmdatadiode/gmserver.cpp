@@ -22,6 +22,7 @@ If not, see https://www.gnu.org/licenses/.
 #include <random>
 #include <unordered_map>
 
+#include <guacamole/util.h>
 #include <tcpserver.hpp>
 
 constexpr int BUFFER_SIZE = 1024;
@@ -31,13 +32,6 @@ constexpr int DATADIODE_SEND_PORT = 10000;
 constexpr int DATADIODE_RECV_PORT = 20000;
 
 using namespace std;
-
-// A struct to maintain the state of a TCPServerClient
-struct TCPServerClientHandle {
-  TCPServerClient* tcpClient;
-  bool running;
-  string ID;
-};
 
 /*
  * Required to catch SIGPIPE signal to prevent the closing of the application.
@@ -184,31 +178,6 @@ void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuac
   cout << "Closing Guacamole web client" << endl;
 
   tcpGuacamoleClientHandle->tcpClient = NULL;
-}
-
-  // GMSProtocol over Guacamole protocol: d.GMS_SSS,d.VVV;
-bool findGmsOpcode (const char* data, char* gmsOpcode, char* gmsValue, long* offset) {
-  cout << "findGmsOpcode: '" << data << "', gmsOpcode: '" << gmsOpcode << "', gmsValue: '" << gmsValue << "'" << endl;
-  *offset = 0;
-  if ( strstr(data, ".GMS_") != NULL ) { // Found GMS opcode
-    char* dot1 = strchr((char*) data, '.'); // This exist and does not result in a NULL pointer
-    char* com = strchr(dot1, ',');    // We can safely use dot1 in the other search terms.
-    char* dot2 = strchr(dot1+1, '.');
-    char* sem = strchr(dot1, ';');
-
-    // Check if the elements are found, otherwise the GMS is not formulated correctly and
-    // will result into a Segfault if not checked!
-    if ( com != NULL && dot2 != NULL && sem != NULL ) {
-      strncpy(gmsOpcode, dot1+1, com-dot1-1);
-      strncpy(gmsValue, dot2+1, sem-dot2-1);
-      gmsOpcode[com-dot1-1] = '\0';
-      gmsValue[sem-dot2-1] = '\0';
-      *offset = sem-data+1;
-      cout << "FOUND GMS_OPCODE: '" << gmsOpcode << "' with value '" << gmsValue << "'" << endl;
-      return true;
-    }
-  }
-  return false;
 }
 
 void thread_guacamole_client_send (bool* running, unordered_map<string, TCPServerClientHandle*>* guacamoleClients, queue<string>* queueSend, queue<string>* queueRecv) {
