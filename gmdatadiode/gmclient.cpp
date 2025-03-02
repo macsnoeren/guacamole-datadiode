@@ -47,31 +47,29 @@ void thread_guacd_client_recv (bool* running, TCPClientHandle* tcpClientHandle, 
   
   TCPClient* tcpClient = tcpClientHandle->tcpClient;
 
-  while ( *running ) {
-    while ( tcpClientHandle->running ) {
-      cout << "Waiting on data from the GMServer" << endl;
-      ssize_t n = tcpClient->receiveFrom(buffer, BUFFER_SIZE);
-      if ( n  > 0 ) { // Received message from receiving data-diode
-        buffer[n] = '\0';
-        cout << "Receive data: " << buffer;
+  while ( tcpClientHandle->running ) {
+    cout << "Waiting on data from the GMServer" << endl;
+    ssize_t n = tcpClient->receiveFrom(buffer, BUFFER_SIZE);
+    if ( n  > 0 ) { // Received message from receiving data-diode
+      buffer[n] = '\0';
+      cout << "Receive data: " << buffer;
 
-        // Add the connection data to the data to be send.
-        char gmssel[50] = "";
-        sprintf(gmssel, "7.GMS_SEL,%d.%s;", tcpClientHandle->ID.length(), tcpClientHandle->ID.c_str());
+      // Add the connection data to the data to be send.
+      char gmssel[50] = "";
+      sprintf(gmssel, "7.GMS_SEL,%d.%s;", tcpClientHandle->ID.length(), tcpClientHandle->ID.c_str());
+    
+      // Send the data over the data-diode
+      queueSend->push(gmssel + string(buffer));
       
-        // Send the data over the data-diode
-        queueSend->push(gmssel + string(buffer));
-        
-      } else if ( n == 0 ) { // Peer properly shutted down!
-        cout << "Client connection shutted down" << endl;
-        tcpClient->closeSocket();
-        tcpClientHandle->running = false;
-        
-      } else { // Problem with the client
-        cout << "Error with the client connection" << endl;
-        tcpClient->closeSocket();      
-        tcpClientHandle->running = false;
-      }
+    } else if ( n == 0 ) { // Peer properly shutted down!
+      cout << "Client connection shutted down" << endl;
+      tcpClient->closeSocket();
+      tcpClientHandle->running = false;
+      
+    } else { // Problem with the client
+      cout << "Error with the client connection" << endl;
+      tcpClient->closeSocket();      
+      tcpClientHandle->running = false;
     }
     sleep(1);
   }
@@ -103,19 +101,19 @@ void thread_datadiode_send (bool* running, queue<string>* queueSend) {
   tcpServerSend.start();
 
   while ( *running ) {
-    cout << "Waiting on sending data-diode proxy client connection" << endl;
+    cout << "thread_datadiode_send: Waiting on sending data-diode proxy client connection" << endl;
     TCPServerClient* tcpClient = tcpServerSend.accept();
     if ( tcpClient != NULL ) {
       bool active = true;
-      cout << "Sending data-diode client connected" << endl;
+      cout << "thread_datadiode_send: Sending data-diode client connected" << endl;
       while ( active ) {
         while ( active && !queueSend->empty() ) {
-          cout << "Sending data-diode send: " << queueSend->front();
+          cout << "thread_datadiode_send: Sending data-diode send: " << queueSend->front();
           ssize_t n = tcpClient->sendTo(queueSend->front().c_str(), queueSend->front().length());
           if ( n >= 0 ) {
             queueSend->pop();
           } else {
-            cout << "Error with client during sending data" << endl;
+            cout << "thread_datadiode_send: Error with client during sending data" << endl;
             tcpClient->closeSocket();
             active = false;
           }
@@ -149,64 +147,7 @@ void thread_datadiode_recv (bool* running, unordered_map<string, TCPClientHandle
         if ( n  > 0 ) { // Received message from receiving data-diode
           buffer[n] = '\0';
           cout << "thread_datadiode_recv: Receive data-diode data: " << buffer;
-
-          char opcode[50];
-          char value[50];
-          long offset = 0;
-
-          if ( findGmsOpcode( buffer, opcode, value, &offset ) ) { // Found GMS info
-            if ( strcmp(opcode, "GMS_NEW") == 0 ) {
-              TCPClient* tcpClient = new TCPClient(GUACD_HOST, GUACD_PORT);
-              tcpClient->initialize();
-              if ( tcpClient->start() == 0 ) { // Connected!
-                TCPClientHandle *tcpClientHandle = new TCPClientHandle;
-                *tcpClientHandle = {
-                  tcpClient,
-                  true,
-                  string(value)
-                };
-                guacdClients->insert({string(value), tcpClientHandle});
-                thread t(thread_guacd_client_recv, &running, tcpClientHandle, &queueSend);
-                t.detach();
-
-              } else { // Not connected
-                delete tcpClient;
-
-                // Send the close message to the other side
-                char gmsclose[50] = "";
-                sprintf(gmsclose, "9.GMS_CLOSE,%d.%s;", strlen(value), value);
-                queueSend->push(string(gmsclose));
-              }
-
-            } else if ( strcmp(opcode, "GMS_SEL") == 0 ) {
-              if ( guacdClients->find(string(value)) != guacdClients->end() ) { // Found assiocated 
-                TCPClientHandle* tcpClientHandle = guacdClients->at(string(value));
-                ssize_t n = tcpClientHandle->tcpClient->sendTo(queueRecv->front().c_str()+offset, queueRecv->front().length()-offset);
-                if ( n < 0 ) {
-                  cout << "thread_datadiode_recv: Error with client during sending data" << endl;
-                  tcpClientHandle->tcpClient->closeSocket();
-                  tcpClientHandle->running = false;
-
-                  // Send the close message to the other side
-                  char gmsclose[50] = "";
-                  sprintf(gmsclose, "9.GMS_CLOSE,%d.%s;", strlen(value), value);
-                  queueSend->push(string(gmsclose));
-                }
-
-              } else { // Not found, send the close message to the other side
-                char gmsclose[50] = "";
-                sprintf(gmsclose, "9.GMS_CLOSE,%d.%s;", strlen(value), value);
-                queueSend->push(string(gmsclose));
-              }
-
-            } else if ( strcmp(opcode, "GMS_CLOSE") == 0 ) {
-              if ( guacdClients->find(string(value)) != guacdClients->end() ) { // Found assiocated 
-                TCPClientHandle* tcpClientHandle = guacdClients->at(string(value));
-                tcpClientHandle->tcpClient->closeSocket();
-                tcpClientHandle->running = false;
-              }
-            }
-          }
+          queueRecv->push(string(buffer));
 
         } else if ( n == 0 ) { // Peer properly shutted down!
           tcpClient->closeSocket();
@@ -239,13 +180,81 @@ int main (int argc, char *argv[]) {
   queue<string> queueDataDiodeRecv;
   unordered_map<string, TCPClientHandle*> guacdClientHandles;
 
-  thread threadDataDiodeSend(thread_datadiode_send, &running, &queueDataDiodeSend);
-  thread threadDataDiodeRecv(thread_datadiode_recv, &running, &guacdClientHandles, &queueDataDiodeSend, &queueDataDiodeRecv);
+  thread t1(thread_datadiode_send, &running, &queueDataDiodeSend);
+  thread t2(thread_datadiode_recv, &running, &guacdClientHandles, &queueDataDiodeSend, &queueDataDiodeRecv);
+  t1.detach();
+  t2.detach();
 
   while ( running ) {
-    sleep(HEARTBEAT_PUSLE);
-    queueDataDiodeSend.push("13.GMS_HEARTBEAT;");
+    //sleep(HEARTBEAT_PUSLE);
+    //queueDataDiodeSend.push("13.GMS_HEARTBEAT;");
 
+    // Process the recv queue
+    while ( !queueDataDiodeRecv.empty() ) {
+      cout << "Dispatching data to Guacamole client: " << queueDataDiodeRecv.front();
+
+      char opcode[50];
+      char value[50];
+      long offset = 0;
+
+      if ( findGmsOpcode( queueDataDiodeRecv.front().c_str(), opcode, value, &offset ) ) { // Found GMS info
+        if ( strcmp(opcode, "GMS_NEW") == 0 ) {
+          TCPClient* tcpClient = new TCPClient(GUACD_HOST, GUACD_PORT);
+          tcpClient->initialize();
+          if ( tcpClient->start() == 0 ) { // Connected!
+            cout << "thread_datadiode_recv: Connected with guacd server" << endl;
+            TCPClientHandle *tcpClientHandle = new TCPClientHandle;
+            *tcpClientHandle = {
+              tcpClient,
+              true,
+              string(value)
+            };
+            guacdClientHandles.insert({string(value), tcpClientHandle});
+            thread t(thread_guacd_client_recv, &running, tcpClientHandle, &queueDataDiodeSend);
+            t.detach();
+
+          } else { // Not connected
+            delete tcpClient;
+
+            // Send the close message to the other side
+            char gmsclose[50] = "";
+            sprintf(gmsclose, "9.GMS_CLOSE,%d.%s;", strlen(value), value);
+            queueDataDiodeSend.push(string(gmsclose));
+          }
+
+        } else if ( strcmp(opcode, "GMS_SEL") == 0 ) {
+          if ( guacdClientHandles.find(string(value)) != guacdClientHandles.end() ) { // Found assiocated 
+            TCPClientHandle* tcpClientHandle = guacdClientHandles.at(string(value));
+            ssize_t n = tcpClientHandle->tcpClient->sendTo(queueDataDiodeRecv.front().c_str()+offset, queueDataDiodeRecv.front().length()-offset);
+            if ( n < 0 ) {
+              cout << "thread_datadiode_recv: Error with client during sending data" << endl;
+              tcpClientHandle->tcpClient->closeSocket();
+              tcpClientHandle->running = false;
+
+              // Send the close message to the other side
+              char gmsclose[50] = "";
+              sprintf(gmsclose, "9.GMS_CLOSE,%d.%s;", strlen(value), value);
+              queueDataDiodeSend.push(string(gmsclose));
+            }
+
+          } else { // Not found, send the close message to the other side
+            char gmsclose[50] = "";
+            sprintf(gmsclose, "9.GMS_CLOSE,%d.%s;", strlen(value), value);
+            queueDataDiodeSend.push(string(gmsclose));
+          }
+
+        } else if ( strcmp(opcode, "GMS_CLOSE") == 0 ) {
+          if ( guacdClientHandles.find(string(value)) != guacdClientHandles.end() ) { // Found assiocated 
+            TCPClientHandle* tcpClientHandle = guacdClientHandles.at(string(value));
+            tcpClientHandle->tcpClient->closeSocket();
+            tcpClientHandle->running = false;
+          }
+        }
+      }
+      queueDataDiodeRecv.pop();
+    }
+
+    // Clean up the handles
     unordered_map<string, TCPClientHandle*>::iterator it = guacdClientHandles.begin();
     while ( it!=guacdClientHandles.end() ) {
       if ( it->second == NULL ) {
@@ -261,6 +270,7 @@ int main (int argc, char *argv[]) {
         ++it;
       }
     }
+    sleep(0);
   }
   
   return 0;
