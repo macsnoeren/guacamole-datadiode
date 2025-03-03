@@ -16,6 +16,7 @@ If not, see https://www.gnu.org/licenses/.
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
+#include <getopt.h>
 #include <thread>
 #include <queue>
 #include <list>
@@ -24,12 +25,19 @@ If not, see https://www.gnu.org/licenses/.
 #include <tcpclient.hpp>
 
 constexpr int BUFFER_SIZE = 1024;
-constexpr int GMx_PORT = 10000; // OUT
 constexpr const char GMx_HOST[] = "127.0.0.1";
-constexpr int DATADIODE_SEND_PORT = 40000;
+constexpr int GMx_PORT = 10000; // OUT
 constexpr const char DATA_DIODE_SEND_HOST[] = "127.0.0.1";
+constexpr int DATADIODE_SEND_PORT = 40000;
 
 using namespace std;
+
+struct Arguments {
+  string gmx_host;
+  int gmx_port;
+  string ddout_host;
+  int ddout_port;
+};
 
 /*
  * Required to catch SIGPIPE signal to prevent the closing of the application.
@@ -40,12 +48,13 @@ void signal_sigpipe_cb (int signum) {
   // Do nothing!
 }
 
-void thread_datadiode_send (bool* running, queue<string>* queueSend) {
+void thread_datadiode_send (Arguments args, bool* running, queue<string>* queueSend) {
   char buffer[BUFFER_SIZE];
 
-  UDPClient udpClient(DATA_DIODE_SEND_HOST, DATADIODE_SEND_PORT);
+  UDPClient udpClient(args.ddout_host, args.ddout_port);
   udpClient.initialize();
 
+  cout << "thread_datadiode_send: UDP client sending data to host '" << args.ddout_host << "' and port '" << args.ddout_port << "'" << endl;
   while ( *running ) {
     while ( !queueSend->empty() ) {
       cout << "thread_datadiode_send: Sending over the data-diode send: " << queueSend->front();
@@ -63,8 +72,67 @@ void thread_datadiode_send (bool* running, queue<string>* queueSend) {
 }
 
 /*
+ * Print the help of all the options to the console
+ */
+void help() {
+  cout << "Usage: gmproxyin [OPTION]" << endl << endl;
+  cout << "Options and their default values" << endl;
+  cout << "  -g host, --gmx-host=host    host where it needs to connect to get data from gmserver or gmclient [default: " << GMx_HOST << "]" << endl;
+  cout << "  -p port, --gmx-port=port    port where it need to connect to the gmserver ot gmclient            [default: " << GMx_PORT << "]" << endl;
+  cout << "  -d host, --ddout-host=host  host that the UDP data needs to send to the gmproxyout               [default: " << DATA_DIODE_SEND_HOST << "]" << endl;
+  cout << "  -o port, --ddout-port=port  port that the gmproxyout is using                                    [default: " << DATADIODE_SEND_PORT << "]" << endl;
+  cout << "  -h, --help                  show this help page." << endl << endl;
+  cout << "More documentation can be found on https://github.com/macsnoeren/guacamole-datadiode." << endl;
+}
+
+/*
  */
 int main (int argc, char *argv[]) {
+  // Parse the command-line options
+  Arguments arguments;
+  arguments.gmx_host = GMx_HOST;
+  arguments.gmx_port = GMx_PORT;
+  arguments.ddout_host = DATA_DIODE_SEND_HOST;
+  arguments.ddout_port = DATADIODE_SEND_PORT;
+
+  const char* const short_options = "g:p:d:o:h";
+  static struct option long_options[] = {
+    {"gmx-host", optional_argument, nullptr, 'g'},
+    {"gmx-port", optional_argument, nullptr, 'p'},
+    {"ddout-host", optional_argument, nullptr, 'd'},
+    {"ddout-port", optional_argument, nullptr, 'o'},
+    {"help", no_argument, 0, 'h'},
+    {0, 0, 0, 0}
+  };
+
+  int opt;
+  while ( (opt = getopt_long(argc, argv, short_options, long_options, nullptr)) != -1 ) { 
+    if ( optarg != nullptr ) {
+      switch(opt) {
+        case 'h':
+          help(); return 0;
+          break;
+        case 'g':
+          arguments.gmx_host = string(optarg);
+          break;
+        case 'p':
+          arguments.gmx_port = stoi(optarg);
+          break;
+        case 'd':
+          arguments.ddout_host = string(optarg);
+          break;
+        case 'o':
+          arguments.ddout_port = stoi(optarg);
+          break;
+        default:
+          help(); return 0;
+      }
+    } else {
+      help(); return 0;
+    }
+  }
+
+  // Main
   bool running = true;
   char buffer[BUFFER_SIZE];
 
@@ -72,13 +140,13 @@ int main (int argc, char *argv[]) {
 
   queue<string> queueDataDiodeSend;
 
-  thread threadDataDiodeSend(thread_datadiode_send, &running, &queueDataDiodeSend);
+  thread threadDataDiodeSend(thread_datadiode_send, arguments, &running, &queueDataDiodeSend);
 
-  TCPClient tcpClientGmServer(GMx_HOST, GMx_PORT);
+  TCPClient tcpClientGmServer(arguments.gmx_host, arguments.gmx_port);
   tcpClientGmServer.initialize();
 
   while ( running ) {
-    cout << "Try to connect to the GMServer on host " << GMx_HOST << " on port " << GMx_PORT << endl;
+    cout << "Try to connect to the GMServer on host " << arguments.gmx_host << " on port " << arguments.gmx_port << endl;
     if ( tcpClientGmServer.start() == 0 ) {
       cout << "Connected with the GMServer" << endl;
 

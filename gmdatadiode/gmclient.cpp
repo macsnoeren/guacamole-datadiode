@@ -183,7 +183,7 @@ void help() {
   cout << "  -g host, --guacd-host=host  host where guacd is running to connect with [default: " << GUACD_HOST << "]" << endl;
   cout << "  -p port, --guacd-port=port  port where the guacd service is running     [default: " << GUACD_PORT << "]" << endl;
   cout << "  -i port, --ddin-port=port   port that the gmproxyin needs to connect to [default: " << DATADIODE_RECV_PORT << "]" << endl;
-  cout << "  -o port, --ddout-port=port  port that the gmproxyou needs to connect to [default: " << DATADIODE_SEND_PORT << "]" << endl;
+  cout << "  -o port, --ddout-port=port  port that the gmproxyout needs to connect to [default: " << DATADIODE_SEND_PORT << "]" << endl;
   cout << "  -h, --help                  show this help page." << endl << endl;
   cout << "More documentation can be found on https://github.com/macsnoeren/guacamole-datadiode." << endl;
 }
@@ -201,7 +201,7 @@ int main (int argc, char *argv[]) {
   arguments.ddin_port  = DATADIODE_RECV_PORT;
   arguments.ddout_port = DATADIODE_SEND_PORT;
 
-  const char* const short_options = "g:p:i:o:h:";
+  const char* const short_options = "g:p:i:o:h";
   static struct option long_options[] = {
     {"guacd-host", optional_argument, nullptr, 'g'},
     {"guacd-port", optional_argument, nullptr, 'p'},
@@ -344,4 +344,3 @@ int main (int argc, char *argv[]) {
   
   return 0;
 }
-
