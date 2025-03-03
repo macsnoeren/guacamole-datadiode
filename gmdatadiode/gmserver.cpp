@@ -274,11 +274,11 @@ string createUniqueId () {
 void help() {
   cout << "Usage: gmserver [OPTION]" << endl << endl;
   cout << "Options and their default values" << endl;
-  cout << "  -c num, --max-clients=num   maximal connections that the Guacamole web client can make [default: " << GUACAMOLE_MAX_CLIENTS << "]" << endl;
-  cout << "  -p port, --port=port        port where the Guacamole wev client is connecting to       [default: " << GUACAMOLE_PORT << "]" << endl;
-  cout << "  -i port, --ddin-port=port   port that the gmproxyin needs to connect to                [default: " << DATADIODE_RECV_PORT << "]" << endl;
-  cout << "  -o port, --ddout-port=port  port that the gmproxyou needs to connect to                [default: " << DATADIODE_SEND_PORT << "]" << endl;
-  cout << "  -h, --help                  show this help page." << endl << endl;
+  cout << "  -c num, --max-clients=num  maximal connections that the Guacamole web client can make [default: " << GUACAMOLE_MAX_CLIENTS << "]" << endl;
+  cout << "  -p port, --port=port       port where the Guacamole wev client is connecting to       [default: " << GUACAMOLE_PORT << "]" << endl;
+  cout << "  -i port, --ddin-port=port  port that the gmproxyin needs to connect to                [default: " << DATADIODE_RECV_PORT << "]" << endl;
+  cout << "  -o port, --ddout-port=port port that the gmproxyou needs to connect to                [default: " << DATADIODE_SEND_PORT << "]" << endl;
+  cout << "  -h, --help                 show this help page." << endl << endl;
   cout << "More documentation can be found on https://github.com/macsnoeren/guacamole-datadiode." << endl;
 }
 

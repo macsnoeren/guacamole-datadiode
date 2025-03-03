@@ -77,11 +77,11 @@ void thread_datadiode_send (Arguments args, bool* running, queue<string>* queueS
 void help() {
   cout << "Usage: gmproxyin [OPTION]" << endl << endl;
   cout << "Options and their default values" << endl;
-  cout << "  -g host, --gmx-host=host    host where it needs to connect to get data from gmserver or gmclient [default: " << GMx_HOST << "]" << endl;
-  cout << "  -p port, --gmx-port=port    port where it need to connect to the gmserver ot gmclient            [default: " << GMx_PORT << "]" << endl;
-  cout << "  -d host, --ddout-host=host  host that the UDP data needs to send to the gmproxyout               [default: " << DATA_DIODE_SEND_HOST << "]" << endl;
-  cout << "  -o port, --ddout-port=port  port that the gmproxyout is using                                    [default: " << DATADIODE_SEND_PORT << "]" << endl;
-  cout << "  -h, --help                  show this help page." << endl << endl;
+  cout << "  -g host, --gmx-host=host   host where it needs to connect to get data from gmserver or gmclient [default: " << GMx_HOST << "]" << endl;
+  cout << "  -p port, --gmx-port=port   port where it need to connect to the gmserver ot gmclient            [default: " << GMx_PORT << "]" << endl;
+  cout << "  -d host, --ddout-host=host host that the UDP data needs to send to the gmproxyout               [default: " << DATA_DIODE_SEND_HOST << "]" << endl;
+  cout << "  -o port, --ddout-port=port port that the gmproxyout is using                                    [default: " << DATADIODE_SEND_PORT << "]" << endl;
+  cout << "  -h, --help                 show this help page." << endl << endl;
   cout << "More documentation can be found on https://github.com/macsnoeren/guacamole-datadiode." << endl;
 }
 
