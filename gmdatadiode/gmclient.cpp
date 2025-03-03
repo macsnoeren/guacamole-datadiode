@@ -101,15 +101,15 @@ void thread_guacd_client_recv (bool* running, TCPClientHandle* tcpClientHandle, 
  *        messages.
  * @return void
  */
-void thread_datadiode_send (bool* running, queue<string>* queueSend) {
+void thread_datadiode_send (Arguments args, bool* running, queue<string>* queueSend) {
   char buffer[BUFFER_SIZE];
 
-  TCPServer tcpServerSend(DATADIODE_SEND_PORT, 1);
+  TCPServer tcpServerSend(args.ddout_port, 1);
   tcpServerSend.initialize();
   tcpServerSend.start();
 
   while ( *running ) {
-    cout << "thread_datadiode_send: Waiting on sending data-diode proxy client connection" << endl;
+    cout << "thread_datadiode_send: Waiting on sending data-diode proxy client connection on port '" << args.ddout_port << "'" << endl;
     TCPServerClient* tcpClient = tcpServerSend.accept();
     if ( tcpClient != NULL ) {
       bool active = true;
@@ -137,15 +137,15 @@ void thread_datadiode_send (bool* running, queue<string>* queueSend) {
 /*
  * Here new clients needs to be made by the function if a new connection comes by.
  */
-void thread_datadiode_recv (bool* running, unordered_map<string, TCPClientHandle*>* guacdClients, queue<string>* queueSend, queue<string>* queueRecv) {
+void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string, TCPClientHandle*>* guacdClients, queue<string>* queueSend, queue<string>* queueRecv) {
   char buffer[BUFFER_SIZE];
 
-  TCPServer tcpServerRecv(DATADIODE_RECV_PORT, 1);
+  TCPServer tcpServerRecv(args.ddin_port, 1);
   tcpServerRecv.initialize();
   tcpServerRecv.start();
 
   while ( *running ) {
-    cout << "thread_datadiode_recv: Waiting on receive data-diode proxy client connection" << endl;
+    cout << "thread_datadiode_recv: Waiting on receive data-diode proxy client connection on port '" << args.ddin_port << "'" << endl;
     TCPServerClient* tcpClient = tcpServerRecv.accept();
     if ( tcpClient != NULL ) {
       bool active = true;
@@ -180,11 +180,11 @@ void thread_datadiode_recv (bool* running, unordered_map<string, TCPClientHandle
 void help() {
   cout << "Usage: gmclient [OPTION]" << endl << endl;
   cout << "Options and their default values" << endl;
-  cout << "  -g, --guacd-host  host where guacd is running to connect with [default: 127.0.0.1]" << endl;
-  cout << "  -p, --guacd-port  port where the guacd service is running     [default: 4822]" << endl;
-  cout << "  -i, --ddin-port   port that the gmproxyin needs to connect to [default: 10000]" << endl;
-  cout << "  -o, --ddout-port  port that the gmproxyou needs to connect to [default: 20000]" << endl;
-  cout << "  -h, --help    show this help page." << endl << endl;
+  cout << "  -g host, --guacd-host=host  host where guacd is running to connect with [default: 127.0.0.1]" << endl;
+  cout << "  -p port, --guacd-port=port  port where the guacd service is running     [default: 4822]" << endl;
+  cout << "  -i port, --ddin-port=port   port that the gmproxyin needs to connect to [default: 10000]" << endl;
+  cout << "  -o port, --ddout-port=port  port that the gmproxyou needs to connect to [default: 20000]" << endl;
+  cout << "  -h, --help                  show this help page." << endl << endl;
   cout << "More documentation can be found on https://github.com/macsnoeren/guacamole-datadiode." << endl;
 }
 
@@ -194,10 +194,14 @@ void help() {
  * accept connections from the Guacamole web client.
  */
 int main (int argc, char *argv[]) {
-  /* options */
+  /* Processing the arguments */
   Arguments arguments;
+  arguments.guacd_host = GUACD_HOST;
+  arguments.guacd_port = GUACD_PORT;
+  arguments.ddin_port  = DATADIODE_RECV_PORT;
+  arguments.ddout_port = DATADIODE_SEND_PORT;
 
-  const char* const short_options = ":g:p:i:o:h";
+  const char* const short_options = "g:p:i:o:h:";
   static struct option long_options[] = {
     {"guacd-host", optional_argument, nullptr, 'g'},
     {"guacd-port", optional_argument, nullptr, 'p'},
@@ -209,26 +213,30 @@ int main (int argc, char *argv[]) {
 
   int opt;
   while ( (opt = getopt_long(argc, argv, short_options, long_options, nullptr)) != -1 ) { 
-    switch(opt) {
-      case 'h':
-        help(); return 0;
-        break;
-      case 'g':
-        cout << "option: " << string(optarg) << endl;
-        break;
-      case 'p':
-        cout << "option: " << stoi(optarg) << endl;
-        break;
-      case 'i':
-        cout << "option: " << stoi(optarg) << endl;
-        break;
-      case 'o':
-        cout << "option: " << stoi(optarg) << endl;
-        break;
+    if ( optarg != nullptr ) {
+      switch(opt) {
+        case 'h':
+          help(); return 0;
+          break;
+        case 'g':
+          arguments.guacd_host = string(optarg);
+          break;
+        case 'p':
+          arguments.guacd_port = stoi(optarg);
+          break;
+        case 'i':
+          arguments.ddin_port = stoi(optarg);
+          break;
+        case 'o':
+          arguments.ddout_port = stoi(optarg);
+          break;
+        default:
+          help(); return 0;
+      }
+    } else {
+      help(); return 0;
     }
-
   }
-
 
   /* main */
   bool running = true;
@@ -239,13 +247,13 @@ int main (int argc, char *argv[]) {
   queue<string> queueDataDiodeRecv;
   unordered_map<string, TCPClientHandle*> guacdClientHandles;
 
-  thread t1(thread_datadiode_send, &running, &queueDataDiodeSend);
-  thread t2(thread_datadiode_recv, &running, &guacdClientHandles, &queueDataDiodeSend, &queueDataDiodeRecv);
+  thread t1(thread_datadiode_send, arguments, &running, &queueDataDiodeSend);
+  thread t2(thread_datadiode_recv, arguments, &running, &guacdClientHandles, &queueDataDiodeSend, &queueDataDiodeRecv);
   t1.detach();
   t2.detach();
 
   while ( running ) {
-    //sleep(HEARTBEAT_PUSLE);
+    //sleep(HEARTBEAT_PUSLE); // TODO?!
     //queueDataDiodeSend.push("13.GMS_HEARTBEAT;");
 
     // Process the recv queue
@@ -258,7 +266,9 @@ int main (int argc, char *argv[]) {
 
       if ( findGmsOpcode( queueDataDiodeRecv.front().c_str(), opcode, value, &offset ) ) { // Found GMS info
         if ( strcmp(opcode, "GMS_NEW") == 0 ) {
-          TCPClient* tcpClient = new TCPClient(GUACD_HOST, GUACD_PORT);
+          //TCPClient* tcpClient = new TCPClient(GUACD_HOST, GUACD_PORT);
+          cout << "Connecting to guacd on host '" << arguments.guacd_host << "' and port '" << arguments.guacd_port << "'" << endl;
+          TCPClient* tcpClient = new TCPClient(arguments.guacd_host, arguments.guacd_port);
           tcpClient->initialize();
           if ( tcpClient->start() == 0 ) { // Connected!
             cout << "thread_datadiode_recv: Connected with guacd server" << endl;

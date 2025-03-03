@@ -124,14 +124,10 @@ public:
             return -2;
         }
 
-        std::cout << "start: TCP/IP server listening on port " << this->port << std::endl;
-
         return 0;
     }
 
     TCPServerClient* accept () {
-        std::cout << "accept: Waiting for a client to connect" << std::endl;
-
         struct sockaddr_in socketAddrClient;
         socklen_t socketLenClient;
 
