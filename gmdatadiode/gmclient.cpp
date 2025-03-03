@@ -22,6 +22,7 @@ If not, see https://www.gnu.org/licenses/.
 #include <unordered_map>
 
 #include <guacamole/util.h>
+#include <guacamole/validator.hpp>
 #include <tcpserver.hpp>
 #include <tcpclient.hpp>
 
@@ -54,6 +55,7 @@ void thread_guacd_client_recv (bool* running, TCPClientHandle* tcpClientHandle, 
   char buffer[BUFFER_SIZE];
   
   TCPClient* tcpClient = tcpClientHandle->tcpClient;
+  ProtocolValidator v;
 
   while ( tcpClientHandle->running ) {
     //cout << "Waiting on data from the guacd client '" << tcpClientHandle->ID << "'" << endl;
@@ -63,11 +65,12 @@ void thread_guacd_client_recv (bool* running, TCPClientHandle* tcpClientHandle, 
       cout << "Recv from guacd '" << tcpClientHandle->ID << "': " << buffer;
 
       // Add the connection data to the data to be send.
-      char gmssel[50] = "";
-      sprintf(gmssel, "7.GMS_SEL,%d.%s;", tcpClientHandle->ID.length(), tcpClientHandle->ID.c_str());
+      sprintf(buffer, "7.GMS_SEL,%d.%s;%s", tcpClientHandle->ID.length(), tcpClientHandle->ID.c_str(), buffer);
     
+      // **** protocol validation!
+      v.processData(buffer, strlen(buffer));
       // Send the data over the data-diode
-      queueSend->push(gmssel + string(buffer));
+      //queueSend->push(gmssel + string(buffer));
       
     } else if ( n == 0 ) { // Peer properly shutted down!
       cout << "Client connection shutted down" << endl;

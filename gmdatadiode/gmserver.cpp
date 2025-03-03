@@ -24,9 +24,10 @@ If not, see https://www.gnu.org/licenses/.
 #include <unordered_map>
 
 #include <guacamole/util.h>
+#include <guacamole/validator.hpp>
 #include <tcpserver.hpp>
 
-constexpr int BUFFER_SIZE = 1024;
+constexpr int BUFFER_SIZE = 10240;
 constexpr int GUACAMOLE_MAX_CLIENTS = 25;
 constexpr int GUACAMOLE_PORT = 4822;
 constexpr int DATADIODE_SEND_PORT = 10000;
@@ -108,6 +109,7 @@ void thread_datadiode_send (Arguments args, bool* running, queue<string>* queueS
 void thread_datadiode_recv (Arguments args, bool* running, queue<string>* queueRecv) {
   char buffer[BUFFER_SIZE];
 
+  ProtocolValidator valFromDatadiode(queueRecv);
   TCPServer tcpServerRecv(args.ddin_port, 1);
   tcpServerRecv.initialize();
   tcpServerRecv.start();
@@ -122,10 +124,9 @@ void thread_datadiode_recv (Arguments args, bool* running, queue<string>* queueR
         ssize_t n = tcpClient->receiveFrom(buffer, BUFFER_SIZE);
         if ( n  > 0 ) { // Received message from receiving data-diode
           buffer[n] = '\0';
-          char temp[25];
-          strncpy(temp, buffer, 24);
-          cout << "Receive data-diode data: " << temp << "..." << endl;//buffer;
-          queueRecv->push(string(buffer));
+          cout << "Receive data-diode data: " << buffer << "..." << endl;
+          valFromDatadiode.processData(buffer, strlen(buffer));
+          //queueRecv->push(string(buffer));
 
         } else if ( n == 0 ) { // Peer properly shutted down!
           tcpClient->closeSocket();
@@ -151,20 +152,20 @@ void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuac
   char buffer[BUFFER_SIZE];
   bool active = true;
 
+  ProtocolValidator valFromGuacamole(queueSend);
   TCPServerClient* tcpGuacamoleClient = tcpGuacamoleClientHandle->tcpClient; 
 
   while ( *running && tcpGuacamoleClientHandle->running ) {
     ssize_t n = tcpGuacamoleClient->receiveFrom(buffer, BUFFER_SIZE);
     if ( tcpGuacamoleClientHandle->running && n  > 0 ) { // Received message from Guacamole client, possible that the socket has been closed
       buffer[n] = '\0';
-      cout << "Received data: " << buffer;
+      cout << "Recv Guacamole: " << buffer;
 
       // Add the connection data to the data to be send.
-      char gmssel[50] = "";
-      sprintf(gmssel, "7.GMS_SEL,%d.%s;", tcpGuacamoleClientHandle->ID.length(), tcpGuacamoleClientHandle->ID.c_str());
+      char temp[BUFFER_SIZE];
+      sprintf(temp, "7.GMS_SEL,%d.%s;%s", tcpGuacamoleClientHandle->ID.length(), tcpGuacamoleClientHandle->ID.c_str(), buffer);
       
-      // Send the data over the data-diode
-      queueSend->push(gmssel + string(buffer));
+      valFromGuacamole.processData(temp, strlen(temp));
 
     } else if ( n == 0 ) { // Peer properly shutted down!
       cout << "thread_guacamole_client_recv: Peer Guacamole web shutted down" << endl;
@@ -204,6 +205,8 @@ void thread_guacamole_client_send (bool* running, unordered_map<string, TCPServe
       char opcode[50];
       char value[50];
       long offset = 0;
+
+      // TODO: all opcode come seperately, process it
 
       if ( findGmsOpcode( queueRecv->front().c_str(), opcode, value, &offset ) ) { // Found GMS info
         if ( guacamoleClients->find(string(value)) != guacamoleClients->end() ) { // Found assiocated 
