@@ -180,10 +180,10 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
 void help() {
   cout << "Usage: gmclient [OPTION]" << endl << endl;
   cout << "Options and their default values" << endl;
-  cout << "  -g host, --guacd-host=host  host where guacd is running to connect with [default: 127.0.0.1]" << endl;
-  cout << "  -p port, --guacd-port=port  port where the guacd service is running     [default: 4822]" << endl;
-  cout << "  -i port, --ddin-port=port   port that the gmproxyin needs to connect to [default: 10000]" << endl;
-  cout << "  -o port, --ddout-port=port  port that the gmproxyou needs to connect to [default: 20000]" << endl;
+  cout << "  -g host, --guacd-host=host  host where guacd is running to connect with [default: " << GUACD_HOST << "]" << endl;
+  cout << "  -p port, --guacd-port=port  port where the guacd service is running     [default: " << GUACD_PORT << "]" << endl;
+  cout << "  -i port, --ddin-port=port   port that the gmproxyin needs to connect to [default: " << DATADIODE_RECV_PORT << "]" << endl;
+  cout << "  -o port, --ddout-port=port  port that the gmproxyou needs to connect to [default: " << DATADIODE_SEND_PORT << "]" << endl;
   cout << "  -h, --help                  show this help page." << endl << endl;
   cout << "More documentation can be found on https://github.com/macsnoeren/guacamole-datadiode." << endl;
 }
