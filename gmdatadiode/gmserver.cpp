@@ -122,7 +122,9 @@ void thread_datadiode_recv (Arguments args, bool* running, queue<string>* queueR
         ssize_t n = tcpClient->receiveFrom(buffer, BUFFER_SIZE);
         if ( n  > 0 ) { // Received message from receiving data-diode
           buffer[n] = '\0';
-          cout << "Receive data-diode data: " << buffer;
+          char temp[25];
+          strncpy(temp, buffer, 24);
+          cout << "Receive data-diode data: " << temp << "..." << endl;//buffer;
           queueRecv->push(string(buffer));
 
         } else if ( n == 0 ) { // Peer properly shutted down!
@@ -276,8 +278,8 @@ void help() {
   cout << "Options and their default values" << endl;
   cout << "  -c num, --max-clients=num  maximal connections that the Guacamole web client can make [default: " << GUACAMOLE_MAX_CLIENTS << "]" << endl;
   cout << "  -p port, --port=port       port where the Guacamole wev client is connecting to       [default: " << GUACAMOLE_PORT << "]" << endl;
-  cout << "  -i port, --ddin-port=port  port that the gmproxyin needs to connect to                [default: " << DATADIODE_RECV_PORT << "]" << endl;
-  cout << "  -o port, --ddout-port=port port that the gmproxyou needs to connect to                [default: " << DATADIODE_SEND_PORT << "]" << endl;
+  cout << "  -i port, --ddin-port=port  port that the gmproxyout needs to connect to               [default: " << DATADIODE_RECV_PORT << "]" << endl;
+  cout << "  -o port, --ddout-port=port port that the gmproxyin needs to connect to                [default: " << DATADIODE_SEND_PORT << "]" << endl;
   cout << "  -h, --help                 show this help page." << endl << endl;
   cout << "More documentation can be found on https://github.com/macsnoeren/guacamole-datadiode." << endl;
 }

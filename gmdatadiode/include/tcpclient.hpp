@@ -49,18 +49,23 @@ public:
     }
 
     int start () {
-        if ( (this->socketFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0 ) {
+        //if ( (this->socketFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0 ) {
+        if ( (this->socketFd = socket(AF_INET, SOCK_STREAM, 0)) < 0 ) {
             this->error("initialize: Socket failure");
             return -1;
         }
 
-        bzero(&this->socketAddrServer, sizeof(struct sockaddr_in));
-
+        memset(&this->socketAddrServer, '\0', sizeof(this->socketAddrServer));
         this->socketAddrServer.sin_family = AF_INET;
-        this->socketAddrServer.sin_addr.s_addr = inet_addr(this->host.c_str());
+        //this->socketAddrServer.sin_addr.s_addr = inet_addr(this->host.c_str()); // Use inet_aton instead!
         this->socketAddrServer.sin_port = htons(this->port);
 
-        return connect(this->socketFd, (struct sockaddr*) &this->socketAddrServer, sizeof(struct sockaddr_in));
+        if ( inet_aton(this->host.c_str(), &(this->socketAddrServer.sin_addr)) == 0 ) {
+            std::cout << "tcpClient: Error: Address '" << this->host << "' is an invalid address" << std::endl;
+            return -1;
+        } 
+
+        return connect(this->socketFd, (struct sockaddr*) &this->socketAddrServer, sizeof(this->socketAddrServer));
     }
 
     void error (const char* error) {
@@ -68,11 +73,13 @@ public:
     }
 
     ssize_t sendTo(const char* buffer, size_t bufferLength) {
-        return sendto(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrServer, sizeof(this->socketAddrServer));	
+        //return sendto(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrServer, sizeof(this->socketAddrServer));
+        return send(this->socketFd, buffer, bufferLength, 0);	
     }
 
     ssize_t receiveFrom (char* buffer, size_t bufferLength) {
-        return recvfrom(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrServer, &this->socketLen);
+        //return recvfrom(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrServer, &this->socketLen);
+        return recv(this->socketFd, buffer, bufferLength, 0);
     }
 
     int closeSocket () {

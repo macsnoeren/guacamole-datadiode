@@ -26,8 +26,8 @@ If not, see https://www.gnu.org/licenses/.
 
 constexpr int BUFFER_SIZE = 1024;
 constexpr const char GMx_HOST[] = "127.0.0.1";
-constexpr int GMx_PORT = 20000; // IN
-constexpr int DATADIODE_RECV_PORT = 40000;
+constexpr int GMx_PORT = 20000; // GMserver IN
+constexpr int DATA_DIODE_RECV_PORT = 40000;
 
 using namespace std;
 
@@ -78,7 +78,7 @@ void help() {
   cout << "Options and their default values" << endl;
   cout << "  -g host, --gmx-host=host  host where it needs to connect to send data from gmserver or gmclient [default: " << GMx_HOST << "]" << endl;
   cout << "  -p port, --gmx-port=port  port where it need to connect to the gmserver ot gmclient             [default: " << GMx_PORT << "]" << endl;
-  cout << "  -i port, --ddin-port=port port that the data is received from gmproxyin on UDP port             [default: " << DATADIODE_RECV_PORT << "]" << endl;
+  cout << "  -i port, --ddin-port=port port that the data is received from gmproxyin on UDP port             [default: " << DATA_DIODE_RECV_PORT << "]" << endl;
   cout << "  -h, --help                show this help page." << endl << endl;
   cout << "More documentation can be found on https://github.com/macsnoeren/guacamole-datadiode." << endl;
 }
@@ -90,7 +90,7 @@ int main (int argc, char *argv[]) {
   Arguments arguments;
   arguments.gmx_host = GMx_HOST;
   arguments.gmx_port = GMx_PORT;
-  arguments.ddin_port = DATADIODE_RECV_PORT;
+  arguments.ddin_port = DATA_DIODE_RECV_PORT;
 
   const char* const short_options = "g:p:i:h";
   static struct option long_options[] = {

@@ -26,9 +26,9 @@ If not, see https://www.gnu.org/licenses/.
 
 constexpr int BUFFER_SIZE = 1024;
 constexpr const char GMx_HOST[] = "127.0.0.1";
-constexpr int GMx_PORT = 10000; // OUT
+constexpr int GMx_PORT = 10000; // Get data GMserver out
 constexpr const char DATA_DIODE_SEND_HOST[] = "127.0.0.1";
-constexpr int DATADIODE_SEND_PORT = 40000;
+constexpr int DATA_DIODE_SEND_PORT = 40000;
 
 using namespace std;
 
@@ -62,6 +62,7 @@ void thread_datadiode_send (Arguments args, bool* running, queue<string>* queueS
       if ( n >= 0 ) {
         queueSend->pop();
       } else {
+        perror("Waht happened?");
         cout << "thread_datadiode_send: Error with client during sending data" << endl;
         // TODO: What do we need to do here?!
       }
@@ -80,7 +81,7 @@ void help() {
   cout << "  -g host, --gmx-host=host   host where it needs to connect to get data from gmserver or gmclient [default: " << GMx_HOST << "]" << endl;
   cout << "  -p port, --gmx-port=port   port where it need to connect to the gmserver ot gmclient            [default: " << GMx_PORT << "]" << endl;
   cout << "  -d host, --ddout-host=host host that the UDP data needs to send to the gmproxyout               [default: " << DATA_DIODE_SEND_HOST << "]" << endl;
-  cout << "  -o port, --ddout-port=port port that the gmproxyout is using                                    [default: " << DATADIODE_SEND_PORT << "]" << endl;
+  cout << "  -o port, --ddout-port=port port that the gmproxyout is using                                    [default: " << DATA_DIODE_SEND_PORT << "]" << endl;
   cout << "  -h, --help                 show this help page." << endl << endl;
   cout << "More documentation can be found on https://github.com/macsnoeren/guacamole-datadiode." << endl;
 }
@@ -93,7 +94,7 @@ int main (int argc, char *argv[]) {
   arguments.gmx_host = GMx_HOST;
   arguments.gmx_port = GMx_PORT;
   arguments.ddout_host = DATA_DIODE_SEND_HOST;
-  arguments.ddout_port = DATADIODE_SEND_PORT;
+  arguments.ddout_port = DATA_DIODE_SEND_PORT;
 
   const char* const short_options = "g:p:d:o:h";
   static struct option long_options[] = {
@@ -146,26 +147,26 @@ int main (int argc, char *argv[]) {
   tcpClientGmServer.initialize();
 
   while ( running ) {
-    cout << "Try to connect to the GMServer on host " << arguments.gmx_host << " on port " << arguments.gmx_port << endl;
+    cout << "Try to connect to the GMServer on host '" << arguments.gmx_host << "' on port " << arguments.gmx_port << endl;
     if ( tcpClientGmServer.start() == 0 ) {
       cout << "Connected with the GMServer" << endl;
-
       bool active = true;
       while ( active ) {
         cout << "Waiting on data from the GMServer" << endl;
         ssize_t n = tcpClientGmServer.receiveFrom(buffer, BUFFER_SIZE);
         if ( n  > 0 ) { // Received message from receiving data-diode
           buffer[n] = '\0';
-          cout << "Receive data: " << buffer;
+          cout << "GMServer: Receive data: " << buffer;
           queueDataDiodeSend.push(string(buffer));
 
         } else if ( n == 0 ) { // Peer properly shutted down!
-          cout << "Client connection shutted down" << endl;
+          cout << "GMServer: Client connection shutted down" << endl;
           tcpClientGmServer.closeSocket();
           active = false;
           
         } else { // Problem with the client
-          cout << "Error with the client connection" << endl;
+          perror("What happened: ");
+          cout << "GMServer: Error with the client connection" << endl;
           tcpClientGmServer.closeSocket();      
           active = false;
         }

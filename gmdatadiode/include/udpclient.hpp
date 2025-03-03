@@ -65,9 +65,9 @@ public:
         return sendto(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrServer, sizeof(this->socketAddrServer));	
     }
 
-    // Not tested!
     ssize_t receiveFrom (char* buffer, size_t bufferLength) {
-        return recvfrom(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrServer, &this->socketLen);
+        //return recvfrom(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrServer, &this->socketLen);
+        return recv(this->socketFd, buffer, bufferLength, 0);
     }      
     
 };

@@ -60,11 +60,13 @@ public:
     }
 
     ssize_t sendTo(const char* buffer, size_t bufferLength) {
-        return sendto(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrClient, this->socketLenClient);	
+        //return sendto(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrClient, this->socketLenClient);	
+        return send(this->socketFd, buffer, bufferLength, 0);	
     }
 
     ssize_t receiveFrom (char* buffer, size_t bufferLength) {
-        return recvfrom(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrClient, &this->socketLenClient);
+        //return recvfrom(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrClient, &this->socketLenClient);
+        return recv(this->socketFd, buffer, bufferLength, 0);
     }
 
     int closeSocket () {
@@ -96,7 +98,8 @@ public:
     }
 
     int initialize() {
-        if ( (this->socketFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0 ) {
+        //if ( (this->socketFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0 ) {
+        if ( (this->socketFd = socket(AF_INET, SOCK_STREAM, 0)) < 0 ) {
             this->error("initialize: Socket failure");
             return -1;
         }
@@ -106,6 +109,7 @@ public:
             return -2;
         }
 
+        memset(&this->socketAddrServer, '\0', sizeof(this->socketAddrServer));
         this->socketAddrServer.sin_family = AF_INET;
         this->socketAddrServer.sin_addr.s_addr = INADDR_ANY; // TODO: configurable?
         this->socketAddrServer.sin_port = htons(this->port);

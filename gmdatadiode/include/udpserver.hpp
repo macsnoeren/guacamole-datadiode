@@ -61,7 +61,7 @@ public:
         }
 
         this->socketAddrServer.sin_family = AF_INET;
-        this->socketAddrServer.sin_addr.s_addr = INADDR_ANY; // TODO: configurable?
+        this->socketAddrServer.sin_addr.s_addr = htonl(INADDR_ANY); // TODO: configurable?
         this->socketAddrServer.sin_port = htons(this->port);
 
         return 0;
@@ -77,11 +77,13 @@ public:
     }
 
     ssize_t sendTo(char* buffer, size_t bufferLength) {
-        return sendto(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrServer, this->socketLen);	
+        //return sendto(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrServer, this->socketLen);
+        return send(this->socketFd, buffer, bufferLength, 0);	
     }
 
     ssize_t receiveFrom (char* buffer, size_t bufferLength) {
-        return recvfrom(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrServer, &this->socketLen);
+        //return recvfrom(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrServer, &this->socketLen);
+        return recv(this->socketFd, buffer, bufferLength, 0);
     }   
 
 };
