@@ -19,6 +19,8 @@ If not, see https://www.gnu.org/licenses/.
 #include <string.h>
 #include <queue>
 
+constexpr int VALIDATOR_BUFFER_SIZE = 10240;
+
 // State that is used to validate the protocol.
 enum class PROTOCOL_VALIDATOR_STATE {
     START,
@@ -45,12 +47,13 @@ private:
     PROTOCOL_VALIDATOR_STATE state;
     PROTOCOL_VALIDATOR_ELEMENT element;
 
-    std::string stringLength;  // Contains the characters of the length
-    std::string processedData; // Contains the processed data to show when an error occurs
-    std::string opcode;        // The opcode that has been found.
-    long valueLength;          // The real length converted from the string to be used by the validation.
+    char processedData[VALIDATOR_BUFFER_SIZE]; // Processed data can become much bigger than string <2048
+    long pdIndex;                    // Pointer of the buffer.
+    std::string stringLength;        // Contains the characters of the length
+    std::string opcode;              // The opcode that has been found.
+    long valueLength;                // The real length converted from the string to be used by the validation.
 
-    std::queue<std::string>* queueInstructions; // OPCODE.ARG1,...,ARGVn;
+    std::queue<char*> data;          // Validated data per opcode (OPCODE.ARG1,...,ARGVn;)
 
 protected:
     /*
@@ -58,13 +61,14 @@ protected:
      * @param char c the byte extracted from the data stream.
      */
     void processByte (char c) {
-        this->processedData += c;
+        this->processedData[this->pdIndex] = c; this->pdIndex++;
 
         switch (this->state) {
         case PROTOCOL_VALIDATOR_STATE::START: // Search for a digit
             if ( c >= '0' and c <= '9' ) {
                 if ( this->element == PROTOCOL_VALIDATOR_ELEMENT::OPCODE ) { // Start with the processed data
-                    this->processedData = c;
+                    this->pdIndex = 0;
+                    this->processedData[this->pdIndex] = c; this->pdIndex++;
                 }
                 this->stringLength = c;
                 this->state = PROTOCOL_VALIDATOR_STATE::LENGTH;
@@ -81,8 +85,7 @@ protected:
                 this->valueLength = std::stol(this->stringLength.c_str());
                 this->state = PROTOCOL_VALIDATOR_STATE::VALUE;
             } else {
-                std::cout << "ERROR(1): " << this->processedData << std::endl;
-                this->processedData == "";
+                std::cout << "ERROR(1)" << std::endl;
                 this->state = PROTOCOL_VALIDATOR_STATE::START;
             }
             break;
@@ -91,17 +94,19 @@ protected:
             if ( this->valueLength == 0 ) { // Read the value
                 if ( c == ',' or c == ';' ) {
                     if ( this->element == PROTOCOL_VALIDATOR_ELEMENT::OPCODE ) {
+                        this->opcode += '\0';
                         std::cout << "Processing opcode: " << this->opcode << std::endl;
                     }
                     if ( c == ';' ) {
-                        std::cout << "Instruction: " << processedData << std::endl;
-                        if ( this->queueInstructions != NULL ) {
-                            this->queueInstructions->push(this->processedData);
-                        }
-                        this->processedData = "";
+                        this->processedData[this->pdIndex] = '\0'; this->pdIndex++;
+                        char* temp = new char[this->pdIndex];
+                        strcpy(temp, this->processedData);
+                        this->data.push(temp);
+                        std::cout << "PORCESSED DATA: " << processedData << std::endl;
+                        this->pdIndex = 0;
+                        this->opcode = ""; // Do not know if this is required!
                     }
                     this->element = ( c == ';' ? PROTOCOL_VALIDATOR_ELEMENT::OPCODE : PROTOCOL_VALIDATOR_ELEMENT::ARGUMENT );
-                    this->opcode = "";
                     this->state = PROTOCOL_VALIDATOR_STATE::START;
                 } else {
                     std::cout << "ERROR(2.1): " << this->processedData << std::endl;
@@ -122,8 +127,8 @@ protected:
     }
 
 public:
-    ProtocolValidator (std::queue<std::string>* queueInstructions = NULL): state(PROTOCOL_VALIDATOR_STATE::START), element(PROTOCOL_VALIDATOR_ELEMENT::OPCODE), stringLength(""), processedData(""), opcode(""), valueLength(0) {
-        this->queueInstructions = queueInstructions;
+    ProtocolValidator (): state(PROTOCOL_VALIDATOR_STATE::START), element(PROTOCOL_VALIDATOR_ELEMENT::OPCODE), pdIndex(0), stringLength(""), opcode(""), valueLength(0) {
+
     }
 
     ~ProtocolValidator () {
@@ -136,13 +141,12 @@ public:
      *        ssize_t dataLength the length of the data that is in the char array.
      */
     void processData (char* data, ssize_t dataLength) {
-        std::cout << "Validate: " << data << std::endl;
         for ( ssize_t i=0; i < dataLength; i++ ) {
             this->processByte(data[i]);
         }
     }
 
-    std::queue<std::string>* getInstructionsQueue () {
-        return this->queueInstructions;
+    std::queue<char*>* getDataQueue() {
+        return &this->data;
     }
 };
