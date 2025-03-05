@@ -158,7 +158,7 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
                   } else { // Not found
                     // Send the close connection over the data-diode.
                     char* gmsclose = new char[50];
-                    sprintf(gmsclose, "9.GMS_CLOSE,%d.%s;", strlen(gmsValue), gmsValue);
+                    sprintf(gmsclose, "9.GMS_CLOSE,%ld.%s;", strlen(gmsValue), gmsValue);
                     queueSend->push(gmsclose);
                   }
                   q->pop();
