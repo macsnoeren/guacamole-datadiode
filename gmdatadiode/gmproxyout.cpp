@@ -24,13 +24,25 @@ If not, see https://www.gnu.org/licenses/.
 #include <udpserver.hpp>
 #include <tcpclient.hpp>
 
-constexpr int BUFFER_SIZE = 10240;
-constexpr const char GMx_HOST[] = "127.0.0.1";
-constexpr int GMx_PORT = 20000; // GMserver IN
-constexpr int DATA_DIODE_RECV_PORT = 40000;
-
 using namespace std;
 
+// Buffer size used to read the messages from gmserver or gmclient.
+constexpr int BUFFER_SIZE = 10240;
+
+// Default host configuration to connect to the gmserver or gmclient.
+constexpr const char GMx_HOST[] = "127.0.0.1";
+
+// Default port configuration to connect to the mserver or gmclient.
+constexpr int GMx_PORT = 20000;
+
+// Default port configuration to accept UDP/IP traffif from gmproxyin.
+constexpr int DATA_DIODE_RECV_PORT = 40000;
+
+/*
+ * Struct that holds the arguments of the application and is used to
+ * provide a centralized configuration to the different parts of the
+ * application.
+ */
 struct Arguments {
   string gmx_host;
   int gmx_port;
@@ -46,6 +58,14 @@ void signal_sigpipe_cb (int signum) {
   // Do nothing!
 }
 
+/*
+ * The thread that is responsible to create an UDP/IP server to receive the UDP/IP
+ * messages from gmproxyin via the data-diode.
+ * 
+ * @param[in] args contains the arguments that are configured by the main application.
+ * @param[in/out] running is used to check if the program is stil running, can also be set.
+ * @param[in] queueRecv is used to push the data that is received to.
+ */
 void thread_datadiode_recv (Arguments args, bool* running, queue<string>* queueRecv) {
   char buffer[BUFFER_SIZE];
 
@@ -54,11 +74,9 @@ void thread_datadiode_recv (Arguments args, bool* running, queue<string>* queueR
   udpServer.start();
 
   while ( *running ) {
-    cout << "Waiting on data from data-diode on port '" << args.ddin_port << "'" << endl;
     ssize_t n = udpServer.receiveFrom(buffer, BUFFER_SIZE);
-    if ( n  > 0 ) { // Received message from receiving data-diode
+    if ( n  > 0 ) {
       buffer[n] = '\0';
-      cout << "Received data-diode data: " << buffer;
       queueRecv->push(string(buffer));
       
     } else { // Problem with the client
@@ -77,21 +95,29 @@ void help() {
   cout << "Usage: gmproxyout [OPTION]" << endl << endl;
   cout << "Options and their default values" << endl;
   cout << "  -g host, --gmx-host=host  host where it needs to connect to send data from gmserver or gmclient [default: " << GMx_HOST << "]" << endl;
-  cout << "  -p port, --gmx-port=port  port where it need to connect to the gmserver ot gmclient             [default: " << GMx_PORT << "]" << endl;
+  cout << "  -p port, --gmx-port=port  port where it need to connect to the gmserver or gmclient             [default: " << GMx_PORT << "]" << endl;
   cout << "  -i port, --ddin-port=port port that the data is received from gmproxyin on UDP port             [default: " << DATA_DIODE_RECV_PORT << "]" << endl;
   cout << "  -h, --help                show this help page." << endl << endl;
   cout << "More documentation can be found on https://github.com/macsnoeren/guacamole-datadiode." << endl;
 }
 
 /*
+ * Main application where it all starts. It create the thread to receive the UDP/IP data from
+ * the gmproxyin. It checks the queue and will send the queue to the gmserver or gmclient.
+ * @param[in] argc is the number of arguments that are available.
+ * @param[in] argv[] is the list of arguments that are given by the command line.
+ * @return exit status is returned.
  */
 int main (int argc, char *argv[]) {
-  // Parse command-line options
+  signal(SIGPIPE, signal_sigpipe_cb); // SIGPIPE closes application and is issued when sendto is called when peer is closed.
+
+  // Create the default configuration.
   Arguments arguments;
   arguments.gmx_host = GMx_HOST;
   arguments.gmx_port = GMx_PORT;
   arguments.ddin_port = DATA_DIODE_RECV_PORT;
 
+  // Create the short and long options of the application.
   const char* const short_options = "g:p:i:h";
   static struct option long_options[] = {
     {"gmx-host", optional_argument, nullptr, 'g'},
@@ -125,38 +151,37 @@ int main (int argc, char *argv[]) {
     }
   }
 
-  // Main
+  // Create the running variable, buffer and queue.
   bool running = true;
   char buffer[BUFFER_SIZE];
-
-  signal(SIGPIPE, signal_sigpipe_cb); // SIGPIPE closes application and is issued when sendto is called when peer is closed.
-
   queue<string> queueDataDiodeRecv;
 
-  thread threadDataDiodeRecv(thread_datadiode_recv, arguments, &running, &queueDataDiodeRecv);
+  // Create the thread to receive the data-diode data from gmproxyin.
+  thread t(thread_datadiode_recv, arguments, &running, &queueDataDiodeRecv);
+  t.detach();
 
-  TCPClient tcpClientGmServer(arguments.gmx_host, arguments.gmx_port);
-  tcpClientGmServer.initialize();
+  // Create the connection with the gmserver of gmclient (gmx) and process the queue.
+  TCPClient tcpClientGmx(arguments.gmx_host, arguments.gmx_port);
+  tcpClientGmx.initialize();
 
+  cout << "Connecting to the gmserver ot gmclient " << arguments.gmx_host << ":" << arguments.gmx_port << endl;
   while ( running ) {
-    cout << "Try to connect to the GMServer on host " << arguments.gmx_host << " on port " << arguments.gmx_port << endl;
-    if ( tcpClientGmServer.start() == 0 ) {
-      cout << "Connected with the GMServer" << endl;
+    if ( tcpClientGmx.start() == 0 ) {
+      cout << "Connected with the gmserver or gmclient" << endl;
 
       bool active = true;
       while ( active ) {
         while ( active && !queueDataDiodeRecv.empty() ) {
-          cout << "Sending over the data-diode send: " << queueDataDiodeRecv.front();
-          ssize_t n = tcpClientGmServer.sendTo(queueDataDiodeRecv.front().c_str(), queueDataDiodeRecv.front().length());
+          ssize_t n = tcpClientGmx.sendTo(queueDataDiodeRecv.front().c_str(), queueDataDiodeRecv.front().length());
           if ( n >= 0 ) {
             queueDataDiodeRecv.pop();
           } else {
             cout << "Error with client during sending data" << endl;
-            tcpClientGmServer.closeSocket();
+            tcpClientGmx.closeSocket();
             active = false;
           }
         }
-        sleep(0);
+        usleep(5000)
       }
     }
     sleep(1);
