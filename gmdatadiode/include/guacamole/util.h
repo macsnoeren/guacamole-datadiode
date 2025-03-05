@@ -31,6 +31,7 @@ struct TCPClientHandle {
     TCPClient* tcpClient;
     bool running;
     std::string ID;
+    std::queue<char*> data;
 };
 
 // GMSProtocol over Guacamole protocol: d.GMS_SSS,d.VVV;

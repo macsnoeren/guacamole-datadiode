@@ -142,11 +142,10 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
                   if ( gmClientHandles->find(string(gmsValue)) != gmClientHandles->end() ) { // Found
                     tcpClientHandle = gmClientHandles->at(string(gmsValue));
 
-                  } else { // Send close message back!
-                    char* t = new char[50];
-                    sprintf(t, "9.GMS_CLOSE,%d.%s;", strlen(gmsValue), gmsValue);
-                    queueRecv->push(t);
-                    tcpClientHandle = NULL;
+                  } else { // Close!
+                    tcpClientHandle->tcpClient->closeSocket(); // Is this better
+                    tcpClientHandle->running = false;
+                    active = false;
                   }
                   q->pop();
 
@@ -222,8 +221,8 @@ void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuac
         char gmsEnd[50];
         sprintf(gmsId, "9.GMS_START,%d.%s;", tcpGuacamoleClientHandle->ID.length(), tcpGuacamoleClientHandle->ID.c_str());
         sprintf(gmsEnd, "7.GMS_END,%d.%s;", tcpGuacamoleClientHandle->ID.length(), tcpGuacamoleClientHandle->ID.c_str());
-        strcpy(buffer, gmsId);
-        while ( !q->empty() && !ready ) {
+        strcpy(buffer, gmsId); // Re-use the buffer
+        while ( !q->empty() && !ready ) { // Process the received data
           char* opcode = q->front();
           if ( strlen(buffer) + strlen(opcode) < BUFFER_SIZE - strlen(gmsEnd) - 1) { // It still fits!
             strcat(buffer, opcode);
