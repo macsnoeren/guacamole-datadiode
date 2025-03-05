@@ -210,7 +210,7 @@ void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuac
   while ( *running && tcpGuacamoleClientHandle->running ) {
     ssize_t n = tcpGuacamoleClient->receiveFrom(buffer, BUFFER_SIZE);
     if ( tcpGuacamoleClientHandle->running && n  > 0 ) { // Received message from Guacamole client, possible that the socket has been closed
-      buffer[n-1] = '\0';
+      buffer[n] = '\0';
 
       validator.processData(buffer, strlen(buffer)); // Validates the protocol AND get each opcode seperately
 
