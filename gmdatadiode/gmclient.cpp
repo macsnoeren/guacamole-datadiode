@@ -84,7 +84,7 @@ void thread_guacd_client_send (bool* running, TCPClientHandle* tcpClientHandle, 
 
         // Send the close message to the other side
         char* t = new char[50];
-        sprintf(t, "9.GMS_CLOSE,%d.%s;", tcpClientHandle->ID.length(), tcpClientHandle->ID.c_str());
+        sprintf(t, "9.GMS_CLOSE,%ld.%s;", tcpClientHandle->ID.length(), tcpClientHandle->ID.c_str());
         queueSend->push(t);
       }
     }
@@ -120,8 +120,8 @@ void thread_guacd_client_recv (bool* running, TCPClientHandle* tcpGuacdClientHan
         bool ready = false;
         char gmsId[50];
         char gmsEnd[50];
-        sprintf(gmsId, "9.GMS_START,%d.%s;", tcpGuacdClientHandle->ID.length(), tcpGuacdClientHandle->ID.c_str());
-        sprintf(gmsEnd, "7.GMS_END,%d.%s;", tcpGuacdClientHandle->ID.length(), tcpGuacdClientHandle->ID.c_str());
+        sprintf(gmsId, "9.GMS_START,%ld.%s;", tcpGuacdClientHandle->ID.length(), tcpGuacdClientHandle->ID.c_str());
+        sprintf(gmsEnd, "7.GMS_END,%ld.%s;", tcpGuacdClientHandle->ID.length(), tcpGuacdClientHandle->ID.c_str());
         strcpy(buffer, gmsId); // Re-use the buffer
 
         while ( !q->empty() && !ready ) {
