@@ -181,7 +181,7 @@ int main (int argc, char *argv[]) {
             active = false;
           }
         }
-        usleep(5000)
+        usleep(5000);
       }
     }
     sleep(1);
