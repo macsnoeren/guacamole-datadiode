@@ -19,6 +19,7 @@ If not, see https://www.gnu.org/licenses/.
 #include <string.h>
 #include <queue>
 
+// Buffer size that is used within the validator to hold data.
 constexpr int VALIDATOR_BUFFER_SIZE = 10240;
 
 // State that is used to validate the protocol.
@@ -48,12 +49,12 @@ private:
     PROTOCOL_VALIDATOR_ELEMENT element;
 
     char processedData[VALIDATOR_BUFFER_SIZE]; // Processed data can become much bigger than string <2048
-    long pdIndex;                    // Pointer of the buffer.
-    std::string stringLength;        // Contains the characters of the length
-    std::string opcode;              // The opcode that has been found.
-    long valueLength;                // The real length converted from the string to be used by the validation.
-
-    std::queue<char*> data;          // Validated data per opcode (OPCODE.ARG1,...,ARGVn;)
+    long pdIndex;                              // Pointer of the buffer.
+    std::string stringLength;                  // Contains the characters of the length
+    std::string opcode;                        // The opcode that has been found.
+    long valueLength;                          // The real length converted from the string to be used by the validation.
+ 
+    std::queue<char*> data;                    // Queue of the validated data per opcode (OPCODE.ARG1,...,ARGVn;)
 
 protected:
     /*
@@ -62,21 +63,6 @@ protected:
      */
     void processByte (char c) {
         this->processedData[this->pdIndex] = c; this->pdIndex++;
-
-        int d = (int) c;
-        if ( (d & 0b10000000) > 0 ) { // unicode
-            std::cout << "######## UNICODE FOUND 1 ########: " << std::hex << d << std::endl;
-        }
-
-        if ( (c & 0b11000000) > 0 && c & 0b00100000 == 0 ) { // unicode
-            std::cout << "######## UNICODE FOUND 2 ########: " << this->opcode << std::endl;
-        }
-        if ( (c & 0b11100000) > 0 && c & 0b00010000 == 0 ) { // unicode
-            std::cout << "######## UNICODE FOUND 3 ########: " << this->opcode << std::endl;
-        }
-        if ( (c & 0b11110000) > 0 && c & 0b00001000 == 0 ) { // unicode
-            std::cout << "######## UNICODE FOUND 4 ########: " << this->opcode << std::endl;
-        }
 
         switch (this->state) {
         case PROTOCOL_VALIDATOR_STATE::START: // Search for a digit
@@ -107,9 +93,6 @@ protected:
         
         case PROTOCOL_VALIDATOR_STATE::VALUE:
             if ( this->valueLength == 0 ) { // Read the value
-                if ( this->opcode == "blob" ) {
-                    std::cout << "***********  BLOB *********" << std::endl;
-                }
                 if ( c == ',' or c == ';' ) {
                     if ( this->element == PROTOCOL_VALIDATOR_ELEMENT::OPCODE ) {
                         this->opcode += '\0';
@@ -120,14 +103,13 @@ protected:
                         char* temp = new char[this->pdIndex];
                         strcpy(temp, this->processedData);
                         this->data.push(temp);
-                        //std::cout << "PORCESSED DATA: " << processedData << std::endl;
                         this->pdIndex = 0;
                         this->opcode = ""; // Do not know if this is required!
                     }
                     this->element = ( c == ';' ? PROTOCOL_VALIDATOR_ELEMENT::OPCODE : PROTOCOL_VALIDATOR_ELEMENT::ARGUMENT );
                     this->state = PROTOCOL_VALIDATOR_STATE::START;
                 } else {
-                    std::cout << "ERROR(2.1): Expected a , or ; after length but got '" << c << "': " << std::endl;//this->processedData << std::endl;
+                    std::cout << "ERROR(2.1): Expected a , or ; after length but got '" << c << "': " << std::endl;
                     this->state = PROTOCOL_VALIDATOR_STATE::START;
                 }
             } else {
@@ -146,17 +128,15 @@ protected:
 
 public:
     ProtocolValidator (): state(PROTOCOL_VALIDATOR_STATE::START), element(PROTOCOL_VALIDATOR_ELEMENT::OPCODE), pdIndex(0), stringLength(""), opcode(""), valueLength(0) {
-
     }
 
     ~ProtocolValidator () {
-
     }
 
     /*
      * This function is used to transfer the data that is received from Guacamole to be validated.
-     * @param char* data the data that has been received.
-     *        ssize_t dataLength the length of the data that is in the char array.
+     * @param [in] char* data the data that has been received.
+     * @param [in] ssize_t dataLength the length of the data that is in the char array.
      */
     void processData (char* data, ssize_t dataLength) {
         for ( ssize_t i=0; i < dataLength; i++ ) {
@@ -164,6 +144,10 @@ public:
         }
     }
 
+    /*
+     * Returns the queue that contains the validated data. If read, make sure you free the char* memory
+     * while this has been allocated by this class, but not freed anymore.
+     */
     std::queue<char*>* getDataQueue() {
         return &this->data;
     }
