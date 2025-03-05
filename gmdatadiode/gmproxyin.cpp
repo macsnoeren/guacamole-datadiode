@@ -24,14 +24,28 @@ If not, see https://www.gnu.org/licenses/.
 #include <udpclient.hpp>
 #include <tcpclient.hpp>
 
-constexpr int BUFFER_SIZE = 10240;
-constexpr const char GMx_HOST[] = "127.0.0.1";
-constexpr int GMx_PORT = 10000; // Get data GMserver out
-constexpr const char DATA_DIODE_SEND_HOST[] = "127.0.0.1";
-constexpr int DATA_DIODE_SEND_PORT = 40000;
-
 using namespace std;
 
+// Buffer size used to read the messages from gmserver or gmclient.
+constexpr int BUFFER_SIZE = 10240;
+
+// Default host configuration to connect to the gmserver or gmclient.
+constexpr const char GMx_HOST[] = "127.0.0.1";
+
+// Default port configuration to connect to the mserver or gmclient.
+constexpr int GMx_PORT = 10000; // Get data GMserver out
+
+// Default host configuration to send UDP/IP traffic to gmproxyout.
+constexpr const char DATA_DIODE_SEND_HOST[] = "127.0.0.1";
+
+// Default port configuration to send UDP/IP traffic to gmproxyout.
+constexpr int DATA_DIODE_SEND_PORT = 40000;
+
+/*
+ * Struct that holds the arguments of the application and is used to
+ * provide a centralized configuration to the different parts of the
+ * application.
+ */
 struct Arguments {
   string gmx_host;
   int gmx_port;
@@ -48,28 +62,31 @@ void signal_sigpipe_cb (int signum) {
   // Do nothing!
 }
 
+/*
+ * The thread that is responsible to process the queue and send the data to the gmproxyou.
+ * 
+ * @param[in] args contains the arguments that are configured by the main application.
+ * @param[in/out] running is used to check if the program is stil running, can also be set.
+ * @param[in] queueSend is used to push the data to the gmproxyout.
+ */
 void thread_datadiode_send (Arguments args, bool* running, queue<string>* queueSend) {
   char buffer[BUFFER_SIZE];
 
   UDPClient udpClient(args.ddout_host, args.ddout_port);
   udpClient.initialize();
 
-  cout << "thread_datadiode_send: UDP client sending data to host '" << args.ddout_host << "' and port '" << args.ddout_port << "'" << endl;
   while ( *running ) {
     while ( !queueSend->empty() ) {
-      cout << "thread_datadiode_send: Sending over the data-diode send: " << queueSend->front();
       ssize_t n = udpClient.sendTo(queueSend->front().c_str(), queueSend->front().length());
       if ( n >= 0 ) {
         queueSend->pop();
       } else {
-        perror("Waht happened?");
-        cout << "thread_datadiode_send: Error with client during sending data" << endl;
+        cout << "Error with client during sending data" << endl;
         // TODO: What do we need to do here?!
       }
     }
     usleep(5000);
   }
-  cout << "thread_datadiode_send: Thread sending data-diode stopped" << endl;
 }
 
 /*
@@ -87,15 +104,24 @@ void help() {
 }
 
 /*
+ * Main application where it all starts. It create the thread to process the queue to
+ * send the UDP/IP data to gmproxy out. Furthermore, it processes the queue to send the
+ * data to the gmserver or gmclient.
+ * @param[in] argc is the number of arguments that are available.
+ * @param[in] argv[] is the list of arguments that are given by the command line.
+ * @return exit status is returned.
  */
 int main (int argc, char *argv[]) {
-  // Parse the command-line options
+  signal(SIGPIPE, signal_sigpipe_cb); // SIGPIPE closes application and is issued when sendto is called when peer is closed.
+
+  // Create the default configuration.
   Arguments arguments;
   arguments.gmx_host = GMx_HOST;
   arguments.gmx_port = GMx_PORT;
   arguments.ddout_host = DATA_DIODE_SEND_HOST;
   arguments.ddout_port = DATA_DIODE_SEND_PORT;
 
+  // Create the short and long options of the application.
   const char* const short_options = "g:p:d:o:h";
   static struct option long_options[] = {
     {"gmx-host", optional_argument, nullptr, 'g'},
@@ -133,40 +159,38 @@ int main (int argc, char *argv[]) {
     }
   }
 
-  // Main
+  // Create the running variable, buffer and queue.
   bool running = true;
   char buffer[BUFFER_SIZE];
-
-  signal(SIGPIPE, signal_sigpipe_cb); // SIGPIPE closes application and is issued when sendto is called when peer is closed.
-
   queue<string> queueDataDiodeSend;
 
-  thread threadDataDiodeSend(thread_datadiode_send, arguments, &running, &queueDataDiodeSend);
+  // Create the thread to send the data-diode data to gmproxyout.
+  thread t(thread_datadiode_send, arguments, &running, &queueDataDiodeSend);
+  t.detach();
 
+  // Create the connection with the gmserver of gmclient (gmx) and process the queue.
   TCPClient tcpClientGmServer(arguments.gmx_host, arguments.gmx_port);
   tcpClientGmServer.initialize();
 
+  cout << "Connecting to the gmserver or gmclient " << arguments.gmx_host << ":" << arguments.gmx_port << endl;
   while ( running ) {
-    cout << "Try to connect to the GMServer on host '" << arguments.gmx_host << "' on port " << arguments.gmx_port << endl;
     if ( tcpClientGmServer.start() == 0 ) {
-      cout << "Connected with the GMServer" << endl;
+      cout << "Connected with the gmserver or gmclient" << endl;
+
       bool active = true;
       while ( active ) {
-        cout << "Waiting on data from the GMServer" << endl;
         ssize_t n = tcpClientGmServer.receiveFrom(buffer, BUFFER_SIZE);
         if ( n  > 0 ) { // Received message from receiving data-diode
           buffer[n] = '\0';
-          cout << "GMServer: Receive data: " << buffer;
           queueDataDiodeSend.push(string(buffer));
 
         } else if ( n == 0 ) { // Peer properly shutted down!
-          cout << "GMServer: Client connection shutted down" << endl;
+          cout << "Connection stopped" << endl;
           tcpClientGmServer.closeSocket();
           active = false;
           
         } else { // Problem with the client
-          perror("What happened: ");
-          cout << "GMServer: Error with the client connection" << endl;
+          cout << "Connection error" << endl;
           tcpClientGmServer.closeSocket();      
           active = false;
         }
@@ -177,4 +201,3 @@ int main (int argc, char *argv[]) {
   }
   return 0;
 }
-

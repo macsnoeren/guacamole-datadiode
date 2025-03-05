@@ -32,10 +32,10 @@ constexpr int BUFFER_SIZE = 10240;
 // Default host configuration to connect to the gmserver or gmclient.
 constexpr const char GMx_HOST[] = "127.0.0.1";
 
-// Default port configuration to connect to the mserver or gmclient.
+// Default port configuration to connect to the gmserver or gmclient.
 constexpr int GMx_PORT = 20000;
 
-// Default port configuration to accept UDP/IP traffif from gmproxyin.
+// Default port configuration to accept UDP/IP traffic from gmproxyin.
 constexpr int DATA_DIODE_RECV_PORT = 40000;
 
 /*
@@ -164,7 +164,7 @@ int main (int argc, char *argv[]) {
   TCPClient tcpClientGmx(arguments.gmx_host, arguments.gmx_port);
   tcpClientGmx.initialize();
 
-  cout << "Connecting to the gmserver ot gmclient " << arguments.gmx_host << ":" << arguments.gmx_port << endl;
+  cout << "Connecting to the gmserver or gmclient " << arguments.gmx_host << ":" << arguments.gmx_port << endl;
   while ( running ) {
     if ( tcpClientGmx.start() == 0 ) {
       cout << "Connected with the gmserver or gmclient" << endl;
