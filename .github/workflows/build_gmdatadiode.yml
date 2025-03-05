@@ -14,8 +14,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: build gmdatadiode
-      run: cd gmdatadiode
-    - name: ls
-      run: ls -l
-    - name: make
-      run: make
+      run: |
+       cd gmdatadiode
+       ls -l
+       make
