@@ -73,7 +73,7 @@ protected:
                 this->stringLength = c;
                 this->state = PROTOCOL_VALIDATOR_STATE::LENGTH;
             } else {
-                std::cout << "ERROR(0)" << std::endl;
+                std::cout << "ERROR(0): Expecting a number to start" << std::endl;
                 this->state = PROTOCOL_VALIDATOR_STATE::START;
             }
             break;
@@ -85,13 +85,16 @@ protected:
                 this->valueLength = std::stol(this->stringLength.c_str());
                 this->state = PROTOCOL_VALIDATOR_STATE::VALUE;
             } else {
-                std::cout << "ERROR(1)" << std::endl;
+                std::cout << "ERROR(1): Expected a number but got '" << c << "'" << std::endl;
                 this->state = PROTOCOL_VALIDATOR_STATE::START;
             }
             break;
         
         case PROTOCOL_VALIDATOR_STATE::VALUE:
             if ( this->valueLength == 0 ) { // Read the value
+                if ( this->opcode == "blob" ) {
+                    std::cout << "***********  BLOB *********" << std::endl;
+                }
                 if ( c == ',' or c == ';' ) {
                     if ( this->element == PROTOCOL_VALIDATOR_ELEMENT::OPCODE ) {
                         this->opcode += '\0';
@@ -102,14 +105,14 @@ protected:
                         char* temp = new char[this->pdIndex];
                         strcpy(temp, this->processedData);
                         this->data.push(temp);
-                        std::cout << "PORCESSED DATA: " << processedData << std::endl;
+                        //std::cout << "PORCESSED DATA: " << processedData << std::endl;
                         this->pdIndex = 0;
                         this->opcode = ""; // Do not know if this is required!
                     }
                     this->element = ( c == ';' ? PROTOCOL_VALIDATOR_ELEMENT::OPCODE : PROTOCOL_VALIDATOR_ELEMENT::ARGUMENT );
                     this->state = PROTOCOL_VALIDATOR_STATE::START;
                 } else {
-                    std::cout << "ERROR(2.1): " << this->processedData << std::endl;
+                    std::cout << "ERROR(2.1): Expected a , or ; after length but got '" << c << "': " << this->processedData << std::endl;
                     this->state = PROTOCOL_VALIDATOR_STATE::START;
                 }
             } else {

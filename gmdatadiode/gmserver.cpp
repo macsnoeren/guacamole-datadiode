@@ -80,8 +80,8 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
           char* d = queueSend->front();
           ssize_t n = tcpClient->sendTo(d, strlen(d)); // Send data
           if ( n >= 0 ) {
-            queueSend->pop();
             delete d; // Free the allocated memory
+            queueSend->pop();
           } else {
             cout << "Error with client during sending data" << endl;
             tcpClient->closeSocket();
@@ -106,7 +106,7 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
  *        messages.
  * @return void
  */
-void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string, TCPServerClientHandle*>* gmClientHandles, queue<char*>* queueRecv) {
+void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string, TCPServerClientHandle*>* gmClientHandles, queue<char*>* queueRecv, queue<char*>* queueSend) {
   char buffer[BUFFER_SIZE];
 
   TCPServerClientHandle* tcpClientHandle = NULL;
@@ -142,10 +142,11 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
                   if ( gmClientHandles->find(string(gmsValue)) != gmClientHandles->end() ) { // Found
                     tcpClientHandle = gmClientHandles->at(string(gmsValue));
 
-                  } else { // Close!
-                    tcpClientHandle->tcpClient->closeSocket(); // Is this better
-                    tcpClientHandle->running = false;
-                    active = false;
+                  } else { // Not found
+                    // Send the close connection over the data-diode.
+                    char* gmsclose = new char[50];
+                    sprintf(gmsclose, "9.GMS_CLOSE,%d.%s;", strlen(gmsValue), gmsValue);
+                    queueSend->push(gmsclose);
                   }
                   q->pop();
 
@@ -226,8 +227,8 @@ void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuac
           char* opcode = q->front();
           if ( strlen(buffer) + strlen(opcode) < BUFFER_SIZE - strlen(gmsEnd) - 1) { // It still fits!
             strcat(buffer, opcode);
-            q->pop();
             delete opcode; // Free the memory space that was created
+            q->pop();
           } else {
             ready = true;
           }
@@ -256,7 +257,7 @@ void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuac
   }
 
   // Send the close connection over the data-diode.
-  char gmsclose[50] = "";
+  char* gmsclose = new char[50];
   sprintf(gmsclose, "9.GMS_CLOSE,%d.%s;", tcpGuacamoleClientHandle->ID.length(), tcpGuacamoleClientHandle->ID.c_str());
   queueSend->push(gmsclose);
 
@@ -279,8 +280,8 @@ void thread_guacamole_client_send (bool* running, TCPServerClientHandle* guacamo
       cout << "GMC: '" << guacamoleClient->ID << "': " << d << endl;
 
       ssize_t n = guacamoleClient->tcpClient->sendTo(d, strlen(d));
-      guacamoleClient->data.pop();
       delete d; // Free allocated memory
+      guacamoleClient->data.pop();
 
       if ( n < 0 ) {
         cout << "thread_guacamole_client_send: Error with client during sending data" << endl;
@@ -383,7 +384,7 @@ int main (int argc, char *argv[]) {
 
   // Create the necessary threads
   thread t1(thread_datadiode_send, arguments, &running, &queueDataDiodeSend);
-  thread t2(thread_datadiode_recv, arguments, &running, &guacamoleClientHandles, &queueDataDiodeRecv);
+  thread t2(thread_datadiode_recv, arguments, &running, &guacamoleClientHandles, &queueDataDiodeRecv, &queueDataDiodeSend);
   //thread t3(thread_guacamole_client_send, &running, &guacamoleClientHandles, &queueDataDiodeSend, &queueDataDiodeRecv);
   t1.detach();
   t2.detach();

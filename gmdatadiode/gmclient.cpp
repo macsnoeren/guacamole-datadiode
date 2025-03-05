@@ -113,8 +113,8 @@ void thread_guacd_client_recv (bool* running, TCPClientHandle* tcpGuacdClientHan
           char* opcode = q->front();
           if ( strlen(buffer) + strlen(opcode) < BUFFER_SIZE -strlen(gmsEnd) - 1) {
             strcat(buffer, opcode);
-            q->pop();
             delete opcode; // Free the memory space that has been allocated
+            q->pop();
           } else {
             ready = true;
           }
@@ -139,7 +139,7 @@ void thread_guacd_client_recv (bool* running, TCPClientHandle* tcpGuacdClientHan
       tcpClient->closeSocket();      
       tcpGuacdClientHandle->running = false;
     }
-    sleep(0);
+    usleep(5000);
   }
   
   delete tcpGuacdClientHandle->tcpClient;
@@ -320,10 +320,10 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
           tcpClient->closeSocket();      
           active = false;
         }
-        sleep(0);
+        usleep(5000);
       }
     }
-    sleep(0);
+    usleep(5000);
   }
     
   cout << "Thread receiving data-diode stopped" << endl;
@@ -496,6 +496,7 @@ int main (int argc, char *argv[]) {
     }
     usleep(5000);
     */
+   sleep(10);
   }
   
   return 0;
