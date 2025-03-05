@@ -18,7 +18,11 @@ If not, see https://www.gnu.org/licenses/.
 #include <tcpserver.hpp>
 #include <tcpclient.hpp>
 
-// A struct to maintain the state of a TCPServerClient
+/*
+ * A struct to handle the TCPServerClients that are connected with the Guacamole web server.
+ * It holds the socket connection, whether it is stil running, an unique ID and the queue
+ * with data that has to be send to the Guacamole web server.
+ */
 struct TCPServerClientHandle {
     TCPServerClient* tcpClient;
     bool running;
@@ -26,7 +30,11 @@ struct TCPServerClientHandle {
     std::queue<char*> data;
 };
 
-// A struct to maintain the state of a TCPClient
+/*
+ * A struct to handle the TCPServerClients that are connected with the guacd server.
+ * It holds the socket connection, whether it is stil running, an unique ID and the queue
+ * with data that has to be send to the guacd server.
+ */
 struct TCPClientHandle {
     TCPClient* tcpClient;
     bool running;
@@ -34,9 +42,13 @@ struct TCPClientHandle {
     std::queue<char*> data;
 };
 
-// GMSProtocol over Guacamole protocol: d.GMS_SSS,d.VVV;
-bool findGmsOpcode (const char* data, char* gmsOpcode, char* gmsValue, long* offset = NULL) {
-    if ( offset != NULL ) *offset = 0;
+/*
+ * In order to provide information concerning the different connections over the data-diode
+ * channel, a GMS_ protocol is created on top on the Guacamole protocol. This method finds
+ * this opcode and value to make it easier to extract the GMS_ protocol. The GMS_ protocol
+ * is constructed like 'd.GMS_XXX,d.VVV;'. Example: 7.GMS_NEW,20.273948264759382736493;
+ */
+bool findGmsOpcode (const char* data, char* gmsOpcode, char* gmsValue) {
     if ( strstr(data, ".GMS_") != NULL ) { // Found GMS opcode
       char* dot1 = strchr((char*) data, '.'); // This exist and does not result in a NULL pointer
       char* com = strchr(dot1, ',');    // We can safely use dot1 in the other search terms.
@@ -50,8 +62,7 @@ bool findGmsOpcode (const char* data, char* gmsOpcode, char* gmsValue, long* off
         strncpy(gmsValue, dot2+1, sem-dot2-1);
         gmsOpcode[com-dot1-1] = '\0';
         gmsValue[sem-dot2-1] = '\0';
-        if ( offset != NULL ) *offset = sem-data+1;
-        //std::cout << "FOUND GMS_OPCODE: '" << gmsOpcode << "' with value '" << gmsValue << "'" << std::endl;
+        //*offset = sem-data+1;
         return true;
       }
     }
