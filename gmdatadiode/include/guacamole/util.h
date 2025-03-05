@@ -51,7 +51,7 @@ bool findGmsOpcode (const char* data, char* gmsOpcode, char* gmsValue, long* off
         gmsOpcode[com-dot1-1] = '\0';
         gmsValue[sem-dot2-1] = '\0';
         if ( offset != NULL ) *offset = sem-data+1;
-        std::cout << "FOUND GMS_OPCODE: '" << gmsOpcode << "' with value '" << gmsValue << "'" << std::endl;
+        //std::cout << "FOUND GMS_OPCODE: '" << gmsOpcode << "' with value '" << gmsValue << "'" << std::endl;
         return true;
       }
     }

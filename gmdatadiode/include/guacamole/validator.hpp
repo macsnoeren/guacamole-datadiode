@@ -63,6 +63,21 @@ protected:
     void processByte (char c) {
         this->processedData[this->pdIndex] = c; this->pdIndex++;
 
+        int d = (int) c;
+        if ( (d & 0b10000000) > 0 ) { // unicode
+            std::cout << "######## UNICODE FOUND 1 ########: " << std::hex << d << std::endl;
+        }
+
+        if ( (c & 0b11000000) > 0 && c & 0b00100000 == 0 ) { // unicode
+            std::cout << "######## UNICODE FOUND 2 ########: " << this->opcode << std::endl;
+        }
+        if ( (c & 0b11100000) > 0 && c & 0b00010000 == 0 ) { // unicode
+            std::cout << "######## UNICODE FOUND 3 ########: " << this->opcode << std::endl;
+        }
+        if ( (c & 0b11110000) > 0 && c & 0b00001000 == 0 ) { // unicode
+            std::cout << "######## UNICODE FOUND 4 ########: " << this->opcode << std::endl;
+        }
+
         switch (this->state) {
         case PROTOCOL_VALIDATOR_STATE::START: // Search for a digit
             if ( c >= '0' and c <= '9' ) {
@@ -112,7 +127,7 @@ protected:
                     this->element = ( c == ';' ? PROTOCOL_VALIDATOR_ELEMENT::OPCODE : PROTOCOL_VALIDATOR_ELEMENT::ARGUMENT );
                     this->state = PROTOCOL_VALIDATOR_STATE::START;
                 } else {
-                    std::cout << "ERROR(2.1): Expected a , or ; after length but got '" << c << "': " << this->processedData << std::endl;
+                    std::cout << "ERROR(2.1): Expected a , or ; after length but got '" << c << "': " << std::endl;//this->processedData << std::endl;
                     this->state = PROTOCOL_VALIDATOR_STATE::START;
                 }
             } else {

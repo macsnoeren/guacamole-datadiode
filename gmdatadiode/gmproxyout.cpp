@@ -24,7 +24,7 @@ If not, see https://www.gnu.org/licenses/.
 #include <udpserver.hpp>
 #include <tcpclient.hpp>
 
-constexpr int BUFFER_SIZE = 1024;
+constexpr int BUFFER_SIZE = 10240;
 constexpr const char GMx_HOST[] = "127.0.0.1";
 constexpr int GMx_PORT = 20000; // GMserver IN
 constexpr int DATA_DIODE_RECV_PORT = 40000;
