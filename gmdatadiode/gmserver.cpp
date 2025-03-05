@@ -28,14 +28,28 @@ If not, see https://www.gnu.org/licenses/.
 #include <guacamole/validator.hpp>
 #include <tcpserver.hpp>
 
-constexpr int BUFFER_SIZE = 10240;
-constexpr int GUACAMOLE_MAX_CLIENTS = 25;
-constexpr int GUACAMOLE_PORT = 4822;
-constexpr int DATADIODE_SEND_PORT = 10000;
-constexpr int DATADIODE_RECV_PORT = 20000;
-
 using namespace std;
 
+// Buffer size used to read the messages from Guacamole.
+constexpr int BUFFER_SIZE = 10240;
+
+// Maximum connections that the Guacamole can make.
+constexpr int GUACAMOLE_MAX_CLIENTS = 25;
+
+// The port where the Guacamole can connect to.
+constexpr int GUACAMOLE_PORT = 4822;
+
+// The port to which the gmproxin can connect to.
+constexpr int DATADIODE_SEND_PORT = 10000;
+
+// The port to which the gmproxyout can connect to.
+constexpr int DATADIODE_RECV_PORT = 20000;
+
+/*
+ * Struct that holds the arguments of the application and is used to
+ * provide a centralized configuration to the different parts of the
+ * application.
+ */
 struct Arguments {
   int guacamole_max_clients;
   int guacamole_port;
@@ -57,7 +71,7 @@ void signal_sigpipe_cb (int signum) {
  * Ready for test
  * @param bool* running: pointer to the running flag. If false the thread
  *        need to close.
- *        qeueu<string>* queueSend: the queue that contains the string
+ * @param qeueu<string>* queueSend: the queue that contains the string
  *        messages.
  * @return void
  */
@@ -68,15 +82,14 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
   tcpServerSend.initialize();
   tcpServerSend.start();
 
+  cout << "Waiting on sending data-diode proxy client connection on port '" << args.ddout_port << "'" << endl;
   while ( *running ) {
-    cout << "Waiting on sending data-diode proxy client connection on port '" << args.ddout_port << "'" << endl;
     TCPServerClient* tcpClient = tcpServerSend.accept();
     if ( tcpClient != NULL ) {
       bool active = true;
-      cout << "Sending data-diode client connected" << endl;
+      cout << "proxyout client is connected" << endl;
       while ( active ) {
         while ( active && !queueSend->empty() ) {
-          cout << "Sending data-diode send: " << queueSend->front() << endl;
           char* d = queueSend->front();
           ssize_t n = tcpClient->sendTo(d, strlen(d)); // Send data
           if ( n >= 0 ) {
@@ -102,7 +115,7 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
  * Ready for test
  * @param bool* running: pointer to the running flag. If false the thread
  *        need to close.
- *        qeueu<string>* queueRecv: the queue that contains the string
+ * @param qeueu<string>* queueRecv: the queue that contains the string
  *        messages.
  * @return void
  */
@@ -115,12 +128,12 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
   tcpServerRecv.initialize();
   tcpServerRecv.start();
 
+  cout << "Waiting on receive data-diode proxy client connection on port '" << args.ddin_port << "'" << endl;
   while ( *running ) {
-    cout << "Waiting on receive data-diode proxy client connection on port '" << args.ddin_port << "'" << endl;
     TCPServerClient* tcpClient = tcpServerRecv.accept();
     if ( tcpClient != NULL ) {
       bool active = true;
-      cout << "Receive data-diode client connected" << endl;
+      cout << "proxyin client connected" << endl;
       while ( active ) {
         ssize_t n = tcpClient->receiveFrom(buffer, BUFFER_SIZE);
         if ( n  > 0 ) { // Received message from receiving data-diode
@@ -187,10 +200,10 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
           tcpClient->closeSocket();      
           active = false;
         }
-        sleep(0);
+        usleep(5000);
       }
     }
-    sleep(0);
+    usleep(5000);
   }
   cout << "Thread receiving data-diode stopped" << endl;
 }
@@ -234,22 +247,20 @@ void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuac
           }
         }
         strcat(buffer, gmsEnd);
-        cout << "Buffer: '" << buffer << "', length: " << strlen(buffer) << endl;
         
         // Push it onto the sendQueue
         char* temp = new char[strlen(buffer)+1];
         strcpy(temp, buffer);
-        cout << "PUSH ON QUEUE: '" << temp << "'" << endl;
         queueSend->push(temp);
       }
 
     } else if ( n == 0 ) { // Peer properly shutted down!
-      cout << "thread_guacamole_client_recv: Peer Guacamole web shutted down" << endl;
+      cout << "Guacamole web shutted down '" << tcpGuacamoleClientHandle->ID << "'" << endl;
       tcpGuacamoleClient->closeSocket();
       tcpGuacamoleClientHandle->running = false;
       
     } else { // Problem with the client
-      cout << "thread_guacamole_client_recv: Error with the Guacamole web client connection" << endl;
+      cout << "Error Guacamole web '" << tcpGuacamoleClientHandle->ID << "'" << endl;
       tcpGuacamoleClient->closeSocket();      
       tcpGuacamoleClientHandle->running = false;
     }
@@ -273,12 +284,10 @@ void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuac
  * This thread is responsible for this.
  */
 void thread_guacamole_client_send (bool* running, TCPServerClientHandle* guacamoleClient, queue<char*>* queueSend) {
-  cout << "Thread Guacamole client '" << guacamoleClient->ID << " started" << endl;
   while ( guacamoleClient->running ) {
     while ( !guacamoleClient->data.empty() ) {
       char* d = guacamoleClient->data.front();
-      cout << "GMC: '" << guacamoleClient->ID << "': " << d << endl;
-
+      
       ssize_t n = guacamoleClient->tcpClient->sendTo(d, strlen(d));
       delete d; // Free allocated memory
       guacamoleClient->data.pop();
@@ -329,13 +338,16 @@ void help() {
  * accept connections from the Guacamole web client.
  */
 int main (int argc, char *argv[]) {
-  // Process the command-line arguments
+  signal(SIGPIPE, signal_sigpipe_cb); // SIGPIPE closes application and is issued when sendto is called when peer is closed.
+
+  // Create the default configuration.
   Arguments arguments;
   arguments.guacamole_max_clients = GUACAMOLE_MAX_CLIENTS;
   arguments.guacamole_port = GUACAMOLE_PORT;
   arguments.ddin_port = DATADIODE_RECV_PORT;
   arguments.ddout_port = DATADIODE_SEND_PORT;
 
+  // Create the short and long options of the application.
   const char* const short_options = "c:p:i:o:h";
   static struct option long_options[] = {
     {"max-clients", optional_argument, nullptr, 'c'},
@@ -373,11 +385,8 @@ int main (int argc, char *argv[]) {
     }
   }
 
-  // Main
+  // Create the running variable, buffer and queue.
   bool running = true;
-
-  signal(SIGPIPE, signal_sigpipe_cb); // SIGPIPE closes application and is issued when sendto is called when peer is closed.
-
   queue<char*> queueDataDiodeSend;
   queue<char*> queueDataDiodeRecv;
   unordered_map<string, TCPServerClientHandle*> guacamoleClientHandles;
@@ -385,24 +394,21 @@ int main (int argc, char *argv[]) {
   // Create the necessary threads
   thread t1(thread_datadiode_send, arguments, &running, &queueDataDiodeSend);
   thread t2(thread_datadiode_recv, arguments, &running, &guacamoleClientHandles, &queueDataDiodeRecv, &queueDataDiodeSend);
-  //thread t3(thread_guacamole_client_send, &running, &guacamoleClientHandles, &queueDataDiodeSend, &queueDataDiodeRecv);
   t1.detach();
   t2.detach();
-  //t3.detach();
   
   // Create the TCP/IP server to accept connections from the Guacamole web client
   TCPServer tcpServerGuacamole(arguments.guacamole_port, arguments.guacamole_max_clients);
   tcpServerGuacamole.initialize();
   tcpServerGuacamole.start();
 
-  sleep(5); // Let the data-diode connect first
-
+  cout << "Waiting on a Guacamole client connection on port '" << arguments.guacamole_port << "' (max: " << arguments.guacamole_max_clients << ")" << endl;
   while ( running ) {
-    cout << "Waiting on a Guacamole client connection on port '" << arguments.guacamole_port << "' (max: " << arguments.guacamole_max_clients << ")" << endl;
     TCPServerClient* tcpGuacamoleClient = tcpServerGuacamole.accept();
     if ( tcpGuacamoleClient != NULL ) {
       cout << "Guacamole client connected" << endl;
       
+      // Create unique id to be assiocated to this connection
       string id = createUniqueId();
       TCPServerClientHandle *tcpServerClientHandle = new TCPServerClientHandle;
       *tcpServerClientHandle = {
@@ -426,4 +432,3 @@ int main (int argc, char *argv[]) {
   }
   return 0;
 }
-
