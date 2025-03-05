@@ -96,7 +96,7 @@ protected:
                 if ( c == ',' or c == ';' ) {
                     if ( this->element == PROTOCOL_VALIDATOR_ELEMENT::OPCODE ) {
                         this->opcode += '\0';
-                        std::cout << "Processing opcode: " << this->opcode << std::endl;
+                        //std::cout << "Processing opcode: " << this->opcode << std::endl;
                     }
                     if ( c == ';' ) {
                         this->processedData[this->pdIndex] = '\0'; this->pdIndex++;
