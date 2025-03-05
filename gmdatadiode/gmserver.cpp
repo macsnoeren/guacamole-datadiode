@@ -233,8 +233,8 @@ void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuac
         bool ready = false;
         char gmsId[50];
         char gmsEnd[50];
-        sprintf(gmsId, "9.GMS_START,%d.%s;", tcpGuacamoleClientHandle->ID.length(), tcpGuacamoleClientHandle->ID.c_str());
-        sprintf(gmsEnd, "7.GMS_END,%d.%s;", tcpGuacamoleClientHandle->ID.length(), tcpGuacamoleClientHandle->ID.c_str());
+        sprintf(gmsId, "9.GMS_START,%ld.%s;", tcpGuacamoleClientHandle->ID.length(), tcpGuacamoleClientHandle->ID.c_str());
+        sprintf(gmsEnd, "7.GMS_END,%ld.%s;", tcpGuacamoleClientHandle->ID.length(), tcpGuacamoleClientHandle->ID.c_str());
         strcpy(buffer, gmsId); // Re-use the buffer
         while ( !q->empty() && !ready ) { // Process the received data
           char* opcode = q->front();
@@ -269,7 +269,7 @@ void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuac
 
   // Send the close connection over the data-diode.
   char* gmsclose = new char[50];
-  sprintf(gmsclose, "9.GMS_CLOSE,%d.%s;", tcpGuacamoleClientHandle->ID.length(), tcpGuacamoleClientHandle->ID.c_str());
+  sprintf(gmsclose, "9.GMS_CLOSE,%ld.%s;", tcpGuacamoleClientHandle->ID.length(), tcpGuacamoleClientHandle->ID.c_str());
   queueSend->push(gmsclose);
 
   // Delete the tcpClient and set running to false, so the main application is able to delete the handle itself.
@@ -299,7 +299,7 @@ void thread_guacamole_client_send (bool* running, TCPServerClientHandle* guacamo
 
         // Send the close message to the other side
         char* t = new char[50];
-        sprintf(t, "9.GMS_CLOSE,%d.%s;", guacamoleClient->ID.length(), guacamoleClient->ID.c_str());
+        sprintf(t, "9.GMS_CLOSE,%ld.%s;", guacamoleClient->ID.length(), guacamoleClient->ID.c_str());
         queueSend->push(t);
       }
     }
@@ -421,7 +421,7 @@ int main (int argc, char *argv[]) {
       
       // Send the new connection to the other side.
       char* t = new char[50];
-      sprintf(t, "7.GMS_NEW,%d.%s;", id.length(), id.c_str());
+      sprintf(t, "7.GMS_NEW,%ld.%s;", id.length(), id.c_str());
       queueDataDiodeSend.push(t);
       
       thread t1(thread_guacamole_client_recv, &running, tcpServerClientHandle, &queueDataDiodeSend, &queueDataDiodeRecv);
