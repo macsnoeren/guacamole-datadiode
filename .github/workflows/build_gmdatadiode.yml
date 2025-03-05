@@ -16,5 +16,5 @@ jobs:
     - name: build gmdatadiode
       run: |
        cd gmdatadiode
-       ls -l
        make
+       ls -l ../build
