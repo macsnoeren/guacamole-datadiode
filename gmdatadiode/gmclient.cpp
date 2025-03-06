@@ -74,8 +74,8 @@ void thread_guacd_client_send (bool* running, TCPClientHandle* tcpClientHandle, 
       char* d = tcpClientHandle->data.front();
 
       ssize_t n = tcpClientHandle->tcpClient->sendTo(d, strlen(d));
-      tcpClientHandle->data.pop();
       delete d; // Free allocated memory
+      tcpClientHandle->data.pop();
 
       if ( n < 0 ) {
         cout << "thread_guacamole_client_send: Error with client during sending data" << endl;

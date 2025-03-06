@@ -76,8 +76,6 @@ void signal_sigpipe_cb (int signum) {
  * @return void
  */
 void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSend) {
-  char buffer[BUFFER_SIZE];
-
   TCPServer tcpServerSend(args.ddout_port, 1);
   tcpServerSend.initialize();
   tcpServerSend.start();
@@ -87,7 +85,7 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
     TCPServerClient* tcpClient = tcpServerSend.accept();
     if ( tcpClient != NULL ) {
       bool active = true;
-      cout << "proxyout client is connected" << endl;
+      cout << "gmproxyout client is connected" << endl;
       while ( active ) {
         while ( active && !queueSend->empty() ) {
           char* d = queueSend->front();
@@ -309,15 +307,6 @@ void thread_guacamole_client_send (bool* running, TCPServerClientHandle* guacamo
   cout << "Thread guacamole client '" << guacamoleClient->ID << "'" << endl;
 }
 
-string createUniqueId () {
-  time_t timer = time(nullptr);
-  char id[80] = "";
-  
-  sprintf(id, "%ld%ld", timer, random() + random() + random());
-
-  return string(id);
-}
-
 /*
  * Print the help of all the options to the console
  */
@@ -410,6 +399,11 @@ int main (int argc, char *argv[]) {
       
       // Create unique id to be assiocated to this connection
       string id = createUniqueId();
+      while ( guacamoleClientHandles.find({id}) != guacamoleClientHandles.end() ) {
+        id = createUniqueId();
+      }
+
+      // Create the new handle with unique ID.
       TCPServerClientHandle *tcpServerClientHandle = new TCPServerClientHandle;
       *tcpServerClientHandle = {
         tcpGuacamoleClient,

@@ -42,6 +42,22 @@ struct TCPClientHandle {
     std::queue<char*> data;
 };
 
+
+std::string createUniqueId () {
+  time_t timer = time(nullptr);
+  srand(time(0));
+
+  unsigned long long int v = 0;
+  for (int i=0; i < 16; i++ ) {
+    v = (v << 8) + rand() % 256;
+  }
+  
+  char id[80] = "";
+  std::sprintf(id, "%lX", v);
+
+  return std::string(id);
+}
+
 /*
  * In order to provide information concerning the different connections over the data-diode
  * channel, a GMS_ protocol is created on top on the Guacamole protocol. This method finds
