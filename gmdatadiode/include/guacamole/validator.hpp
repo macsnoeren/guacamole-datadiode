@@ -100,9 +100,13 @@ protected:
                     }
                     if ( c == ';' ) {
                         this->processedData[this->pdIndex] = '\0'; this->pdIndex++;
-                        char* temp = new char[this->pdIndex];
-                        strcpy(temp, this->processedData);
-                        this->data.push(temp);
+                        if ( this->pdIndex < VALIDATOR_BUFFER_SIZE ) {
+                            char* temp = new char[this->pdIndex];
+                            strcpy(temp, this->processedData);
+                            this->data.push(temp);
+                        } else {
+                            std::cout << "Validator: ERROR: buffer size larger than maximum of " << VALIDATOR_BUFFER_SIZE << std::endl;
+                        }
                         this->pdIndex = 0;
                         this->opcode = ""; // Do not know if this is required!
                     }
