@@ -27,16 +27,30 @@ If not, see https://www.gnu.org/licenses/.
 #include <sys/stat.h>
 #include <thread>
 
-// UDP/IP client to send data to an UDP server.
+/*
+ * This class implements a UDPClient to connect to UDP servers.
+ */
 class UDPClient {
 private:
+    // Host to connect to
     std::string host;
+
+    // Port to connect to
     int port;
+
+    // Contains the address information of the server
     struct sockaddr_in socketAddrServer;
+
+    // Holds the assiocated socket for the TCP server
     int socketFd;
     socklen_t socketLen;
 
 public:
+    /*
+     * Constructs the UDPClient class.
+     * @param host is the host to connect to.
+     * @param port to connect to.
+     */
     UDPClient (std::string host, int port): host(host), port(port) {
     }
 
@@ -44,6 +58,9 @@ public:
         close(this->socketFd);
     }
 
+    /*
+     * Initialize the class to setup the object.
+     */
     int initialize() {
         if ( (this->socketFd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0 ) {
             this->error("initialize: Socket failure");
@@ -56,17 +73,32 @@ public:
 
         return 0;
     }
-
+    
+    /*
+     * Generic error method to show errors.
+     * @param error that contains the error message.
+     */
     void error (const char* error) {
         std::cout << "ERROR: " << error << std::endl;
     }
 
+    /*
+     * Sends data to the connected peer.
+     * @param buffer is a pointer to the data.
+     * @param bufferLength is the total data that needs to be send.
+     * @return total amount of bytes that have been send or <0 error.
+     */
     ssize_t sendTo(const char* buffer, size_t bufferLength) {
         return sendto(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrServer, sizeof(this->socketAddrServer));	
     }
 
+    /*
+     * Receive data from the connected peer.
+     * @param buffer to receive the data.
+     * @param bufferLength that shows how big the buffer is.
+     * @return total amount of bytes that have been send or <0 error.
+     */
     ssize_t receiveFrom (char* buffer, size_t bufferLength) {
-        //return recvfrom(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrServer, &this->socketLen);
         return recv(this->socketFd, buffer, bufferLength, 0);
     }      
     
