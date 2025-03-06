@@ -90,7 +90,7 @@ public:
  */
 class TCPServer {
 private:
-     // Contains the address information of the server
+    // Contains the address information of the server
     struct sockaddr_in socketAddrServer;
 
     // Holds the assiocated socket for the TCP server

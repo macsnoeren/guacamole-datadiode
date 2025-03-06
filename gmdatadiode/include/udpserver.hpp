@@ -27,21 +27,40 @@ If not, see https://www.gnu.org/licenses/.
 #include <sys/stat.h>
 #include <thread>
 
-// The class that actual implement the TCP/IP server and can start and stop it.
+/*
+ * This class implements an UDP server.
+ */
 class UDPServer {
 private:
+     // Contains the address information of the server
     struct sockaddr_in socketAddrServer;
+
+    // Holds the assiocated socket for the UDP server
     socklen_t socketLen;
     int socketFd;
+
+    // Port that the server will listen to
     int port;
+
+    // Used to set options of the socket during creation.
     int opt;
+
+     // Determine whether the TCP server is still running.
     bool running;
 
+    /*
+     * Generic error method to show errors.
+     * @param error that contains the error message.
+     */
     void error (const char* error) {
         std::cout << "ERROR: " << error << std::endl;
     }
 
 public:
+    /*
+     * Constructs the UDPServer class.
+     * @param port to listen to.
+     */
     UDPServer(int port): port(port), opt(1), running(false) {
     }
 
@@ -49,6 +68,9 @@ public:
         close(this->socketFd);
     }
 
+    /*
+     * Initialize the class to setup the object.
+     */
     int initialize() {
         if ( (this->socketFd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0 ) {
             this->error("initialize: Socket failure");
@@ -67,6 +89,10 @@ public:
         return 0;
     }
 
+    /*
+     * Creates the socket and start listening to the port.
+     * @return zero when succesfull, otherwise <0.
+     */
     int start () {
         if ( bind(this->socketFd, (struct sockaddr*)&this->socketAddrServer, sizeof(this->socketAddrServer)) < 0) {
             this->error("start: Bind failed");
@@ -76,13 +102,23 @@ public:
         return 0;
     }
 
+    /*
+     * Sends data to the connected peer.
+     * @param buffer is a pointer to the data.
+     * @param bufferLength is the total data that needs to be send.
+     * @return total amount of bytes that have been send or <0 error.
+     */
     ssize_t sendTo(char* buffer, size_t bufferLength) {
-        //return sendto(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrServer, this->socketLen);
         return send(this->socketFd, buffer, bufferLength, 0);	
     }
 
+    /*
+     * Receive data from the connected peer.
+     * @param buffer to receive the data.
+     * @param bufferLength that shows how big the buffer is.
+     * @return total amount of bytes that have been send or <0 error.
+     */
     ssize_t receiveFrom (char* buffer, size_t bufferLength) {
-        //return recvfrom(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrServer, &this->socketLen);
         return recv(this->socketFd, buffer, bufferLength, 0);
     }   
 
