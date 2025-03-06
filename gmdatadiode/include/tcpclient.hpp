@@ -27,16 +27,30 @@ If not, see https://www.gnu.org/licenses/.
 #include <sys/stat.h>
 #include <thread>
 
-// TCP/IP client to send data to an TCP/IP server.
+/*
+ * Class that implements a TCP client that can be used to connect to a TCP server.
+ */
 class TCPClient {
 private:
+    // Host to connect to
     std::string host;
+
+    // Port to connect to
     int port;
+
+    // Contains the address information of the server
     struct sockaddr_in socketAddrServer;
+
+    // Holds the assiocated socket for the TCP server
     int socketFd;
     socklen_t socketLen;
 
 public:
+    /*
+     * Constructs the TCPClient class.
+     * @param host is the host to connect to.
+     * @param port to connect to.
+     */
     TCPClient (std::string host, int port): host(host), port(port) {
     }
 
@@ -44,20 +58,25 @@ public:
         close(this->socketFd);
     }
 
+    /*
+     * Initialize the class to setup the object.
+     */
     int initialize () {
         return 0;
     }
 
+    /*
+     * Creates the socket and connects to the host on the given port.
+     * @return zero when connected, otherwise -1.
+     */
     int start () {
-        //if ( (this->socketFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0 ) {
         if ( (this->socketFd = socket(AF_INET, SOCK_STREAM, 0)) < 0 ) {
-            this->error("initialize: Socket failure");
+            std::cout << "initialize: Socket failure" << std::endl;
             return -1;
         }
 
         memset(&this->socketAddrServer, '\0', sizeof(this->socketAddrServer));
         this->socketAddrServer.sin_family = AF_INET;
-        //this->socketAddrServer.sin_addr.s_addr = inet_addr(this->host.c_str()); // Use inet_aton instead!
         this->socketAddrServer.sin_port = htons(this->port);
 
         if ( inet_aton(this->host.c_str(), &(this->socketAddrServer.sin_addr)) == 0 ) {
@@ -68,20 +87,29 @@ public:
         return connect(this->socketFd, (struct sockaddr*) &this->socketAddrServer, sizeof(this->socketAddrServer));
     }
 
-    void error (const char* error) {
-        std::cout << "ERROR: " << error << std::endl;
-    }
-
+    /*
+     * Sends data to the connected peer.
+     * @param buffer is a pointer to the data.
+     * @param bufferLength is the total data that needs to be send.
+     * @return total amount of bytes that have been send or <0 error.
+     */
     ssize_t sendTo(const char* buffer, size_t bufferLength) {
-        //return sendto(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrServer, sizeof(this->socketAddrServer));
         return send(this->socketFd, buffer, bufferLength, 0);	
     }
 
+    /*
+     * Receive data from the connected peer.
+     * @param buffer to receive the data.
+     * @param bufferLength that shows how big the buffer is.
+     * @return total amount of bytes that have been send or <0 error.
+     */
     ssize_t receiveFrom (char* buffer, size_t bufferLength) {
-        //return recvfrom(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrServer, &this->socketLen);
         return recv(this->socketFd, buffer, bufferLength, 0);
     }
 
+    /*
+     * Close the socket and the connection with the peer will be closed.
+     */
     int closeSocket () {
         return close(this->socketFd);
     }
