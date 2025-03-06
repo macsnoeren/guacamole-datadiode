@@ -137,9 +137,13 @@ void thread_guacd_client_recv (bool* running, TCPClientHandle* tcpGuacdClientHan
         strcat(buffer, gmsEnd);
 
         // Push it onto the sendQueue
-        char* temp = new char[strlen(buffer)+1];
-        strcpy(temp, buffer);
-        queueSend->push(temp);
+        if ( strlen(buffer) < BUFFER_SIZE ) {
+          char* temp = new char[strlen(buffer)+1];
+          strcpy(temp, buffer);
+          queueSend->push(temp);
+        } else {
+          cout << "ERROR: buffer size larger than maximum of " << BUFFER_SIZE << endl;
+        }
       }
       
     } else if ( n == 0 ) { // Peer properly shutted down!
