@@ -42,7 +42,10 @@ struct TCPClientHandle {
     std::queue<char*> data;
 };
 
-
+/*
+ * Create a unique ID that can be used to assiocate the Guacamole/guacd clients.
+ * @return a random heximal string.
+ */
 std::string createUniqueId () {
   time_t timer = time(nullptr);
   srand(time(0));
