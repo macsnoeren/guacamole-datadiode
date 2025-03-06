@@ -27,20 +27,25 @@ If not, see https://www.gnu.org/licenses/.
 #include <sys/stat.h>
 #include <thread>
 
-// Interface class to provide a client that is only able to send messages to the TCP/IP client of the server
-class iTCPServerClientSendOnly {
-public:
-    virtual ssize_t sendTo(const char* buffer, size_t bufferLength) = 0;          
-};
-
-// When a client is connected to the TCP/IP server, this class represent the client connection.
-class TCPServerClient: public iTCPServerClientSendOnly {
+/*
+ * Class that holds the client connection that has been accepted by the server.
+ */
+class TCPServerClient {
 private:
+    // Holds the socket of the client that is connected with the server.
     int socketFd;
-    struct sockaddr_in socketAddrClient;
     socklen_t socketLenClient;
 
+    // Holds the address of the client.
+    struct sockaddr_in socketAddrClient;
+    
 public:
+    /*
+     * Constructs the TCPServerClient class.
+     * @param the socket that is assiocated with the client..
+     * @param the socket address that is assiocated with the client.
+     * @param the socket length that is assiocated with the client.
+     */
     TCPServerClient (int socketFd, struct sockaddr_in socketAddrClient, socklen_t socketLenClient) {
         this->socketFd = socketFd;
         this->socketAddrClient = socketAddrClient;
@@ -51,45 +56,72 @@ public:
         close(this->socketFd);
     }
 
-    void error (const char* error) {
-        std::cout << "ERROR: " << error << std::endl;
-    }
-
-    iTCPServerClientSendOnly* getTCPServerClientSendOnly() {
-        return this;
-    }
-
+    /*
+     * Sends data to the connected peer.
+     * @param buffer is a pointer to the data.
+     * @param bufferLength is the total data that needs to be send.
+     * @return total amount of bytes that have been send or <0 error.
+     */
     ssize_t sendTo(const char* buffer, size_t bufferLength) {
-        //return sendto(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrClient, this->socketLenClient);	
         return send(this->socketFd, buffer, bufferLength, 0);	
     }
 
+    /*
+     * Receive data from the connected peer.
+     * @param buffer to receive the data.
+     * @param bufferLength that shows how big the buffer is.
+     * @return total amount of bytes that have been send or <0 error.
+     */
     ssize_t receiveFrom (char* buffer, size_t bufferLength) {
-        //return recvfrom(this->socketFd, buffer, bufferLength, 0, (struct sockaddr *) &this->socketAddrClient, &this->socketLenClient);
         return recv(this->socketFd, buffer, bufferLength, 0);
     }
 
+    /*
+     * Close the socket and the connection with the peer will be closed.
+     */
     int closeSocket () {
         return close(this->socketFd);
     }
     
 };
 
-// The class that actual implement the TCP/IP server and can start and stop it.
+/*
+ * Class that implements the TCP server.
+ */
 class TCPServer {
 private:
+     // Contains the address information of the server
     struct sockaddr_in socketAddrServer;
+
+    // Holds the assiocated socket for the TCP server
     int socketFd;
+
+    // Port that the server will listen to
     int port;
+
+    // Used to set options of the socket during creation.
     int opt;
+
+    // Determine whether the TCP server is still running.
     bool running;
+
+    // Maximal clients that are able to connect to the TCP server.
     int maxConnections;
 
+    /*
+     * Generic error method to show errors.
+     * @param error that contains the error message.
+     */
     void error (const char* error) {
         std::cout << "ERROR: " << error << std::endl;
     }
 
 public:
+    /*
+     * Constructs the TCPServer class.
+     * @param port to listen to.
+     * @param maximal connections, default 1.
+     */
     TCPServer(int port, int maxConnections = 1): port(port), opt(1), running(false), maxConnections(maxConnections) {
     }
 
@@ -97,8 +129,10 @@ public:
         close(this->socketFd);
     }
 
+    /*
+     * Initialize the class to setup the object.
+     */
     int initialize() {
-        //if ( (this->socketFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0 ) {
         if ( (this->socketFd = socket(AF_INET, SOCK_STREAM, 0)) < 0 ) {
             this->error("initialize: Socket failure");
             return -1;
@@ -117,6 +151,10 @@ public:
         return 0;
     }
 
+    /*
+     * Creates the socket and start listening to the port.
+     * @return zero when succesfull, otherwise <0.
+     */
     int start () {
         if ( bind(this->socketFd, (struct sockaddr*)&this->socketAddrServer, sizeof(this->socketAddrServer)) < 0) {
             this->error("start: Bind failed");
@@ -131,6 +169,10 @@ public:
         return 0;
     }
 
+    /*
+     * Wait for a client connection.
+     * @return TCPServerClient when connected.
+     */
     TCPServerClient* accept () {
         struct sockaddr_in socketAddrClient;
         socklen_t socketLenClient;
