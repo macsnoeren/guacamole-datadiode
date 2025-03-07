@@ -51,6 +51,7 @@ struct Arguments {
   int gmx_port;
   string ddout_host;
   int ddout_port;
+  bool test;
 };
 
 /*
@@ -75,6 +76,7 @@ void thread_datadiode_send (Arguments args, bool* running, queue<string>* queueS
   UDPClient udpClient(args.ddout_host, args.ddout_port);
   udpClient.initialize();
 
+  cout << "Starting UDP client to connect to " << args.ddout_host << " on port " << args.ddout_port << endl;
   while ( *running ) {
     while ( !queueSend->empty() ) {
       ssize_t n = udpClient.sendTo(queueSend->front().c_str(), queueSend->front().length());
@@ -99,6 +101,7 @@ void help() {
   cout << "  -p port, --gmx-port=port   port where it need to connect to the gmserver ot gmclient            [default: " << GMx_PORT << "]" << endl;
   cout << "  -d host, --ddout-host=host host that the UDP data needs to send to the gmproxyout               [default: " << DATA_DIODE_SEND_HOST << "]" << endl;
   cout << "  -o port, --ddout-port=port port that the gmproxyout is using                                    [default: " << DATA_DIODE_SEND_PORT << "]" << endl;
+  cout << "  -t, --test                 testing mode will send UDP messages to gmproxyout" << endl;
   cout << "  -h, --help                 show this help page." << endl << endl;
   cout << "More documentation can be found on https://github.com/macsnoeren/guacamole-datadiode." << endl;
 }
@@ -120,42 +123,43 @@ int main (int argc, char *argv[]) {
   arguments.gmx_port = GMx_PORT;
   arguments.ddout_host = DATA_DIODE_SEND_HOST;
   arguments.ddout_port = DATA_DIODE_SEND_PORT;
+  arguments.test = false;
 
   // Create the short and long options of the application.
-  const char* const short_options = "g:p:d:o:h";
+  const char* const short_options = "thg:p:d:o:";
   static struct option long_options[] = {
+    {"test", no_argument, nullptr, 't'},
     {"gmx-host", optional_argument, nullptr, 'g'},
     {"gmx-port", optional_argument, nullptr, 'p'},
     {"ddout-host", optional_argument, nullptr, 'd'},
     {"ddout-port", optional_argument, nullptr, 'o'},
-    {"help", no_argument, 0, 'h'},
+    {"help", no_argument, nullptr, 'h'},
     {0, 0, 0, 0}
   };
 
   int opt;
   while ( (opt = getopt_long(argc, argv, short_options, long_options, nullptr)) != -1 ) { 
-    if ( optarg != nullptr ) {
-      switch(opt) {
-        case 'h':
-          help(); return 0;
-          break;
-        case 'g':
-          arguments.gmx_host = string(optarg);
-          break;
-        case 'p':
-          arguments.gmx_port = stoi(optarg);
-          break;
-        case 'd':
-          arguments.ddout_host = string(optarg);
-          break;
-        case 'o':
-          arguments.ddout_port = stoi(optarg);
-          break;
-        default:
-          help(); return 0;
-      }
-    } else {
-      help(); return 0;
+    switch(opt) {
+      case 'h':
+        help(); return 0;
+        break;
+      case 't':
+        arguments.test = true;
+        break;
+      case 'g':
+        arguments.gmx_host = string(optarg);
+        break;
+      case 'p':
+        arguments.gmx_port = stoi(optarg);
+        break;
+      case 'd':
+        arguments.ddout_host = string(optarg);
+        break;
+      case 'o':
+        arguments.ddout_port = stoi(optarg);
+        break;
+      default:
+        help(); return 0;
     }
   }
 
@@ -171,6 +175,12 @@ int main (int argc, char *argv[]) {
   // Create the connection with the gmserver of gmclient (gmx) and process the queue.
   TCPClient tcpClientGmServer(arguments.gmx_host, arguments.gmx_port);
   tcpClientGmServer.initialize();
+
+  if ( arguments.test ) cout << "Testing mode!" << endl;
+  while ( arguments.test ) {
+    queueDataDiodeSend.push("TESTING-GMPROXYIN-MESSAGE\n");
+    sleep(1);
+  }
 
   cout << "Connecting to the gmserver or gmclient " << arguments.gmx_host << ":" << arguments.gmx_port << endl;
   while ( running ) {
