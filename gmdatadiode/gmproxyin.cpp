@@ -79,6 +79,9 @@ void thread_datadiode_send (Arguments args, bool* running, queue<string>* queueS
   cout << "Starting UDP client to connect to " << args.ddout_host << " on port " << args.ddout_port << endl;
   while ( *running ) {
     while ( !queueSend->empty() ) {
+      if ( args.test ) {
+        cout << "UDP client send message: " << queueSend->front();
+      }
       ssize_t n = udpClient.sendTo(queueSend->front().c_str(), queueSend->front().length());
       if ( n >= 0 ) {
         queueSend->pop();
