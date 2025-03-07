@@ -1,5 +1,5 @@
-![badge-development-in-progress](https://img.shields.io/badge/development-in_progress-blue)
-![badge-version-0-1-test](https://img.shields.io/badge/version-0.1_(test)-yellow)
+[![docker](https://github.com/macsnoeren/guacamole-datadiode/actions/workflows/build_docker.yml/badge.svg)](https://github.com/macsnoeren/guacamole-datadiode/actions/workflows/build_docker.yml)
+[![build](https://github.com/macsnoeren/guacamole-datadiode/actions/workflows/build_gmdatadiode.yml/badge.svg)](https://github.com/macsnoeren/guacamole-datadiode/actions/workflows/build_gmdatadiode.yml)
 
 # Guacamole data-diode
 
