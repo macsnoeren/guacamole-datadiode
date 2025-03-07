@@ -19,6 +19,8 @@ jobs:
        cd gmdatadiode
        make
        ls -l ../build
+    - name: build docker
+      run: |
        cd ../docker/gmserver
        ./build.sh
        
