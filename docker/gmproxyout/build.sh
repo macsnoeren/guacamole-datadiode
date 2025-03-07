@@ -11,15 +11,11 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see https://www.gnu.org/licenses/.
 #
-FROM alpine:latest
 
-RUN apk update
-RUN apk add gcompat
-RUN apk add libc6-compat
-RUN apk add build-base
+cp ../../build/gmproxyout .
 
-WORKDIR /bin
+docker build --tag gmproxyout .
 
-COPY . .
+rm ./gmproxyout
 
-ENTRYPOINT ["gmproxyin"]
+# Example: docker run -d -p 20000:20000 -p 40000:40000 gmproxyout

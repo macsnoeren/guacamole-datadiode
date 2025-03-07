@@ -1,2 +1,0 @@
-docker build --tag proxy-egress .
-docker run -d -p 4823:4823 proxy-egress

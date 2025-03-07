@@ -22,4 +22,4 @@ WORKDIR /bin
 
 COPY . .
 
-ENTRYPOINT ["gmproxyin"]
+ENTRYPOINT ["gmserver"]

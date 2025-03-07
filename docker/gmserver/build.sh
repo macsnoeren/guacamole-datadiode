@@ -11,15 +11,11 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see https://www.gnu.org/licenses/.
 #
-FROM alpine:latest
 
-RUN apk update
-RUN apk add gcompat
-RUN apk add libc6-compat
-RUN apk add build-base
+cp ../../build/gmserver .
 
-WORKDIR /bin
+docker build --tag gmserver .
 
-COPY . .
+rm ./gmserver
 
-ENTRYPOINT ["gmproxyin"]
+# Example: docker run -d -p 4822:4822 -p 10000:10000 -p 20000:20000 gmserver
