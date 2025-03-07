@@ -21,7 +21,7 @@ cd ../docker/gmclient
 cp ../../build/gmclient .
 
 # Build the docker image
-docker build --tag gmclient .
+docker build --tag gmdatadiode-gmclient .
 
 # remove the executable
 rm ./gmclient

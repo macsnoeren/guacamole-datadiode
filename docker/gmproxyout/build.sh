@@ -21,7 +21,7 @@ cd ../docker/gmproxyout
 cp ../../build/gmproxyout .
 
 # Build the docker image
-docker build --tag gmproxyout .
+docker build --tag gmdatadiode-gmproxyout .
 
 # remove the executable
 rm ./gmproxyout

@@ -21,7 +21,7 @@ cd ../docker/gmproxyin
 cp ../../build/gmproxyin .
 
 # Build the docker image
-docker build --tag gmproxyin .
+docker build --tag gmdatadiode-gmproxyin .
 
 # remove the executable
 rm ./gmproxyin

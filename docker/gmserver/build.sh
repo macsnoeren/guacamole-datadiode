@@ -21,7 +21,7 @@ cd ../docker/gmserver
 cp ../../build/gmserver .
 
 # Build the docker image
-docker build --tag gmserver .
+docker build --tag gmdatadiode-gmserver .
 
 # remove the executable
 rm ./gmserver
