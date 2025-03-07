@@ -70,7 +70,7 @@ void signal_sigpipe_cb (int signum) {
  * @param[in/out] running is used to check if the program is stil running, can also be set.
  * @param[in] queueSend is used to push the data to the gmproxyout.
  */
-void thread_datadiode_send (Arguments args, bool* running, queue<string>* queueSend) {
+void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSend) {
   char buffer[BUFFER_SIZE];
 
   UDPClient udpClient(args.ddout_host, args.ddout_port);
@@ -82,8 +82,9 @@ void thread_datadiode_send (Arguments args, bool* running, queue<string>* queueS
       if ( args.test ) {
         cout << "UDP client send message: " << queueSend->front();
       }
-      ssize_t n = udpClient.sendTo(queueSend->front().c_str(), queueSend->front().length());
+      ssize_t n = udpClient.sendTo(queueSend->front(), strlen(queueSend->front()));
       if ( n >= 0 ) {
+        delete queueSend->front(); // Free memory that has been allocated
         queueSend->pop();
       } else {
         cout << "Error with client during sending data" << endl;
@@ -169,7 +170,7 @@ int main (int argc, char *argv[]) {
   // Create the running variable, buffer and queue.
   bool running = true;
   char buffer[BUFFER_SIZE];
-  queue<string> queueDataDiodeSend;
+  queue<char*> queueDataDiodeSend;
 
   // Create the thread to send the data-diode data to gmproxyout.
   thread t(thread_datadiode_send, arguments, &running, &queueDataDiodeSend);
@@ -181,7 +182,9 @@ int main (int argc, char *argv[]) {
 
   if ( arguments.test ) cout << "Testing mode!" << endl;
   while ( arguments.test ) {
-    queueDataDiodeSend.push("TESTING-GMPROXYIN-MESSAGE\n");
+    char* m = new char(50);
+    strcpy(m, "TESTING-GMPROXYIN-MESSAGE\n");
+    queueDataDiodeSend.push(m);
     sleep(1);
   }
 
@@ -195,7 +198,13 @@ int main (int argc, char *argv[]) {
         ssize_t n = tcpClientGmServer.receiveFrom(buffer, BUFFER_SIZE);
         if ( n  > 0 ) { // Received message from receiving data-diode
           buffer[n] = '\0';
-          queueDataDiodeSend.push(string(buffer));
+          if ( n < BUFFER_SIZE ) {
+            char* temp = new char[n+1];
+            strcpy(temp, buffer);
+            queueDataDiodeSend.push(temp);
+          } else {
+            cout << "ERROR: buffer size larger than maximum of " << BUFFER_SIZE << endl;
+          }
 
         } else if ( n == 0 ) { // Peer properly shutted down!
           cout << "Connection stopped" << endl;

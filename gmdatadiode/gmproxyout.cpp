@@ -66,7 +66,7 @@ void signal_sigpipe_cb (int signum) {
  * @param[in/out] running is used to check if the program is stil running, can also be set.
  * @param[in] queueRecv is used to push the data that is received to.
  */
-void thread_datadiode_recv (Arguments args, bool* running, queue<string>* queueRecv) {
+void thread_datadiode_recv (Arguments args, bool* running, queue<char*>* queueRecv) {
   char buffer[BUFFER_SIZE];
 
   UDPServer udpServer(args.ddin_port);
@@ -77,7 +77,13 @@ void thread_datadiode_recv (Arguments args, bool* running, queue<string>* queueR
     ssize_t n = udpServer.receiveFrom(buffer, BUFFER_SIZE);
     if ( n  > 0 ) {
       buffer[n] = '\0';
-      queueRecv->push(string(buffer));
+      if ( n < BUFFER_SIZE ) {
+        char* temp = new char[n+1];
+        strcpy(temp, buffer);
+        queueRecv->push(temp);
+      } else {
+        cout << "ERROR: buffer size larger than maximum of " << BUFFER_SIZE << endl;
+      }
       
     } else { // Problem with the client
       cout << "Error with the client connection" << endl;
@@ -154,7 +160,7 @@ int main (int argc, char *argv[]) {
   // Create the running variable, buffer and queue.
   bool running = true;
   char buffer[BUFFER_SIZE];
-  queue<string> queueDataDiodeRecv;
+  queue<char*> queueDataDiodeRecv;
 
   // Create the thread to receive the data-diode data from gmproxyin.
   thread t(thread_datadiode_recv, arguments, &running, &queueDataDiodeRecv);
@@ -172,8 +178,9 @@ int main (int argc, char *argv[]) {
       bool active = true;
       while ( active ) {
         while ( active && !queueDataDiodeRecv.empty() ) {
-          ssize_t n = tcpClientGmx.sendTo(queueDataDiodeRecv.front().c_str(), queueDataDiodeRecv.front().length());
+          ssize_t n = tcpClientGmx.sendTo(queueDataDiodeRecv.front(), strlen(queueDataDiodeRecv.front()));
           if ( n >= 0 ) {
+            delete queueDataDiodeRecv.front(); // Free the memory that has been allocated
             queueDataDiodeRecv.pop();
           } else {
             cout << "Error with client during sending data" << endl;
