@@ -40,9 +40,27 @@ jobs:
         context: "{{defaultContext}}:docker/gmserver"
         push: true
         tags: macsnoeren/gmdatadiode-gmserver:latest
-       
-#    - name: build docker
-#      run: |
-#       cd docker/gmserver
-#       ./build.sh
-       
+
+    -
+      name: Build and push
+      uses: docker/build-push-action@v6
+      with:
+        context: "{{defaultContext}}:docker/gmclient"
+        push: true
+        tags: macsnoeren/gmdatadiode-gmclient:latest
+
+    -
+      name: Build and push
+      uses: docker/build-push-action@v6
+      with:
+        context: "{{defaultContext}}:docker/gmproxyin"
+        push: true
+        tags: macsnoeren/gmdatadiode-gmproxyin:latest
+
+    -
+      name: Build and push
+      uses: docker/build-push-action@v6
+      with:
+        context: "{{defaultContext}}:docker/gmproxyout"
+        push: true
+        tags: macsnoeren/gmdatadiode-gmproxyout:latest    
