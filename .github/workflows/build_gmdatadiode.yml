@@ -11,12 +11,11 @@ jobs:
     runs-on: ubuntu-latest
        
     steps:
+    
     - name: build gmdatadiode
       run: |
-       echo ${{ secrets.dh_username }}
        cd gmdatadiode
        make
-       ls -l ../build
     - uses: actions/checkout@v4
     
     - name: Log in to Docker Hub
