@@ -18,3 +18,5 @@ jobs:
        cd gmdatadiode
        make
        ls -l ../build
+       cd ../docker/gmserver
+       ./build.sh
