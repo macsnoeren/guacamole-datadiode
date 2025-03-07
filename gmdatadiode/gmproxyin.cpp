@@ -179,11 +179,12 @@ int main (int argc, char *argv[]) {
   // Create the connection with the gmserver of gmclient (gmx) and process the queue.
   TCPClient tcpClientGmServer(arguments.gmx_host, arguments.gmx_port);
   tcpClientGmServer.initialize();
+  ssize_t n = 0;
 
   if ( arguments.test ) cout << "Testing mode!" << endl;
   while ( arguments.test ) {
-    char* m = new char(50);
-    strcpy(m, "TESTING-GMPROXYIN-MESSAGE\n");
+    char* m = new char[100];
+    sprintf(m, "TESTING-GMPROXYIN-MESSAGE-%010d\n", ++n);
     queueDataDiodeSend.push(m);
     sleep(1);
   }
@@ -195,7 +196,7 @@ int main (int argc, char *argv[]) {
 
       bool active = true;
       while ( active ) {
-        ssize_t n = tcpClientGmServer.receiveFrom(buffer, BUFFER_SIZE);
+        n = tcpClientGmServer.receiveFrom(buffer, BUFFER_SIZE);
         if ( n  > 0 ) { // Received message from receiving data-diode
           buffer[n] = '\0';
           if ( n < BUFFER_SIZE ) {

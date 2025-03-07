@@ -47,6 +47,7 @@ struct Arguments {
   string gmx_host;
   int gmx_port;
   int ddin_port;
+  bool test;
 };
 
 /*
@@ -77,14 +78,19 @@ void thread_datadiode_recv (Arguments args, bool* running, queue<char*>* queueRe
     ssize_t n = udpServer.receiveFrom(buffer, BUFFER_SIZE);
     if ( n  > 0 ) {
       buffer[n] = '\0';
-      if ( n < BUFFER_SIZE ) {
-        char* temp = new char[n+1];
-        strcpy(temp, buffer);
-        queueRecv->push(temp);
-      } else {
-        cout << "ERROR: buffer size larger than maximum of " << BUFFER_SIZE << endl;
+      if ( args.test ) {
+        cout << "Received from gmproxyin: " << buffer;
       }
-      
+      if ( !args.test ) {
+        if ( n < BUFFER_SIZE ) {
+          char* temp = new char[n+1];
+          strcpy(temp, buffer);
+          queueRecv->push(temp);
+        } else {
+          cout << "ERROR: buffer size larger than maximum of " << BUFFER_SIZE << endl;
+        }
+      }
+
     } else { // Problem with the client
       cout << "Error with the client connection" << endl;
       // What to do?!
@@ -103,6 +109,7 @@ void help() {
   cout << "  -g host, --gmx-host=host  host where it needs to connect to send data from gmserver or gmclient [default: " << GMx_HOST << "]" << endl;
   cout << "  -p port, --gmx-port=port  port where it need to connect to the gmserver or gmclient             [default: " << GMx_PORT << "]" << endl;
   cout << "  -i port, --ddin-port=port port that the data is received from gmproxyin on UDP port             [default: " << DATA_DIODE_RECV_PORT << "]" << endl;
+  cout << "  -t, --test                 testing mode will send UDP messages to gmproxyout" << endl;
   cout << "  -h, --help                show this help page." << endl << endl;
   cout << "More documentation can be found on https://github.com/macsnoeren/guacamole-datadiode." << endl;
 }
@@ -124,36 +131,36 @@ int main (int argc, char *argv[]) {
   arguments.ddin_port = DATA_DIODE_RECV_PORT;
 
   // Create the short and long options of the application.
-  const char* const short_options = "g:p:i:h";
+  const char* const short_options = "htg:p:i:";
   static struct option long_options[] = {
     {"gmx-host", optional_argument, nullptr, 'g'},
     {"gmx-port", optional_argument, nullptr, 'p'},
     {"ddin-port", optional_argument, nullptr, 'i'},
+    {"test", no_argument, 0, 't'},
     {"help", no_argument, 0, 'h'},
     {0, 0, 0, 0}
   };
 
   int opt;
   while ( (opt = getopt_long(argc, argv, short_options, long_options, nullptr)) != -1 ) { 
-    if ( optarg != nullptr ) {
-      switch(opt) {
-        case 'h':
-          help(); return 0;
-          break;
-        case 'g':
-          arguments.gmx_host = string(optarg);
-          break;
-        case 'p':
-          arguments.gmx_port = stoi(optarg);
-          break;
-        case 'i':
-          arguments.ddin_port = stoi(optarg);
-          break;
-        default:
-          help(); return 0;
-      }
-    } else {
-      help(); return 0;
+    switch(opt) {
+      case 'h':
+        help(); return 0;
+        break;
+      case 't':
+        arguments.test = true;
+        break;
+      case 'g':
+        arguments.gmx_host = string(optarg);
+        break;
+      case 'p':
+        arguments.gmx_port = stoi(optarg);
+        break;
+      case 'i':
+        arguments.ddin_port = stoi(optarg);
+        break;
+      default:
+        help(); return 0;
     }
   }
 
@@ -170,6 +177,7 @@ int main (int argc, char *argv[]) {
   TCPClient tcpClientGmx(arguments.gmx_host, arguments.gmx_port);
   tcpClientGmx.initialize();
 
+  if ( arguments.test ) cout << "Testing mode!" << endl;
   cout << "Connecting to the gmserver or gmclient " << arguments.gmx_host << ":" << arguments.gmx_port << endl;
   while ( running ) {
     if ( tcpClientGmx.start() == 0 ) {
