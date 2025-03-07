@@ -12,10 +12,18 @@
 # If not, see https://www.gnu.org/licenses/.
 #
 
+# Rebuild the application
+cd ../../gmdatadiode
+make gmclient
+cd ../docker/gmclient
+
+# Copy the executable
 cp ../../build/gmclient .
 
+# Build the docker image
 docker build --tag gmclient .
 
+# remove the executable
 rm ./gmclient
 
 # Example: docker run -d -p 10000:10000 -p 20000:20000 gmclient

@@ -12,10 +12,18 @@
 # If not, see https://www.gnu.org/licenses/.
 #
 
+# Rebuild the application
+cd ../../gmdatadiode
+make gmproxyin
+cd ../docker/gmproxyin
+
+# Copy the executable
 cp ../../build/gmproxyin .
 
+# Build the docker image
 docker build --tag gmproxyin .
 
+# remove the executable
 rm ./gmproxyin
 
 # Example: docker run -d gmproxyin
