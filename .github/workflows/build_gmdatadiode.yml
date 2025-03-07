@@ -21,6 +21,6 @@ jobs:
        ls -l ../build
     - name: build docker
       run: |
-       cd ../docker/gmserver
+       cd docker/gmserver
        ./build.sh
        
