@@ -56,7 +56,7 @@ std::string createUniqueId () {
   }
   
   char id[80] = "";
-  std::sprintf(id, "%lX", v);
+  std::sprintf(id, "%llX", v);
 
   return std::string(id);
 }
