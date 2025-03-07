@@ -184,7 +184,7 @@ int main (int argc, char *argv[]) {
   if ( arguments.test ) cout << "Testing mode!" << endl;
   while ( arguments.test ) {
     char* m = new char[100];
-    sprintf(m, "TESTING-GMPROXYIN-MESSAGE-%010d\n", ++n);
+    sprintf(m, "TESTING-GMPROXYIN-MESSAGE-%010ld\n", ++n);
     queueDataDiodeSend.push(m);
     sleep(1);
   }
