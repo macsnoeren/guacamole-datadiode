@@ -357,7 +357,7 @@ int main (int argc, char *argv[]) {
   arguments.verbosity = VERBOSE_NO;
 
   // Create the short and long options of the application.
-  const char* const short_options = "c:p:i:o:h";
+  const char* const short_options = "vhc:p:i:o:";
   static struct option long_options[] = {
     {"max-clients", optional_argument, nullptr, 'c'},
     {"port", optional_argument, nullptr, 'p'},
