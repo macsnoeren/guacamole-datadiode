@@ -69,17 +69,18 @@ void signal_sigpipe_cb (int signum) {
 }
 
 void thread_guacd_client_send (bool* running, TCPClientHandle* tcpClientHandle, queue<char*>* queueSend) {
-  cout << "Thread Guacamole client '" << tcpClientHandle->ID << " started" << endl;
+  logging(VERBOSE_INFO, "Thread thread_guacd_client_send with client id '%s' started\n", tcpClientHandle->ID.c_str());
   while ( tcpClientHandle->running ) {
     while ( !tcpClientHandle->data.empty() ) {
       char* d = tcpClientHandle->data.front();
 
+      logging(VERBOSE_DEBUG, "Send data to guacd client %s: %d\n", tcpClientHandle->ID.c_str(), d);
       ssize_t n = tcpClientHandle->tcpClient->sendTo(d, strlen(d));
       delete d; // Free allocated memory
       tcpClientHandle->data.pop();
 
       if ( n < 0 ) {
-        cout << "thread_guacamole_client_send: Error with client during sending data" << endl;
+        logging(VERBOSE_NO, "Error connection during sending data with guacd client %s\n", tcpClientHandle->ID.c_str());
         tcpClientHandle->running = false;
         tcpClientHandle->tcpClient->closeSocket();
 
@@ -92,7 +93,7 @@ void thread_guacd_client_send (bool* running, TCPClientHandle* tcpClientHandle, 
     usleep(5000);
   }
 
-  cout << "Thread guacd client send'" << tcpClientHandle->ID << "'" << endl;
+  logging(VERBOSE_INFO, "Thread thread_guacd_client_send with guacd client id '%s' stoppen\n", tcpClientHandle->ID.c_str());
 }
 
 /*
@@ -107,9 +108,10 @@ void thread_guacd_client_recv (bool* running, TCPClientHandle* tcpGuacdClientHan
   ProtocolValidator validator;
   TCPClient* tcpClient = tcpGuacdClientHandle->tcpClient;
   
-    cout << "Waiting on data from the guacd client '" << tcpGuacdClientHandle->ID << "'" << endl;
+    logging(VERBOSE_DEBUG, "Thread thread_guacd_client_recv to receive data from the guacd client '%s'\n", tcpGuacdClientHandle->ID.c_str());
     while ( tcpGuacdClientHandle->running ) {
     ssize_t n = tcpClient->receiveFrom(buffer, BUFFER_SIZE);
+    logging(VERBOSE_DEBUG, "Received data from guacd client %s: %s\n", tcpGuacdClientHandle->ID.c_str(), buffer);
     if ( n  > 0 ) { // Received message from receiving data-diode
       buffer[n] = '\0';
 
@@ -126,6 +128,7 @@ void thread_guacd_client_recv (bool* running, TCPClientHandle* tcpGuacdClientHan
         strcpy(buffer, gmsId); // Re-use the buffer
 
         while ( !q->empty() && !ready ) {
+          logging(VERBOSE_DEBUG, "Validator guacd receive queue: %s\n", q->front());
           char* opcode = q->front();
           if ( strlen(buffer) + strlen(opcode) < BUFFER_SIZE -strlen(gmsEnd) - 1) {
             strcat(buffer, opcode);
@@ -143,17 +146,17 @@ void thread_guacd_client_recv (bool* running, TCPClientHandle* tcpGuacdClientHan
           strcpy(temp, buffer);
           queueSend->push(temp);
         } else {
-          cout << "ERROR: buffer size larger than maximum of " << BUFFER_SIZE << endl;
+          logging(VERBOSE_NO, "ERROR: buffer size larger than maximum of %d\n", BUFFER_SIZE);
         }
       }
       
     } else if ( n == 0 ) { // Peer properly shutted down!
-      cout << "Client connection shutted down" << endl;
+      logging(VERBOSE_NO, "Peer shutted down of guacd clien: %s\n", tcpGuacdClientHandle->ID.c_str());
       tcpClient->closeSocket();
       tcpGuacdClientHandle->running = false;
       
     } else { // Problem with the client
-      cout << "Error with the client connection" << endl;
+      logging(VERBOSE_NO, "Error with the guacd client connection\n");
       tcpClient->closeSocket();      
       tcpGuacdClientHandle->running = false;
     }
@@ -162,7 +165,7 @@ void thread_guacd_client_recv (bool* running, TCPClientHandle* tcpGuacdClientHan
   
   delete tcpGuacdClientHandle->tcpClient;
 
-  cout << "Closing guacd client" << endl;
+  logging(VERBOSE_INFO, "Closing guacd client\n");
   tcpGuacdClientHandle->tcpClient = NULL;
 }
 
@@ -187,21 +190,23 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
   tcpServerSend.initialize();
   tcpServerSend.start();
 
-  cout << "Waiting on sending data-diode proxy client connection on port '" << args.ddout_port << "'" << endl;
+  logging(VERBOSE_INFO, "Listening for the gm proxyin on port %d\n", args.ddout_port);
   while ( *running ) {
+    logging(VERBOSE_DEBUG, "Waiting on the gmproxyin to connect...\n");
     TCPServerClient* tcpClient = tcpServerSend.accept();
     if ( tcpClient != NULL ) {
       bool active = true;
-      cout << "Sending data-diode client connected" << endl;
+      logging(VERBOSE_DEBUG, "gmproxyin connected\n");
       while ( active ) {
         while ( active && !queueSend->empty() ) {
           char *d =  queueSend->front();
+          logging(VERBOSE_DEBUG, "Send data to gmproxyin: %s\n", d);
           ssize_t n = tcpClient->sendTo(d, strlen(d));
           if ( n >= 0 ) {
             delete d; // Free the allocated memory
             queueSend->pop();
           } else {
-            cout << "Error with client during sending data" << endl;
+            logging(VERBOSE_NO, "Error with gmproxyin client during sending data\n");
             tcpClient->closeSocket();
             active = false;
           }
@@ -212,7 +217,7 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
     usleep(5000);
   }
 
-  cout << "Thread sending data-diode stopped" << endl;
+  logging(VERBOSE_NO, "Thread sending data-diode stopped");
 }
 
 /*
@@ -228,19 +233,22 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
   tcpServerRecv.initialize();
   tcpServerRecv.start();
 
-  cout << "Waiting on receive data-diode proxy client connection on port '" << args.ddin_port << "'" << endl;
+  logging(VERBOSE_INFO, "Listening for gmproxou on port %d\n", args.ddin_port);
   while ( *running ) {
+    logging(VERBOSE_DEBUG, "Waining on gmproxyout to connect...\n");
     TCPServerClient* tcpClient = tcpServerRecv.accept();
     if ( tcpClient != NULL ) {
       bool active = true;
-      cout << "proxyout client connected" << endl;
+      logging(VERBOSE_DEBUG, "proxyout client connected\n");
       while ( active ) {
         ssize_t n = tcpClient->receiveFrom(buffer, BUFFER_SIZE);
+        logging(VERBOSE_DEBUG, "Received data from gmproxyou: %s\n", buffer);
         if ( n  > 0 ) { // Received message from receiving data-diode
           buffer[n] = '\0';
 
           // Process the data that is received and push it to the correct queue
           validator.processData(buffer, strlen(buffer));
+
           queue<char*>* q = validator.getDataQueue();
           if ( q->size() > 0 ) {
             strcpy(buffer, "\0");
@@ -249,12 +257,15 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
               char gmsOpcode[50] = "";
               char gmsValue[50] = "";
 
+              logging(VERBOSE_DEBUG, "Read gmproxyout validation queue: %s\n", q->front());
               if ( findGmsOpcode(opcode, gmsOpcode, gmsValue) ) {
+                logging(VERBOSE_DEBUG, "Received GMS opcode %s with value %s\n", gmsOpcode, gmsValue);
                 if ( strcmp(gmsOpcode, "GMS_START") == 0 ) {
                   if ( guacdClients->find(string(gmsValue)) != guacdClients->end() ) { // Found
                     tcpClientHandle = guacdClients->at(string(gmsValue));
 
                   } else { // Send close message back!
+                    logging(VERBOSE_DEBUG, "guacs client not found, closing connection.\n");
                     char* t = new char[50];
                     sprintf(t, "9.GMS_CLOSE,%ld.%s;", strlen(gmsValue), gmsValue);
                     queueRecv->push(t);
@@ -265,15 +276,16 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
                 } else if ( strcmp(gmsOpcode, "GMS_END") == 0 ) {
                   if ( tcpClientHandle != NULL ) {
                     if ( strcmp(gmsValue, tcpClientHandle->ID.c_str()) != 0 ) {
-                      cout << "thread_datadiode_recv: ERROR GMS protocol (1)" << endl;
+                      logging(VERBOSE_NO, "thread_datadiode_recv: ERROR GMS protocol (1)\n");
                     }
                   } else {
-                    cout << "thread_datadiode_recv: ERROR GMS protocol (2)" << endl;
+                    logging(VERBOSE_NO, "thread_datadiode_recv: ERROR GMS protocol (2)\n");
                   }
                   q->pop();
 
                 } else if ( strcmp(gmsOpcode, "GMS_CLOSE") == 0 ) {
                   if ( guacdClients->find(string(gmsValue)) != guacdClients->end() ) { // Found and close it
+                    logging(VERBOSE_DEBUG, "Closing the guacd socket %s\n", gmsValue);
                     tcpClientHandle = guacdClients->at(string(gmsValue));
                     tcpClientHandle->running = false;
                     tcpClientHandle->tcpClient->closeSocket();
@@ -282,11 +294,11 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
                 } else if ( strcmp(gmsOpcode, "GMS_NEW") == 0 ) {
                   if ( guacdClients->find(string(gmsValue)) == guacdClients->end() ) { // Not found, so create it
                     
-                    cout << "Connecting to guacd on host '" << args.guacd_host << "' and port '" << args.guacd_port << "'" << endl;
+                    logging(VERBOSE_INFO, "Connecting to guacd on host '%s' and port '%s'\n", args.guacd_host, args.guacd_port);
                     TCPClient* tcpClient = new TCPClient(args.guacd_host, args.guacd_port);
                     tcpClient->initialize();
                     if ( tcpClient->start() == 0 ) { // Connected!
-                      cout << "Connected with guacd server" << endl;
+                      logging(VERBOSE_DEBUG, "Connected with guacd server\n");
                       TCPClientHandle *tcpClientHandle = new TCPClientHandle;
                       *tcpClientHandle = {
                         tcpClient,
@@ -300,7 +312,7 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
                       t2.detach();
           
                     } else { // Not connected
-                      perror("Not connected");
+                      logging(VERBOSE_NO, "Could not connect to the guacd server\n");
                       delete tcpClient;
           
                       // Send the close message to the other side
@@ -312,7 +324,7 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
                   q->pop();
 
                 } else {
-                  cout << "ERROR: opcode not found" << endl;
+                  logging(VERBOSE_NO, "ERROR: opcode %s not found\n", gmsOpcode);
                   q->pop();
                 }
 
@@ -331,7 +343,7 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
           active = false;
           
         } else { // Problem with the client
-          cout << "Error with the client connection" << endl;
+          logging(VERBOSE_NO, "Error with the guacd client connection\n");
           tcpClient->closeSocket();      
           active = false;
         }
@@ -341,7 +353,7 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
     usleep(5000);
   }
     
-  cout << "Thread receiving data-diode stopped" << endl;
+  logging(VERBOSE_INFO, "Thread thread_datadiode_recv stopped\n");
 }
 
 /*
@@ -415,7 +427,7 @@ int main (int argc, char *argv[]) {
 
   // Set verbose level
   setVerboseLevel(arguments.verbosity);
-  
+
   // Create the running variable, buffer and queue.
   bool running = true;
   queue<char*> queueDataDiodeSend;
