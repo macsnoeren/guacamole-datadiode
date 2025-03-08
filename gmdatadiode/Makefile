@@ -17,19 +17,15 @@ BUILD_DIR = ../build
 all: gmserver gmclient gmproxyin gmproxyout
 
 gmserver: build_dir
-	echo "gmserver"
 	g++ $(CFLAGS) $(INCLUDE) -o $(BUILD_DIR)/gmserver gmserver.cpp
 
 gmclient: build_dir
-	echo "gmclient"
 	g++ $(CFLAGS) $(INCLUDE) -o $(BUILD_DIR)/gmclient gmclient.cpp
 
 gmproxyin: build_dir
-	echo "gmproxyin"
 	g++ $(CFLAGS) $(INCLUDE) -o $(BUILD_DIR)/gmproxyin gmproxyin.cpp
 
 gmproxyout: build_dir
-	echo "gmproxyout"
 	g++ $(CFLAGS) $(INCLUDE) -o $(BUILD_DIR)/gmproxyout gmproxyout.cpp
 
 build_dir:
