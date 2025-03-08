@@ -13,65 +13,60 @@ If not, see https://www.gnu.org/licenses/.
 */
 #pragma once
 
-#include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <netdb.h>
-#include <syslog.h>
-#include <sys/stat.h>
-#include <thread>
 
 /*
- * Class that implements a TCP client that can be used to connect to a TCP server.
+ * Class implementing a TCP client that connects to a TCP server.
+ * Provides methods to start the connection, send data, receive data, and close the connection.
  */
 class TCPClient {
 private:
-    // Host to connect to
-    std::string host;
+    std::string host;                ///< Host to connect to (IP address or hostname)
+    int port;                        ///< Port to connect to
+    struct sockaddr_in socketAddrServer;  ///< Server address information
+    int socketFd;                    ///< Socket file descriptor
+    socklen_t socketLen;             ///< Length of the socket address structure
 
-    // Port to connect to
-    int port;
-
-    // Contains the address information of the server
-    struct sockaddr_in socketAddrServer;
-
-    // Holds the assiocated socket for the TCP server
-    int socketFd;
-    socklen_t socketLen;
 
 public:
     /*
-     * Constructs the TCPClient class.
-     * @param host is the host to connect to.
-     * @param port to connect to.
+     * Constructor for TCPClient class.
+     * Initializes the host and port to which the client will connect.
+     * @param host The host to connect to (IP address or hostname).
+     * @param port The port to connect to on the host.
      */
     TCPClient (std::string host, int port): host(host), port(port) {
     }
 
+    /*
+     * Destructor to ensure the socket is properly closed when the object is destroyed.
+     */
     ~TCPClient () {
         close(this->socketFd);
     }
 
     /*
-     * Initialize the class to setup the object.
+     * Initialize the TCPClient object. Currently does nothing but can be expanded.
+     * @return 0 on success, or an error code on failure.
      */
     int initialize () {
         return 0;
     }
 
     /*
-     * Creates the socket and connects to the host on the given port.
-     * @return zero when connected, otherwise -1.
+     * Creates a socket and attempts to connect to the specified host and port.
+     * @return 0 if the connection was successful, -1 if there was an error.
      */
     int start () {
         if ( (this->socketFd = socket(AF_INET, SOCK_STREAM, 0)) < 0 ) {
-            std::cout << "initialize: Socket failure" << std::endl;
             return -1;
         }
 
@@ -80,7 +75,6 @@ public:
         this->socketAddrServer.sin_port = htons(this->port);
 
         if ( inet_aton(this->host.c_str(), &(this->socketAddrServer.sin_addr)) == 0 ) {
-            std::cout << "tcpClient: Error: Address '" << this->host << "' is an invalid address" << std::endl;
             return -1;
         } 
 
@@ -89,26 +83,27 @@ public:
 
     /*
      * Sends data to the connected peer.
-     * @param buffer is a pointer to the data.
-     * @param bufferLength is the total data that needs to be send.
-     * @return total amount of bytes that have been send or <0 error.
+     * @param buffer A pointer to the data to be sent.
+     * @param bufferLength The length of the data to send.
+     * @return The number of bytes sent, or a negative value in case of error.
      */
     ssize_t sendTo(const char* buffer, size_t bufferLength) {
         return send(this->socketFd, buffer, bufferLength, 0);	
     }
 
     /*
-     * Receive data from the connected peer.
-     * @param buffer to receive the data.
-     * @param bufferLength that shows how big the buffer is.
-     * @return total amount of bytes that have been send or <0 error.
+     * Receives data from the connected peer.
+     * @param buffer A pointer to the buffer to receive data into.
+     * @param bufferLength The size of the buffer.
+     * @return The number of bytes received, or a negative value in case of error.
      */
     ssize_t receiveFrom (char* buffer, size_t bufferLength) {
         return recv(this->socketFd, buffer, bufferLength, 0);
     }
 
     /*
-     * Close the socket and the connection with the peer will be closed.
+     * Closes the socket and the connection with the peer.
+     * @return 0 if successful, or a negative value in case of error.
      */
     int closeSocket () {
         return close(this->socketFd);

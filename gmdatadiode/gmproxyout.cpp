@@ -21,6 +21,7 @@ If not, see https://www.gnu.org/licenses/.
 #include <queue>
 #include <list>
 
+#include <guacamole/util.h>
 #include <udpserver.hpp>
 #include <tcpclient.hpp>
 
@@ -48,6 +49,7 @@ struct Arguments {
   int gmx_port;
   int ddin_port;
   bool test;
+  int verbosity;
 };
 
 /*
@@ -74,12 +76,14 @@ void thread_datadiode_recv (Arguments args, bool* running, queue<char*>* queueRe
   udpServer.initialize();
   udpServer.start();
 
+  logging(VERBOSE_INFO, "UDP Server started listening to port %d\n", args.ddin_port);
   while ( *running ) {
     ssize_t n = udpServer.receiveFrom(buffer, BUFFER_SIZE);
+    logging(VERBOSE_DEBUG, "UDP received: %s\n", buffer);
     if ( n  > 0 ) {
       buffer[n] = '\0';
       if ( args.test ) {
-        cout << "Received from gmproxyin: " << buffer;
+        logging(VERBOSE_NO, "Received from gmproxyin: %s\n", buffer);
       }
       if ( !args.test ) {
         if ( n < BUFFER_SIZE ) {
@@ -87,17 +91,17 @@ void thread_datadiode_recv (Arguments args, bool* running, queue<char*>* queueRe
           strcpy(temp, buffer);
           queueRecv->push(temp);
         } else {
-          cout << "ERROR: buffer size larger than maximum of " << BUFFER_SIZE << endl;
+          logging(VERBOSE_NO, "ERROR: buffer size larger than maximum of %d\n", BUFFER_SIZE);
         }
       }
 
     } else { // Problem with the client
-      cout << "Error with the client connection" << endl;
+      logging(VERBOSE_NO, "Error with the client connection\n");
       // What to do?!
     }
     usleep(5000);
   }
-  cout << "Thread sending data-diode stopped" << endl;
+  logging(VERBOSE_INFO, "Thread 'thread_datadiode_recv' stopped\n");
 }
 
 /*
@@ -110,6 +114,7 @@ void help() {
   cout << "  -p port, --gmx-port=port  port where it need to connect to the gmserver or gmclient             [default: " << GMx_PORT << "]" << endl;
   cout << "  -i port, --ddin-port=port port that the data is received from gmproxyin on UDP port             [default: " << DATA_DIODE_RECV_PORT << "]" << endl;
   cout << "  -t, --test                 testing mode will send UDP messages to gmproxyout" << endl;
+  cout << "  -v                         verbose add v's to increase level" << endl;
   cout << "  -h, --help                show this help page." << endl << endl;
   cout << "More documentation can be found on https://github.com/macsnoeren/guacamole-datadiode." << endl;
 }
@@ -129,9 +134,11 @@ int main (int argc, char *argv[]) {
   arguments.gmx_host = GMx_HOST;
   arguments.gmx_port = GMx_PORT;
   arguments.ddin_port = DATA_DIODE_RECV_PORT;
+  arguments.test = false;
+  arguments.verbosity = VERBOSE_NO;
 
   // Create the short and long options of the application.
-  const char* const short_options = "htg:p:i:";
+  const char* const short_options = "vthg:p:i:";
   static struct option long_options[] = {
     {"gmx-host", optional_argument, nullptr, 'g'},
     {"gmx-port", optional_argument, nullptr, 'p'},
@@ -159,10 +166,17 @@ int main (int argc, char *argv[]) {
       case 'i':
         arguments.ddin_port = stoi(optarg);
         break;
+      case 'v':
+        arguments.verbosity++;
+        if ( arguments.verbosity > VERBOSE_DEBUG ) arguments.verbosity = VERBOSE_DEBUG;
+        break;
       default:
         help(); return 0;
     }
   }
+
+  // Set verbose level
+  setVerboseLevel(arguments.verbosity);
 
   // Create the running variable, buffer and queue.
   bool running = true;
@@ -177,21 +191,23 @@ int main (int argc, char *argv[]) {
   TCPClient tcpClientGmx(arguments.gmx_host, arguments.gmx_port);
   tcpClientGmx.initialize();
 
-  if ( arguments.test ) cout << "Testing mode!" << endl;
-  cout << "Connecting to the gmserver or gmclient " << arguments.gmx_host << ":" << arguments.gmx_port << endl;
+  if ( arguments.test ) logging(VERBOSE_NO, "Testing mode!\n");
+  logging(VERBOSE_INFO, "Connecting to the gmserver or gmclient %s:%d\n", arguments.gmx_host.c_str(), arguments.gmx_port);
   while ( running ) {
+    logging(VERBOSE_DEBUG, "Trying to connect to the gmserver or gmclient...\n");
     if ( tcpClientGmx.start() == 0 ) {
-      cout << "Connected with the gmserver or gmclient" << endl;
+      logging(VERBOSE_INFO, "Connected with the gmserver or gmclient\n");
 
       bool active = true;
       while ( active ) {
         while ( active && !queueDataDiodeRecv.empty() ) {
           ssize_t n = tcpClientGmx.sendTo(queueDataDiodeRecv.front(), strlen(queueDataDiodeRecv.front()));
+          logging(VERBOSE_DEBUG, "Send to gmx: %s\n", queueDataDiodeRecv.front());
           if ( n >= 0 ) {
             delete queueDataDiodeRecv.front(); // Free the memory that has been allocated
             queueDataDiodeRecv.pop();
           } else {
-            cout << "Error with client during sending data" << endl;
+            logging(VERBOSE_NO, "Error with client during sending data\n");
             tcpClientGmx.closeSocket();
             active = false;
           }
