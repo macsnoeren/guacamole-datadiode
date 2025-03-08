@@ -14,9 +14,19 @@ If not, see https://www.gnu.org/licenses/.
 #pragma once
 
 #include <string.h>
+#include <stdarg.h>
 
 #include <tcpserver.hpp>
 #include <tcpclient.hpp>
+
+// verbose level
+static int _verbose = 0;
+
+// Vebose level constants
+constexpr int VERBOSE_DEBUG = 0;
+constexpr int VERBSOE_INFO = 1;
+constexpr int VERBSOE_WARN = 2;
+constexpr int VERBSOE_ERROR = 3;
 
 /*
  * A struct to handle the TCPServerClients that are connected with the Guacamole web server.
@@ -87,4 +97,26 @@ bool findGmsOpcode (const char* data, char* gmsOpcode, char* gmsValue) {
     }
     return false;
 }
-  
+
+/*
+ * Set the verbose level to be printed of this utility library.
+ * @param level of the verbosity, use the constants that are defined.
+ */
+void setVerboseLevel(int level) {
+  _verbose = level;
+}
+
+/*
+ * Output the logging to the console based on the verbosity level.
+ * @param level of the log message.
+ * @param the message inclusing possible variables.
+ * @param the arguments like printf statements to connect the variables.
+ */
+void log(int level, const char* fmt, ...) {
+  va_list args;
+
+  va_start(args, fmt);
+  vprintf(fmt, args);
+  va_end(args);
+}
+
