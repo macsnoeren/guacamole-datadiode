@@ -78,18 +78,19 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
   UDPClient udpClient(args.ddout_host, args.ddout_port);
   udpClient.initialize();
 
-  cout << "Starting UDP client to connect to " << args.ddout_host << " on port " << args.ddout_port << endl;
+  log(VERBOSE_INFO, "Starting UDP client to connect to %s:%d\n", args.ddout_host, args.ddout_port);
   while ( *running ) {
     while ( !queueSend->empty() ) {
       if ( args.test ) {
-        cout << "UDP client send message: " << queueSend->front();
+        log(VERBOSE_NO, "UDP client send message: %s\n", queueSend->front());
       }
+      log(VERBOSE_DEBUG, "UDP send: %s\n", queueSend->front());
       ssize_t n = udpClient.sendTo(queueSend->front(), strlen(queueSend->front()));
       if ( n >= 0 ) {
         delete queueSend->front(); // Free memory that has been allocated
         queueSend->pop();
       } else {
-        cout << "Error with client during sending data" << endl;
+        log(VERBOSE_NO, "Error with client during sending data\n");
         // TODO: What do we need to do here?!
       }
     }
@@ -108,6 +109,7 @@ void help() {
   cout << "  -d host, --ddout-host=host host that the UDP data needs to send to the gmproxyout               [default: " << DATA_DIODE_SEND_HOST << "]" << endl;
   cout << "  -o port, --ddout-port=port port that the gmproxyout is using                                    [default: " << DATA_DIODE_SEND_PORT << "]" << endl;
   cout << "  -t, --test                 testing mode will send UDP messages to gmproxyout" << endl;
+  cout << "  -v                         verbose add v's to increase level" << endl;
   cout << "  -h, --help                 show this help page." << endl << endl;
   cout << "More documentation can be found on https://github.com/macsnoeren/guacamole-datadiode." << endl;
 }
@@ -174,6 +176,9 @@ int main (int argc, char *argv[]) {
     }
   }
 
+  // Set verbose level
+  setVerboseLevel(arguments.verbosity);
+
   // Create the running variable, buffer and queue.
   bool running = true;
   char buffer[BUFFER_SIZE];
@@ -188,22 +193,24 @@ int main (int argc, char *argv[]) {
   tcpClientGmServer.initialize();
   ssize_t n = 0;
 
-  if ( arguments.test ) cout << "Testing mode!" << endl;
+  if ( arguments.test ) log(VERBOSE_NO, "Testing mode!\n");
   while ( arguments.test ) {
     char* m = new char[100];
-    sprintf(m, "TESTING-GMPROXYIN-MESSAGE-%010ld\n", ++n);
+    log(VERBOSE_NO, m, "TESTING-GMPROXYIN-MESSAGE-%010ld\n", ++n);
     queueDataDiodeSend.push(m);
     sleep(1);
   }
 
-  cout << "Connecting to the gmserver or gmclient " << arguments.gmx_host << ":" << arguments.gmx_port << endl;
+  log(VERBOSE_INFO, "Connecting to the gmserver or gmclient %s:%d\n", arguments.gmx_host.c_str(), arguments.gmx_port);
   while ( running ) {
+    log(VERBOSE_DEBUG, "Trying to connect to the gmserver ot gmclient...\n");
     if ( tcpClientGmServer.start() == 0 ) {
-      cout << "Connected with the gmserver or gmclient" << endl;
+      log(VERBOSE_DEBUG, "Connected with the gmserver or gmclient\n");
 
       bool active = true;
       while ( active ) {
         n = tcpClientGmServer.receiveFrom(buffer, BUFFER_SIZE);
+        log(VERBOSE_DEBUG, "GMx received: %s\n", buffer);
         if ( n  > 0 ) { // Received message from receiving data-diode
           buffer[n] = '\0';
           if ( n < BUFFER_SIZE ) {
@@ -211,16 +218,16 @@ int main (int argc, char *argv[]) {
             strcpy(temp, buffer);
             queueDataDiodeSend.push(temp);
           } else {
-            cout << "ERROR: buffer size larger than maximum of " << BUFFER_SIZE << endl;
+            log(VERBOSE_NO, "ERROR: buffer size larger than maximum of %d\n", BUFFER_SIZE);
           }
 
         } else if ( n == 0 ) { // Peer properly shutted down!
-          cout << "Connection stopped" << endl;
+          log(VERBOSE_DEBUG, "GMx connection peer closed connection\n");
           tcpClientGmServer.closeSocket();
           active = false;
           
         } else { // Problem with the client
-          cout << "Connection error" << endl;
+          log(VERBOSE_DEBUG, "GMx connection error\n");
           tcpClientGmServer.closeSocket();      
           active = false;
         }

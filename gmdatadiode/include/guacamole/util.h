@@ -24,10 +24,9 @@ static int _verbose = 0;
 
 // Vebose level constants
 constexpr int VERBOSE_NO = 0;
-constexpr int VERBSOE_ERROR = 1;
-constexpr int VERBSOE_WARN = 2;
-constexpr int VERBSOE_INFO = 3;
-constexpr int VERBOSE_DEBUG = 4;
+constexpr int VERBOSE_INFO = 1;
+constexpr int VERBOSE_WARN = 2;
+constexpr int VERBOSE_DEBUG = 3;
 
 /*
  * A struct to handle the TCPServerClients that are connected with the Guacamole web server.
@@ -110,14 +109,15 @@ void setVerboseLevel(int level) {
 /*
  * Output the logging to the console based on the verbosity level.
  * @param level of the log message.
- * @param the message inclusing possible variables.
- * @param the arguments like printf statements to connect the variables.
+ * @param fmt the message inclusing possible variables.
+ * @param ... the arguments like printf statements to connect the variables.
  */
 void log(int level, const char* fmt, ...) {
-  va_list args;
-
-  va_start(args, fmt);
-  vprintf(fmt, args);
-  va_end(args);
+  if ( level <= _verbose ) {
+    va_list args;
+    va_start(args, fmt);
+    vprintf(fmt, args);
+    va_end(args);
+  }
 }
 
