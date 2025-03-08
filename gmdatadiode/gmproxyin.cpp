@@ -78,19 +78,19 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
   UDPClient udpClient(args.ddout_host, args.ddout_port);
   udpClient.initialize();
 
-  log(VERBOSE_INFO, "Starting UDP client to connect to %s:%d\n", args.ddout_host, args.ddout_port);
+  logging(VERBOSE_INFO, "Starting UDP client to connect to %s:%d\n", args.ddout_host, args.ddout_port);
   while ( *running ) {
     while ( !queueSend->empty() ) {
       if ( args.test ) {
-        log(VERBOSE_NO, "UDP client send message: %s\n", queueSend->front());
+        logging(VERBOSE_NO, "UDP client send message: %s\n", queueSend->front());
       }
-      log(VERBOSE_DEBUG, "UDP send: %s\n", queueSend->front());
+      logging(VERBOSE_DEBUG, "UDP send: %s\n", queueSend->front());
       ssize_t n = udpClient.sendTo(queueSend->front(), strlen(queueSend->front()));
       if ( n >= 0 ) {
         delete queueSend->front(); // Free memory that has been allocated
         queueSend->pop();
       } else {
-        log(VERBOSE_NO, "Error with client during sending data\n");
+        logging(VERBOSE_NO, "Error with client during sending data\n");
         // TODO: What do we need to do here?!
       }
     }
@@ -193,24 +193,24 @@ int main (int argc, char *argv[]) {
   tcpClientGmServer.initialize();
   ssize_t n = 0;
 
-  if ( arguments.test ) log(VERBOSE_NO, "Testing mode!\n");
+  if ( arguments.test ) logging(VERBOSE_NO, "Testing mode!\n");
   while ( arguments.test ) {
     char* m = new char[100];
-    log(VERBOSE_NO, m, "TESTING-GMPROXYIN-MESSAGE-%010ld\n", ++n);
+    logging(VERBOSE_NO, m, "TESTING-GMPROXYIN-MESSAGE-%010ld\n", ++n);
     queueDataDiodeSend.push(m);
     sleep(1);
   }
 
-  log(VERBOSE_INFO, "Connecting to the gmserver or gmclient %s:%d\n", arguments.gmx_host.c_str(), arguments.gmx_port);
+  logging(VERBOSE_INFO, "Connecting to the gmserver or gmclient %s:%d\n", arguments.gmx_host.c_str(), arguments.gmx_port);
   while ( running ) {
-    log(VERBOSE_DEBUG, "Trying to connect to the gmserver ot gmclient...\n");
+    logging(VERBOSE_DEBUG, "Trying to connect to the gmserver ot gmclient...\n");
     if ( tcpClientGmServer.start() == 0 ) {
-      log(VERBOSE_DEBUG, "Connected with the gmserver or gmclient\n");
+      logging(VERBOSE_DEBUG, "Connected with the gmserver or gmclient\n");
 
       bool active = true;
       while ( active ) {
         n = tcpClientGmServer.receiveFrom(buffer, BUFFER_SIZE);
-        log(VERBOSE_DEBUG, "GMx received: %s\n", buffer);
+        logging(VERBOSE_DEBUG, "GMx received: %s\n", buffer);
         if ( n  > 0 ) { // Received message from receiving data-diode
           buffer[n] = '\0';
           if ( n < BUFFER_SIZE ) {
@@ -218,16 +218,16 @@ int main (int argc, char *argv[]) {
             strcpy(temp, buffer);
             queueDataDiodeSend.push(temp);
           } else {
-            log(VERBOSE_NO, "ERROR: buffer size larger than maximum of %d\n", BUFFER_SIZE);
+            logging(VERBOSE_NO, "ERROR: buffer size larger than maximum of %d\n", BUFFER_SIZE);
           }
 
         } else if ( n == 0 ) { // Peer properly shutted down!
-          log(VERBOSE_DEBUG, "GMx connection peer closed connection\n");
+          logging(VERBOSE_DEBUG, "GMx connection peer closed connection\n");
           tcpClientGmServer.closeSocket();
           active = false;
           
         } else { // Problem with the client
-          log(VERBOSE_DEBUG, "GMx connection error\n");
+          logging(VERBOSE_DEBUG, "GMx connection error\n");
           tcpClientGmServer.closeSocket();      
           active = false;
         }

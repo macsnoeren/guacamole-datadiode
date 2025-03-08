@@ -55,6 +55,7 @@ struct Arguments {
   int guacamole_port;
   int ddin_port;
   int ddout_port;
+  int verbosity;
 };
 
 /*
@@ -80,21 +81,23 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
   tcpServerSend.initialize();
   tcpServerSend.start();
 
-  cout << "Waiting on sending data-diode proxy client connection on port '" << args.ddout_port << "'" << endl;
+  logging(VERBOSE_INFO, "Listening for gmproxyout to connect on port %d\n", args.ddout_port);
   while ( *running ) {
+    logging(VERBOSE_DEBUG, "Waiting on gmproxyout connection...\n");
     TCPServerClient* tcpClient = tcpServerSend.accept();
     if ( tcpClient != NULL ) {
       bool active = true;
-      cout << "gmproxyout client is connected" << endl;
+      logging(VERBOSE_DEBUG, "gmproxyout client connected\n");
       while ( active ) {
         while ( active && !queueSend->empty() ) {
           char* d = queueSend->front();
+          logging(VERBOSE_DEBUG, "Send to gmproxyout: %s\n", d);
           ssize_t n = tcpClient->sendTo(d, strlen(d)); // Send data
           if ( n >= 0 ) {
             delete d; // Free the allocated memory
             queueSend->pop();
           } else {
-            cout << "Error with client during sending data" << endl;
+            logging(VERBOSE_NO, "gmproxyout connection error during sending data\n");
             tcpClient->closeSocket();
             active = false;
           }
@@ -104,7 +107,7 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
     }
     usleep(5000);
   }
-  cout << "Thread sending data-diode stopped" << endl;
+  logging(VERBOSE_INFO, "Thread sending data-diode stopped\n");
 }
 
 /*
@@ -126,14 +129,16 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
   tcpServerRecv.initialize();
   tcpServerRecv.start();
 
-  cout << "Waiting on receive data-diode proxy client connection on port '" << args.ddin_port << "'" << endl;
+  logging(VERBOSE_INFO, "Listening for gmproxyout to connect on port %d\n", args.ddin_port);
   while ( *running ) {
+    logging(VERBOSE_DEBUG, "Waiting on gmproxyin connection...\n");
     TCPServerClient* tcpClient = tcpServerRecv.accept();
     if ( tcpClient != NULL ) {
       bool active = true;
-      cout << "proxyin client connected" << endl;
+      logging(VERBOSE_DEBUG, "gmproxyin client connected\n");
       while ( active ) {
         ssize_t n = tcpClient->receiveFrom(buffer, BUFFER_SIZE);
+        logging(VERBOSE_DEBUG, "Received from gmproxyin: %s\n", buffer);
         if ( n  > 0 ) { // Received message from receiving data-diode
           buffer[n] = '\0';
           
@@ -144,17 +149,20 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
           if ( q->size() > 0 ) {
             strcpy(buffer, "\0");            
             while ( !q->empty() ) {
+              logging(VERBOSE_DEBUG, "Validator gmproxyin queue: %s\n", q->front());
               char* opcode = q->front();
               char gmsOpcode[50] = "";
               char gmsValue[50] = "";
 
               if ( findGmsOpcode(opcode, gmsOpcode, gmsValue) ) {
+                logging(VERBOSE_DEBUG, "Found opcode %s with value %s\n", gmsOpcode, gmsValue);
                 if ( strcmp(gmsOpcode, "GMS_START") == 0 ) {
                   if ( gmClientHandles->find(string(gmsValue)) != gmClientHandles->end() ) { // Found
+                    logging(VERBOSE_DEBUG, "TCP client Guacamole is found\n");
                     tcpClientHandle = gmClientHandles->at(string(gmsValue));
 
                   } else { // Not found
-                    // Send the close connection over the data-diode.
+                    logging(VERBOSE_DEBUG, "TCP client Guacamole is NOT found, send GMS_CLOSE message\n");
                     char* gmsclose = new char[50];
                     sprintf(gmsclose, "9.GMS_CLOSE,%ld.%s;", strlen(gmsValue), gmsValue);
                     queueSend->push(gmsclose);
@@ -164,15 +172,16 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
                 } else if ( strcmp(gmsOpcode, "GMS_END") == 0 ) {
                   if ( tcpClientHandle != NULL ) {
                     if ( strcmp(gmsValue, tcpClientHandle->ID.c_str()) != 0 ) {
-                      cout << "thread_datadiode_recv: ERROR GMS protocol (1)" << endl;
+                      logging(VERBOSE_NO, "thread_datadiode_recv: ERROR GMS protocol (1)\n");
                     }
                   } else {
-                    cout << "thread_datadiode_recv: ERROR GMS protocol (2)" << endl;
+                    logging(VERBOSE_NO, "thread_datadiode_recv: ERROR GMS protocol (2)");
                   }
                   q->pop();
 
                 } else if ( strcmp(gmsOpcode, "GMS_CLOSE") == 0 ) {
                   if ( gmClientHandles->find(string(gmsValue)) != gmClientHandles->end() ) { // Found and close it
+                    logging(VERBOSE_DEBUG, "Closing Guacamole client %s\n", gmsValue);
                     tcpClientHandle = gmClientHandles->at(string(gmsValue));
                     tcpClientHandle->running = false;
                     tcpClientHandle->tcpClient->closeSocket();
@@ -190,11 +199,12 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
           }
 
         } else if ( n == 0 ) { // Peer properly shutted down!
+          logging(VERBOSE_DEBUG, "gmproxyin peer connection closed\n");
           tcpClient->closeSocket();
           active = false;
           
         } else { // Problem with the client
-          cout << "Error with the client connection" << endl;
+          logging(VERBOSE_NO, "gmproxyin connection error\n");
           tcpClient->closeSocket();      
           active = false;
         }
@@ -203,7 +213,7 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
     }
     usleep(5000);
   }
-  cout << "Thread receiving data-diode stopped" << endl;
+  logging(VERBOSE_INFO, "Thread thread_datadiode_recv stopped\n");
 }
 
 /*
@@ -218,8 +228,10 @@ void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuac
   ProtocolValidator validator;
   TCPServerClient* tcpGuacamoleClient = tcpGuacamoleClientHandle->tcpClient; 
 
+  logging(VERBOSE_DEBUG, "Thread started to handle data from Guacamole %s\n", tcpGuacamoleClientHandle->ID.c_str());
   while ( *running && tcpGuacamoleClientHandle->running ) {
     ssize_t n = tcpGuacamoleClient->receiveFrom(buffer, BUFFER_SIZE);
+    logging(VERBOSE_DEBUG, "Received from Guacamole %s: %s\n", tcpGuacamoleClientHandle->ID.c_str(), buffer);
     if ( tcpGuacamoleClientHandle->running && n  > 0 ) { // Received message from Guacamole client, possible that the socket has been closed
       buffer[n] = '\0';
 
@@ -235,6 +247,7 @@ void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuac
         sprintf(gmsEnd, "7.GMS_END,%ld.%s;", tcpGuacamoleClientHandle->ID.length(), tcpGuacamoleClientHandle->ID.c_str());
         strcpy(buffer, gmsId); // Re-use the buffer
         while ( !q->empty() && !ready ) { // Process the received data
+          logging(VERBOSE_DEBUG, "Validator Guacamole %s queue: %s\n", tcpGuacamoleClientHandle->ID.c_str(), q->front());
           char* opcode = q->front();
           if ( strlen(buffer) + strlen(opcode) < BUFFER_SIZE - strlen(gmsEnd) - 1) { // It still fits!
             strcat(buffer, opcode);
@@ -252,17 +265,17 @@ void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuac
           strcpy(temp, buffer);
           queueSend->push(temp);
         } else {
-          cout << "ERROR: buffer size larger than maximum of " << BUFFER_SIZE << endl;
+          logging(VERBOSE_NO, "ERROR: buffer size larger than maximum of %d\n", BUFFER_SIZE);
         }
       }
 
     } else if ( n == 0 ) { // Peer properly shutted down!
-      cout << "Guacamole web shutted down '" << tcpGuacamoleClientHandle->ID << "'" << endl;
+      logging(VERBOSE_DEBUG, "Guacamole client %s peer stopped\n", tcpGuacamoleClientHandle->ID.c_str());
       tcpGuacamoleClient->closeSocket();
       tcpGuacamoleClientHandle->running = false;
       
     } else { // Problem with the client
-      cout << "Error Guacamole web '" << tcpGuacamoleClientHandle->ID << "'" << endl;
+      logging(VERBOSE_NO, "Error Guacamole client %s\n", tcpGuacamoleClientHandle->ID.c_str());
       tcpGuacamoleClient->closeSocket();      
       tcpGuacamoleClientHandle->running = false;
     }
@@ -275,9 +288,8 @@ void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuac
   queueSend->push(gmsclose);
 
   // Delete the tcpClient and set running to false, so the main application is able to delete the handle itself.
+  logging(VERBOSE_DEBUG, "Closing Guacamole client %s\n", tcpGuacamoleClientHandle->ID.c_str());
   delete tcpGuacamoleClientHandle->tcpClient;
-  cout << "Closing Guacamole web client" << endl;
-
   tcpGuacamoleClientHandle->tcpClient = NULL;
 }
 
@@ -286,16 +298,18 @@ void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuac
  * This thread is responsible for this.
  */
 void thread_guacamole_client_send (bool* running, TCPServerClientHandle* guacamoleClient, queue<char*>* queueSend) {
+  logging(VERBOSE_DEBUG, "Thread started to handle data to Guacamole %s\n", guacamoleClient->ID.c_str());
   while ( guacamoleClient->running ) {
     while ( !guacamoleClient->data.empty() ) {
       char* d = guacamoleClient->data.front();
-      
+      logging(VERBOSE_DEBUG, "Guacamole queue: %s\n", d);
+
       ssize_t n = guacamoleClient->tcpClient->sendTo(d, strlen(d));
       delete d; // Free allocated memory
       guacamoleClient->data.pop();
 
       if ( n < 0 ) {
-        cout << "thread_guacamole_client_send: Error with client during sending data" << endl;
+        logging(VERBOSE_NO, "thread_guacamole_client_send: Error with client during sending data\n");
         guacamoleClient->running = false;
         guacamoleClient->tcpClient->closeSocket();
 
@@ -308,7 +322,7 @@ void thread_guacamole_client_send (bool* running, TCPServerClientHandle* guacamo
     usleep(5000);
   }
 
-  cout << "Thread guacamole client '" << guacamoleClient->ID << "'" << endl;
+  logging(VERBOSE_INFO, "Thread guacamole client %s\n", guacamoleClient->ID.c_str());
 }
 
 /*
@@ -321,6 +335,7 @@ void help() {
   cout << "  -p port, --port=port       port where the Guacamole wev client is connecting to       [default: " << GUACAMOLE_PORT << "]" << endl;
   cout << "  -i port, --ddin-port=port  port that the gmproxyout needs to connect to               [default: " << DATADIODE_RECV_PORT << "]" << endl;
   cout << "  -o port, --ddout-port=port port that the gmproxyin needs to connect to                [default: " << DATADIODE_SEND_PORT << "]" << endl;
+  cout << "  -v                         verbose add v's to increase level" << endl;
   cout << "  -h, --help                 show this help page." << endl << endl;
   cout << "More documentation can be found on https://github.com/macsnoeren/guacamole-datadiode." << endl;
 }
@@ -339,6 +354,7 @@ int main (int argc, char *argv[]) {
   arguments.guacamole_port = GUACAMOLE_PORT;
   arguments.ddin_port = DATADIODE_RECV_PORT;
   arguments.ddout_port = DATADIODE_SEND_PORT;
+  arguments.verbosity = VERBOSE_NO;
 
   // Create the short and long options of the application.
   const char* const short_options = "c:p:i:o:h";
@@ -353,30 +369,33 @@ int main (int argc, char *argv[]) {
 
   int opt;
   while ( (opt = getopt_long(argc, argv, short_options, long_options, nullptr)) != -1 ) { 
-    if ( optarg != nullptr ) {
-      switch(opt) {
-        case 'h':
-          help(); return 0;
-          break;
-        case 'c':
-          arguments.guacamole_max_clients = stoi(optarg);
-          break;
-        case 'p':
-          arguments.guacamole_port = stoi(optarg);
-          break;
-        case 'i':
-          arguments.ddin_port = stoi(optarg);
-          break;
-        case 'o':
-          arguments.ddout_port = stoi(optarg);
-          break;
-        default:
-          help(); return 0;
-      }
-    } else {
-      help(); return 0;
+    switch(opt) {
+      case 'h':
+        help(); return 0;
+        break;
+      case 'c':
+        arguments.guacamole_max_clients = stoi(optarg);
+        break;
+      case 'p':
+        arguments.guacamole_port = stoi(optarg);
+        break;
+      case 'i':
+        arguments.ddin_port = stoi(optarg);
+        break;
+      case 'o':
+        arguments.ddout_port = stoi(optarg);
+        break;
+      case 'v':
+        arguments.verbosity++;
+        if ( arguments.verbosity > VERBOSE_DEBUG ) arguments.verbosity = VERBOSE_DEBUG;
+        break;
+      default:
+        help(); return 0;
     }
   }
+
+  // Set verbose level
+  setVerboseLevel(arguments.verbosity);
 
   // Create the running variable, buffer and queue.
   bool running = true;
@@ -395,11 +414,12 @@ int main (int argc, char *argv[]) {
   tcpServerGuacamole.initialize();
   tcpServerGuacamole.start();
 
-  cout << "Waiting on a Guacamole client connection on port '" << arguments.guacamole_port << "' (max: " << arguments.guacamole_max_clients << ")" << endl;
+  logging(VERBOSE_INFO, "Listening for Guacamole to connect on port %d (max connections: %d)\n", arguments.guacamole_port, arguments.guacamole_max_clients);
   while ( running ) {
+    logging(VERBOSE_DEBUG, "Waiting on Guacamole connection...");
     TCPServerClient* tcpGuacamoleClient = tcpServerGuacamole.accept();
     if ( tcpGuacamoleClient != NULL ) {
-      cout << "Guacamole client connected" << endl;
+      logging(VERBOSE_DEBUG, "Guacamole client connected\n");
       
       // Create unique id to be assiocated to this connection
       string id = createUniqueId();
@@ -415,6 +435,7 @@ int main (int argc, char *argv[]) {
         id
       };
 
+      logging(VERBOSE_DEBUG, "New Guacamole client added %s\n", id.c_str());
       guacamoleClientHandles.insert({id, tcpServerClientHandle}); // Add the client handle
       
       // Send the new connection to the other side.

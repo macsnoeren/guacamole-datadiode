@@ -108,11 +108,11 @@ void setVerboseLevel(int level) {
 
 /*
  * Output the logging to the console based on the verbosity level.
- * @param level of the log message.
+ * @param level of the logging message.
  * @param fmt the message inclusing possible variables.
  * @param ... the arguments like printf statements to connect the variables.
  */
-void log(int level, const char* fmt, ...) {
+void logging(int level, const char* fmt, ...) {
   if ( level <= _verbose ) {
     va_list args;
     va_start(args, fmt);

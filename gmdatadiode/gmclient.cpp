@@ -56,6 +56,7 @@ struct Arguments {
   int guacd_port;
   int ddin_port;
   int ddout_port;
+  int verbosity;
 };
 
 /*
@@ -353,6 +354,7 @@ void help() {
   cout << "  -p port, --guacd-port=port port where the guacd service is running      [default: " << GUACD_PORT << "]" << endl;
   cout << "  -i port, --ddin-port=port  port that the gmproxyout needs to connect to [default: " << DATADIODE_RECV_PORT << "]" << endl;
   cout << "  -o port, --ddout-port=port port that the gmproxyin needs to connect to  [default: " << DATADIODE_SEND_PORT << "]" << endl;
+  cout << "  -v                         verbose add v's to increase level" << endl;
   cout << "  -h, --help                 show this help page." << endl << endl;
   cout << "More documentation can be found on https://github.com/macsnoeren/guacamole-datadiode." << endl;
 }
@@ -371,6 +373,7 @@ int main (int argc, char *argv[]) {
   arguments.guacd_port = GUACD_PORT;
   arguments.ddin_port  = DATADIODE_RECV_PORT;
   arguments.ddout_port = DATADIODE_SEND_PORT;
+  arguments.verbosity = VERBOSE_NO;
 
   // Create the short and long options of the application.
   const char* const short_options = "g:p:i:o:h";
@@ -385,31 +388,34 @@ int main (int argc, char *argv[]) {
 
   int opt;
   while ( (opt = getopt_long(argc, argv, short_options, long_options, nullptr)) != -1 ) { 
-    if ( optarg != nullptr ) {
-      switch(opt) {
-        case 'h':
-          help(); return 0;
-          break;
-        case 'g':
-          arguments.guacd_host = string(optarg);
-          break;
-        case 'p':
-          arguments.guacd_port = stoi(optarg);
-          break;
-        case 'i':
-          arguments.ddin_port = stoi(optarg);
-          break;
-        case 'o':
-          arguments.ddout_port = stoi(optarg);
-          break;
-        default:
-          help(); return 0;
-      }
-    } else {
-      help(); return 0;
+    switch(opt) {
+      case 'h':
+        help(); return 0;
+        break;
+      case 'g':
+        arguments.guacd_host = string(optarg);
+        break;
+      case 'p':
+        arguments.guacd_port = stoi(optarg);
+        break;
+      case 'i':
+        arguments.ddin_port = stoi(optarg);
+        break;
+      case 'o':
+        arguments.ddout_port = stoi(optarg);
+        break;
+      case 'v':
+        arguments.verbosity++;
+        if ( arguments.verbosity > VERBOSE_DEBUG ) arguments.verbosity = VERBOSE_DEBUG;
+        break;
+      default:
+        help(); return 0;
     }
   }
 
+  // Set verbose level
+  setVerboseLevel(arguments.verbosity);
+  
   // Create the running variable, buffer and queue.
   bool running = true;
   queue<char*> queueDataDiodeSend;
