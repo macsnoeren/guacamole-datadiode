@@ -21,6 +21,7 @@ If not, see https://www.gnu.org/licenses/.
 #include <queue>
 #include <list>
 
+#include <guacamole/util.h>
 #include <udpclient.hpp>
 #include <tcpclient.hpp>
 
@@ -52,6 +53,7 @@ struct Arguments {
   string ddout_host;
   int ddout_port;
   bool test;
+  int verbosity;
 };
 
 /*
@@ -128,9 +130,10 @@ int main (int argc, char *argv[]) {
   arguments.ddout_host = DATA_DIODE_SEND_HOST;
   arguments.ddout_port = DATA_DIODE_SEND_PORT;
   arguments.test = false;
+  arguments.verbosity = VERBOSE_NO;
 
   // Create the short and long options of the application.
-  const char* const short_options = "thg:p:d:o:";
+  const char* const short_options = "vthg:p:d:o:";
   static struct option long_options[] = {
     {"test", no_argument, nullptr, 't'},
     {"gmx-host", optional_argument, nullptr, 'g'},
@@ -161,6 +164,10 @@ int main (int argc, char *argv[]) {
         break;
       case 'o':
         arguments.ddout_port = stoi(optarg);
+        break;
+      case 'v':
+        arguments.verbosity++;
+        if ( arguments.verbosity > VERBOSE_DEBUG ) arguments.verbosity = VERBOSE_DEBUG;
         break;
       default:
         help(); return 0;

@@ -23,10 +23,11 @@ If not, see https://www.gnu.org/licenses/.
 static int _verbose = 0;
 
 // Vebose level constants
-constexpr int VERBOSE_DEBUG = 0;
-constexpr int VERBSOE_INFO = 1;
+constexpr int VERBOSE_NO = 0;
+constexpr int VERBSOE_ERROR = 1;
 constexpr int VERBSOE_WARN = 2;
-constexpr int VERBSOE_ERROR = 3;
+constexpr int VERBSOE_INFO = 3;
+constexpr int VERBOSE_DEBUG = 4;
 
 /*
  * A struct to handle the TCPServerClients that are connected with the Guacamole web server.
