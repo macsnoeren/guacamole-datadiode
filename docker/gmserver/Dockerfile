@@ -22,7 +22,11 @@ WORKDIR /bin
 
 COPY . .
 
-COPY ../../build/gmserver .
+#COPY ../../build/gmserver .
+
+RUN ls -l
+RUN ls -l ../..
+RUN ls -l ../../build
 
 RUN chmod +x entrypoint.sh
 RUN chmod +x gmserver
