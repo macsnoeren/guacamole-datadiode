@@ -30,6 +30,9 @@ If not, see https://www.gnu.org/licenses/.
 
 using namespace std;
 
+// Application version
+constexpr char* VERSION = "1.0";
+
 // Buffer size used to read the messages from Guacamole.
 constexpr int BUFFER_SIZE = 10240;
 
