@@ -18,10 +18,10 @@ jobs:
        cd gmdatadiode
        make
        cd ..
-       cp build/gmserver docker/gmserver/.
-       cp build/gmclient docker/gmclient/.
-       cp build/gmproxyin docker/gmproxyin/.
-       cp build/gmproxyout docker/gmproxyout/.
+       cp -v build/gmserver docker/gmserver/.
+       cp -v build/gmclient docker/gmclient/.
+       cp -v build/gmproxyin docker/gmproxyin/.
+       cp -v build/gmproxyout docker/gmproxyout/.
        
     -
       name: Login to Docker Hub
