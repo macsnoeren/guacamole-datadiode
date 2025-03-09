@@ -22,4 +22,7 @@ WORKDIR /bin
 
 COPY . .
 
-ENTRYPOINT ["gmclient"]
+RUN chmod +x entrypoint.sh
+RUN chmod +x gmclient
+
+ENTRYPOINT ["entrypoint.sh"]

@@ -22,4 +22,7 @@ WORKDIR /bin
 
 COPY . .
 
-ENTRYPOINT ["gmproxyout"]
+RUN chmod +x entrypoint.sh
+RUN chmod +x gmproxyout
+
+ENTRYPOINT ["entrypoint.sh"]
