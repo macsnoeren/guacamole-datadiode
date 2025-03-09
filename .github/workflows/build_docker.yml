@@ -39,8 +39,8 @@ jobs:
       uses: docker/setup-buildx-action@v3
 
     -
-      name: Build and push
       uses: docker/build-push-action@v6
+      name: Build and push
       run: |
         ls -l build
         ls -l docker/gmserver
