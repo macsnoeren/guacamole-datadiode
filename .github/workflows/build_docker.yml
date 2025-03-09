@@ -46,6 +46,7 @@ jobs:
 
     - name: Get versions of source files
       run: |
+        cat gmdatadiode/gmserver.cpp
         VERSION=$(cat gmdatadiode/gmserver.cpp | grep 'VERSION')
         echo "GMSERVER_VERSION=$VERSION" >> $GITHUB_ENV
 #        echo $GMSERVER_VER
