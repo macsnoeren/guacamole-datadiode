@@ -20,6 +20,10 @@ RUN apk add build-base
 
 WORKDIR /bin
 
-COPY . .
+COPY entrypoint.sh .
+COPY gmproxyin .
 
-ENTRYPOINT ["gmproxyin"]
+RUN chmod +x entrypoint.sh
+RUN chmod +x gmproxyin
+
+ENTRYPOINT ["sh", "entrypoint.sh"]

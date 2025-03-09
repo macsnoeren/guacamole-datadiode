@@ -20,6 +20,10 @@ RUN apk add build-base
 
 WORKDIR /bin
 
-COPY . .
+COPY entrypoint.sh .
+COPY gmserver .
 
-ENTRYPOINT ["gmserver"]
+RUN chmod +x entrypoint.sh
+RUN chmod +x gmserver
+
+ENTRYPOINT ["sh", "entrypoint.sh"]

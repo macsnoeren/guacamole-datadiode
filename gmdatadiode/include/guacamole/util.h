@@ -141,7 +141,5 @@ void logging(int level, const char* fmt, ...) {
     va_start(args, fmt);
     vprintf(fmt, args);
     va_end(args);
-
-    printf("\n");  // Ensure log message ends with newline
   }
 }
