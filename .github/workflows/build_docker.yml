@@ -32,42 +32,61 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: build gmdatadiode
+    - name: Build gmdatadiode
       run: |
        cd gmdatadiode
        make
 
-    - name: copy build files for docker
+    - name: Copy build files for docker
       run: |
        cp -v build/gmserver docker/gmserver/.
        cp -v build/gmclient docker/gmclient/.
        cp -v build/gmproxyin docker/gmproxyin/.
        cp -v build/gmproxyout docker/gmproxyout/.
 
+    - name: Get versions of source files
+      run: |
+        GMSERVER_VER=$(cat gmdatadiode/gmserver.cpp | grep VERSION | grep -oP '[0-9]+\.[0-9]+')
+        GMCLIENT_VER=$(cat gmdatadiode/gmclient.cpp | grep VERSION | grep -oP '[0-9]+\.[0-9]+')
+        GMPROXYIN_VER=$(cat gmdatadiode/gmproxyin.cpp | grep VERSION | grep -oP '[0-9]+\.[0-9]+')
+        GMPROXYOUT_VER=$(cat gmdatadiode/gmproxyout.cpp | grep VERSION | grep -oP '[0-9]+\.[0-9]+')
+        echo "GMSERVER_VER=$GMSERVER_VER" >> $GITHUB_ENV
+        echo "GMCLIENT_VER=$GMCLIENT_VER" >> $GITHUB_ENV
+        echo "GMPROXYIN_VER=$GMPROXYIN_VER" >> $GITHUB_ENV
+        echo "GMPROXYOUT_VER=$GMPROXYOUT_VER" >> $GITHUB_ENV
+
     - name: Build and push
       uses: docker/build-push-action@v6
       with:
         context: "docker/gmserver"
         push: true
-        tags: macsnoeren/gmdatadiode-gmserver:latest
-
+        tags: |
+          macsnoeren/gmdatadiode-gmserver:latest
+          macsnoeren/gmdatadiode-gmserver:{{ env.GMPSERVER_VER }}
+          
     - name: Build and push
       uses: docker/build-push-action@v6
       with:
         context: "docker/gmclient"
         push: true
-        tags: macsnoeren/gmdatadiode-gmclient:latest
+        tags: |
+          macsnoeren/gmdatadiode-gmclient:latest
+          macsnoeren/gmdatadiode-gmclient:{{ env.GMPCLIENT_VER }}
 
     - name: Build and push
       uses: docker/build-push-action@v6
       with:
         context: "docker/gmproxyin"
         push: true
-        tags: macsnoeren/gmdatadiode-gmproxyin:latest
-
+        tags: |
+          macsnoeren/gmdatadiode-gmproxyin:latest
+          macsnoeren/gmdatadiode-gmproxyin:{{ env.GMPROXYIN_VER }}
+          
     - name: Build and push
       uses: docker/build-push-action@v6
       with:
         context: "docker/gmproxyout"
         push: true
-        tags: macsnoeren/gmdatadiode-gmproxyout:latest    
+        tags: |
+          macsnoeren/gmdatadiode-gmproxyout:latest
+          macsnoeren/gmdatadiode-gmproxyout:{{ env.GMPROXYOUT_VER }}
