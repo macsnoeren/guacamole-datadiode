@@ -22,6 +22,8 @@ WORKDIR /bin
 
 COPY . .
 
+COPY ../../build/gmserver .
+
 RUN chmod +x entrypoint.sh
 RUN chmod +x gmserver
 
