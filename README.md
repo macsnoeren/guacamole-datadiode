@@ -1,6 +1,6 @@
 [![docker](https://github.com/macsnoeren/guacamole-datadiode/actions/workflows/build_docker.yml/badge.svg)](https://github.com/macsnoeren/guacamole-datadiode/actions/workflows/build_docker.yml)
 [![build](https://github.com/macsnoeren/guacamole-datadiode/actions/workflows/build_gmdatadiode.yml/badge.svg)](https://github.com/macsnoeren/guacamole-datadiode/actions/workflows/build_gmdatadiode.yml)
-[release](https://img.shields.io/github/v/release/macsnoeren/guacamole-datadiode)
+[![release](https://img.shields.io/github/v/release/macsnoeren/guacamole-datadiode)
 
 # Guacamole data-diode
 
