@@ -66,7 +66,7 @@ jobs:
       with:
         context: "docker/gmserver"
         push: true
-        tags: macsnoeren/gmdatadiode-gmserver:{{ env.GMSERVER_VERSION }}
+        tags: macsnoeren/gmdatadiode-gmserver:$GMSERVER_VER
           
     - name: Build and push
       uses: docker/build-push-action@v6
