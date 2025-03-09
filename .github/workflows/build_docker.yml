@@ -46,7 +46,8 @@ jobs:
 
     - name: Get versions of source files
       run: |
-        echo $(cat gmdatadiode/gmserver.cpp | grep VERSION | grep -oP '[0-9]+\.[0-9]+')
+        GMSERVER_VER=$(cat gmdatadiode/gmserver.cpp | grep VERSION | grep -oP '[0-9]+\.[0-9]+')
+        echo "GMSERVER_VERSION=$GMSERVER_VER" >> $GITHUB_ENV
 #        echo $GMSERVER_VER
 #       GMCLIENT_VER=$(cat gmdatadiode/gmclient.cpp | grep VERSION | grep -oP '[0-9]+\.[0-9]+')
 #       GMPROXYIN_VER=$(cat gmdatadiode/gmproxyin.cpp | grep VERSION | grep -oP '[0-9]+\.[0-9]+')
@@ -66,7 +67,7 @@ jobs:
         push: true
         tags: |
           macsnoeren/gmdatadiode-gmserver:latest
-          macsnoeren/gmdatadiode-gmserver:{{ env.GMPSERVER_VER }}
+          macsnoeren/gmdatadiode-gmserver:{{ env.GMSERVER_VERSION }}
           
     - name: Build and push
       uses: docker/build-push-action@v6
@@ -75,7 +76,7 @@ jobs:
         push: true
         tags: |
           macsnoeren/gmdatadiode-gmclient:latest
-          macsnoeren/gmdatadiode-gmclient:{{ env.GMPCLIENT_VER }}
+          macsnoeren/gmdatadiode-gmclient:{{ env.GMCLIENT_VER }}
 
     - name: Build and push
       uses: docker/build-push-action@v6
