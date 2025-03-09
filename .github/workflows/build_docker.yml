@@ -46,8 +46,8 @@ jobs:
 
     - name: Get versions of source files
       run: |
-        GMSERVER_VER=cat gmdatadiode/gmserver.cpp | grep VERSION | grep -oP '[0-9]+\.[0-9]+'
-        echo "GMSERVER_VERSION=$GMSERVER_VER" >> $GITHUB_ENV
+        VERSION=$(cat gmdatadiode/gmserver.cpp | grep VERSION)
+        echo "GMSERVER_VERSION=$VERSION" >> $GITHUB_ENV
 #        echo $GMSERVER_VER
 #       GMCLIENT_VER=$(cat gmdatadiode/gmclient.cpp | grep VERSION | grep -oP '[0-9]+\.[0-9]+')
 #       GMPROXYIN_VER=$(cat gmdatadiode/gmproxyin.cpp | grep VERSION | grep -oP '[0-9]+\.[0-9]+')
