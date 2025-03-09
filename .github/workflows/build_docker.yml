@@ -47,26 +47,22 @@ jobs:
     - name: Get versions of source files
       run: |
         GMSERVER_VER=$(cat gmdatadiode/gmserver.cpp | grep 'VERSION' | grep -oP '[0-9]+\.[0-9]+')
-        echo $GMSERVER_VER
+        GMCLIENT_VER=$(cat gmdatadiode/gmclient.cpp | grep VERSION | grep -oP '[0-9]+\.[0-9]+')
+        GMPROXYIN_VER=$(cat gmdatadiode/gmproxyin.cpp | grep VERSION | grep -oP '[0-9]+\.[0-9]+')
+        GMPROXYOUT_VER=$(cat gmdatadiode/gmproxyout.cpp | grep VERSION | grep -oP '[0-9]+\.[0-9]+')
         echo "GMSERVER_VERSION=$GMSERVER_VER" >> $GITHUB_ENV
-#        echo $GMSERVER_VER
-#       GMCLIENT_VER=$(cat gmdatadiode/gmclient.cpp | grep VERSION | grep -oP '[0-9]+\.[0-9]+')
-#       GMPROXYIN_VER=$(cat gmdatadiode/gmproxyin.cpp | grep VERSION | grep -oP '[0-9]+\.[0-9]+')
-#       GMPROXYOUT_VER=$(cat gmdatadiode/gmproxyout.cpp | grep VERSION | grep -oP '[0-9]+\.[0-9]+')
-#        echo $GMCLIENT_VER
-#        echo $GMPROXYIN_VER
-#        echo $GMPROXYOUT_VER
-#echo "GMSERVER_VER=$GMSERVER_VER" >> $GITHUB_ENV
-#echo "GMCLIENT_VER=$GMCLIENT_VER" >> $GITHUB_ENV
-#echo "GMPROXYIN_VER=$GMPROXYIN_VER" >> $GITHUB_ENV
-#echo "GMPROXYOUT_VER=$GMPROXYOUT_VER" >> $GITHUB_ENV
+        echo "GMCLIENT_VERSION=$GMCLIENT_VER" >> $GITHUB_ENV
+        echo "GMPROXYIN_VERSION=$GMPROXYIN_VER" >> $GITHUB_ENV
+        echo "GMPROXYOUT_VERSION=$GMPROXYOUT_VER" >> $GITHUB_ENV
 
     - name: Build and push
       uses: docker/build-push-action@v6
       with:
         context: "docker/gmserver"
         push: true
-        tags: macsnoeren/gmdatadiode-gmserver:${{ env.GMSERVER_VERSION }}
+        tags:
+          macsnoeren/gmdatadiode-gmserver:latest
+          macsnoeren/gmdatadiode-gmserver:${{ env.GMSERVER_VERSION }}
           
     - name: Build and push
       uses: docker/build-push-action@v6
@@ -75,7 +71,7 @@ jobs:
         push: true
         tags: |
           macsnoeren/gmdatadiode-gmclient:latest
-          macsnoeren/gmdatadiode-gmclient:{{ env.GMCLIENT_VER }}
+          macsnoeren/gmdatadiode-gmclient:${{ env.GMCLIENT_VERSION }}
 
     - name: Build and push
       uses: docker/build-push-action@v6
@@ -84,7 +80,7 @@ jobs:
         push: true
         tags: |
           macsnoeren/gmdatadiode-gmproxyin:latest
-          macsnoeren/gmdatadiode-gmproxyin:{{ env.GMPROXYIN_VER }}
+          macsnoeren/gmdatadiode-gmproxyin:${{ env.GMPROXYIN_VERSION }}
           
     - name: Build and push
       uses: docker/build-push-action@v6
@@ -93,4 +89,4 @@ jobs:
         push: true
         tags: |
           macsnoeren/gmdatadiode-gmproxyout:latest
-          macsnoeren/gmdatadiode-gmproxyout:{{ env.GMPROXYOUT_VER }}
+          macsnoeren/gmdatadiode-gmproxyout:${{ env.GMPROXYOUT_VERSION }}
