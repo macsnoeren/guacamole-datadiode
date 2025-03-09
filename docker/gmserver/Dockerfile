@@ -26,4 +26,4 @@ COPY gmserver .
 RUN chmod +x entrypoint.sh
 RUN chmod +x gmserver
 
-ENTRYPOINT ["entrypoint.sh"]
+ENTRYPOINT ["sh", "entrypoint.sh"]

@@ -26,6 +26,8 @@
 #
 # More documentation can be found on https://github.com/macsnoeren/guacamole-datadiode.
 
+echo Hoi
+
 # The arguments list to pass to the gm application
 GM_ARGS=
 

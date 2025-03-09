@@ -78,7 +78,7 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
   UDPClient udpClient(args.ddout_host, args.ddout_port);
   udpClient.initialize();
 
-  logging(VERBOSE_INFO, "Starting UDP client to connect to %s:%d\n", args.ddout_host, args.ddout_port);
+  logging(VERBOSE_INFO, "Starting UDP client to connect to %s:%d\n", args.ddout_host.c_str(), args.ddout_port);
   while ( *running ) {
     while ( !queueSend->empty() ) {
       if ( args.test ) {
