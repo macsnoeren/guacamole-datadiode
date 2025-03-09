@@ -9,9 +9,7 @@ on:
 jobs:
   docker:
     runs-on: ubuntu-latest
-       
     steps:
-    
     - uses: actions/checkout@v4
     - name: build gmdatadiode
       run: |
@@ -34,36 +32,31 @@ jobs:
       name: Set up QEMU
       uses: docker/setup-qemu-action@v3
 
-    -
-      name: Set up Docker Buildx
+    - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    -
+    - name: Build and push
       uses: docker/build-push-action@v6
-      name: Build and push
       with:
         context: "{{defaultContext}}:docker/gmserver"
         push: true
         tags: macsnoeren/gmdatadiode-gmserver:latest
 
-    -
-      name: Build and push
+    - name: Build and push
       uses: docker/build-push-action@v6
       with:
         context: "{{defaultContext}}:docker/gmclient"
         push: true
         tags: macsnoeren/gmdatadiode-gmclient:latest
 
-    -
-      name: Build and push
+    - name: Build and push
       uses: docker/build-push-action@v6
       with:
         context: "{{defaultContext}}:docker/gmproxyin"
         push: true
         tags: macsnoeren/gmdatadiode-gmproxyin:latest
 
-    -
-      name: Build and push
+    - name: Build and push
       uses: docker/build-push-action@v6
       with:
         context: "{{defaultContext}}:docker/gmproxyout"
