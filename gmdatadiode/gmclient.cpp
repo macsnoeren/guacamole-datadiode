@@ -388,7 +388,7 @@ int main (int argc, char *argv[]) {
   arguments.verbosity = VERBOSE_NO;
 
   // Create the short and long options of the application.
-  const char* const short_options = "g:p:i:o:h";
+  const char* const short_options = "vhg:p:i:o:";
   static struct option long_options[] = {
     {"guacd-host", optional_argument, nullptr, 'g'},
     {"guacd-port", optional_argument, nullptr, 'p'},
