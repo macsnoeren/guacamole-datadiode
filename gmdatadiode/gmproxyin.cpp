@@ -28,7 +28,7 @@ If not, see https://www.gnu.org/licenses/.
 using namespace std;
 
 // Application version
-constexpr char* VERSION = "1.0";
+constexpr char VERSION[] = "1.0";
 
 // Buffer size used to read the messages from gmserver or gmclient.
 constexpr int BUFFER_SIZE = 10240;
@@ -90,7 +90,7 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
       logging(VERBOSE_DEBUG, "UDP send: %s\n", queueSend->front());
       ssize_t n = udpClient.sendTo(queueSend->front(), strlen(queueSend->front()));
       if ( n >= 0 ) {
-        delete queueSend->front(); // Free memory that has been allocated
+        delete[] queueSend->front(); // Free memory that has been allocated
         queueSend->pop();
       } else {
         logging(VERBOSE_NO, "Error with client during sending data\n");

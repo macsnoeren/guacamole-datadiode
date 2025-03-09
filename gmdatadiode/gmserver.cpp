@@ -31,7 +31,7 @@ If not, see https://www.gnu.org/licenses/.
 using namespace std;
 
 // Application version
-constexpr char* VERSION = "1.0";
+constexpr char VERSION[] = "1.0";
 
 // Buffer size used to read the messages from Guacamole.
 constexpr int BUFFER_SIZE = 10240;
@@ -97,7 +97,7 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
           logging(VERBOSE_DEBUG, "Send to gmproxyout: %s\n", d);
           ssize_t n = tcpClient->sendTo(d, strlen(d)); // Send data
           if ( n >= 0 ) {
-            delete d; // Free the allocated memory
+            delete[] d; // Free the allocated memory
             queueSend->pop();
           } else {
             logging(VERBOSE_NO, "gmproxyout connection error during sending data\n");
@@ -254,7 +254,7 @@ void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuac
           char* opcode = q->front();
           if ( strlen(buffer) + strlen(opcode) < BUFFER_SIZE - strlen(gmsEnd) - 1) { // It still fits!
             strcat(buffer, opcode);
-            delete opcode; // Free the memory space that was created
+            delete[] opcode; // Free the memory space that was created
             q->pop();
           } else {
             ready = true;
@@ -308,7 +308,7 @@ void thread_guacamole_client_send (bool* running, TCPServerClientHandle* guacamo
       logging(VERBOSE_DEBUG, "Guacamole queue: %s\n", d);
 
       ssize_t n = guacamoleClient->tcpClient->sendTo(d, strlen(d));
-      delete d; // Free allocated memory
+      delete[] d; // Free allocated memory
       guacamoleClient->data.pop();
 
       if ( n < 0 ) {
