@@ -20,13 +20,8 @@ RUN apk add build-base
 
 WORKDIR /bin
 
-COPY . .
-
-#COPY ../../build/gmserver .
-
-RUN ls -l
-RUN ls -l ../..
-RUN ls -l ../../build
+COPY entrypoint.sh .
+COPY gmserver .
 
 RUN chmod +x entrypoint.sh
 RUN chmod +x gmserver
