@@ -46,7 +46,7 @@ jobs:
     - name: Build and push
       uses: docker/build-push-action@v6
       with:
-        context: "{{defaultContext}}:docker/gmserver"
+        context: "docker/gmserver"
         push: true
         tags: macsnoeren/gmdatadiode-gmserver:latest
 
