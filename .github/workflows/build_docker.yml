@@ -3,7 +3,7 @@ name: docker
 # run after validate workflow has completed and the current branch is 'beta'
 on:
   workflow_run:
-    workflows: ['Build']
+    workflows: ['build']
     types: [completed]
     branches:
       - 'main'
