@@ -60,7 +60,7 @@ jobs:
       with:
         context: "docker/gmserver"
         push: true
-        tags:
+        tags: |
           macsnoeren/gmdatadiode-gmserver:latest
           macsnoeren/gmdatadiode-gmserver:${{ env.GMSERVER_VERSION }}
           
