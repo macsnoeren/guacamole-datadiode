@@ -29,7 +29,7 @@ If not, see https://www.gnu.org/licenses/.
 using namespace std;
 
 // Application version
-constexpr char* VERSION = "1.0";
+constexpr char VERSION[] = "1.0";
 
 // Buffer size used to read the messages from gmserver or gmclient.
 constexpr int BUFFER_SIZE = 10240;
@@ -79,7 +79,7 @@ void thread_guacd_client_send (bool* running, TCPClientHandle* tcpClientHandle, 
 
       logging(VERBOSE_DEBUG, "Send data to guacd client %s: %d\n", tcpClientHandle->ID.c_str(), d);
       ssize_t n = tcpClientHandle->tcpClient->sendTo(d, strlen(d));
-      delete d; // Free allocated memory
+      delete[] d; // Free allocated memory
       tcpClientHandle->data.pop();
 
       if ( n < 0 ) {
@@ -135,7 +135,7 @@ void thread_guacd_client_recv (bool* running, TCPClientHandle* tcpGuacdClientHan
           char* opcode = q->front();
           if ( strlen(buffer) + strlen(opcode) < BUFFER_SIZE -strlen(gmsEnd) - 1) {
             strcat(buffer, opcode);
-            delete opcode; // Free the memory space that has been allocated
+            delete[] opcode; // Free the memory space that has been allocated
             q->pop();
           } else {
             ready = true;
@@ -206,7 +206,7 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
           logging(VERBOSE_DEBUG, "Send data to gmproxyin: %s\n", d);
           ssize_t n = tcpClient->sendTo(d, strlen(d));
           if ( n >= 0 ) {
-            delete d; // Free the allocated memory
+            delete[] d; // Free the allocated memory
             queueSend->pop();
           } else {
             logging(VERBOSE_NO, "Error with gmproxyin client during sending data\n");
