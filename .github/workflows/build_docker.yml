@@ -17,7 +17,11 @@ jobs:
       run: |
        cd gmdatadiode
        make
-       cd ..
+
+    - name: check build
+      run: |
+       ls -l 
+       ls -l build
        cp -v build/gmserver docker/gmserver/.
        cp -v build/gmclient docker/gmclient/.
        cp -v build/gmproxyin docker/gmproxyin/.
