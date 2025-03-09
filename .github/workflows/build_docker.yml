@@ -37,6 +37,12 @@ jobs:
        cp -v build/gmproxyin docker/gmproxyin/.
        cp -v build/gmproxyout docker/gmproxyout/.
 
+    - name: just test
+      run: |
+        ls -l
+        ls -l build
+        ls -l docker/gmserver
+
     - name: Build and push
       uses: docker/build-push-action@v6
       with:
