@@ -11,17 +11,30 @@
 # You should have received a copy of the GNU General Public License along with this program.
 # If not, see https://www.gnu.org/licenses/.
 #
-FROM alpine:latest
+
+# Building the binaries first to create a lean image file
+FROM alpine:latest AS build
 
 RUN apk update
+RUN apk upgrade
 RUN apk add gcompat
 RUN apk add libc6-compat
 RUN apk add build-base
+RUN apk add make
+RUN apk add git
+
+RUN git clone https://github.com/macsnoeren/guacamole-datadiode.git
+
+WORKDIR /guacamole-datadiode/gmdatadiode
+RUN make gmserver
+
+# Building the final image
+FROM alpine:latest
 
 WORKDIR /bin
 
 COPY entrypoint.sh .
-COPY gmserver .
+COPY --from=build /guacamole-datadiode/build/gmserver  .
 
 RUN chmod +x entrypoint.sh
 RUN chmod +x gmserver

@@ -12,18 +12,7 @@
 # If not, see https://www.gnu.org/licenses/.
 #
 
-# Rebuild the application
-cd ../../gmdatadiode
-make gmproxyout
-cd ../docker/gmproxyout
-
-# Copy the executable
-cp ../../build/gmproxyout .
-
 # Build the docker image
 docker build --tag gmdatadiode-gmproxyout .
-
-# remove the executable
-rm ./gmproxyout
 
 # Example: docker run -d -p 20000:20000 -p 40000:40000 gmproxyout

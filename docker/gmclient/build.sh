@@ -12,18 +12,8 @@
 # If not, see https://www.gnu.org/licenses/.
 #
 
-# Rebuild the application
-cd ../../gmdatadiode
-make gmclient
-cd ../docker/gmclient
-
-# Copy the executable
-cp ../../build/gmclient .
-
 # Build the docker image
-docker build --tag gmdatadiode-gmclient .
+docker build --progress=plain --no-cache --tag gmdatadiode-gmclient .
 
-# remove the executable
-rm ./gmclient
-
+# Debugging: docker build --progress=plain --no-cache --tag gmdatadiode-gmclient .
 # Example: docker run -d -p 10000:10000 -p 20000:20000 gmclient
