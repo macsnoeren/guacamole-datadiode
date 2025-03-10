@@ -11,3 +11,9 @@ Find the source code of the Guacamole data-diode implementation.
 ![design-gmproxyout](https://github.com/macsnoeren/guacamole-datadiode/blob/7cf4fffe9635a310af89fc896057d7b8a2e21dda/documentation/images/gmproxyout_design.png)
 
 ![design-gmclient](https://github.com/macsnoeren/guacamole-datadiode/blob/4fade0bbdfbabb7795028bc922f5388391c3e30b/documentation/images/gmclient_design.png)
+
+# gmproxyin and gmproxyout test with real data-diode
+
+![test-photo-01](https://github.com/macsnoeren/guacamole-datadiode/blob/c465db3ebfb67204930c0b50ea9279e2d9b9172c/documentation/images/gmproxy-data-diode-01.png)
+
+![test-photo-02](https://github.com/macsnoeren/guacamole-datadiode/blob/c465db3ebfb67204930c0b50ea9279e2d9b9172c/documentation/images/gmproxy-data-diode-02.png)
