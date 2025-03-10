@@ -199,7 +199,8 @@ int main (int argc, char *argv[]) {
   if ( arguments.test ) logging(VERBOSE_NO, "Testing mode!\n");
   while ( arguments.test ) {
     char* m = new char[100];
-    logging(VERBOSE_NO, m, "TESTING-GMPROXYIN-MESSAGE-%010ld\n", ++n);
+    sprintf(m, "TESTING-GMPROXYIN-MESSAGE-%010ld\n", ++n);
+    logging(VERBOSE_DEBUG, "Send test message: %s", m);
     queueDataDiodeSend.push(m);
     sleep(1);
   }
