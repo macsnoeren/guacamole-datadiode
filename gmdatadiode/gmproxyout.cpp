@@ -22,6 +22,7 @@ If not, see https://www.gnu.org/licenses/.
 #include <list>
 
 #include <guacamole/util.h>
+#include <guacamole/validator.hpp>
 #include <udpserver.hpp>
 #include <tcpclient.hpp>
 
@@ -75,6 +76,7 @@ void signal_sigpipe_cb (int signum) {
 void thread_datadiode_recv (Arguments args, bool* running, queue<char*>* queueRecv) {
   char buffer[BUFFER_SIZE];
 
+  ProtocolValidator validator;
   UDPServer udpServer(args.ddin_port);
   udpServer.initialize();
   udpServer.start();
@@ -85,16 +87,21 @@ void thread_datadiode_recv (Arguments args, bool* running, queue<char*>* queueRe
     logging(VERBOSE_DEBUG, "UDP received: %s\n", buffer);
     if ( n  > 0 ) {
       buffer[n] = '\0';
+
       if ( args.test ) {
         logging(VERBOSE_NO, "Received from gmproxyin: %s\n", buffer);
       }
       if ( !args.test ) {
-        if ( n < BUFFER_SIZE ) {
-          char* temp = new char[n+1];
-          strcpy(temp, buffer);
-          queueRecv->push(temp);
-        } else {
-          logging(VERBOSE_NO, "ERROR: buffer size larger than maximum of %d\n", BUFFER_SIZE);
+        validator.processData(buffer, strlen(buffer));
+
+        // Process the data that is received and put it on the send Queue to be send over the data-diode
+        queue<char*>* q = validator.getDataQueue();
+        if ( q->size() > 0 ) {
+          while ( !q->empty() ) {
+            logging(VERBOSE_DEBUG, "Validator gmproxyin queue: %s\n", q->front());
+            queueRecv->push(q->front()); // Move the data to the send queue
+            q->pop();
+          }
         }
       }
 

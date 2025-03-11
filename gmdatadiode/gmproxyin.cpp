@@ -225,7 +225,6 @@ int main (int argc, char *argv[]) {
           // Process the data that is received and put it on the send Queue to be send over the data-diode
           queue<char*>* q = validator.getDataQueue();
           if ( q->size() > 0 ) {
-            strcpy(buffer, "\0"); // Reuse buffer
             while ( !q->empty() ) {
               logging(VERBOSE_DEBUG, "Validator gmproxyin queue: %s\n", q->front());
               queueDataDiodeSend.push(q->front()); // Move the data to the send queue
