@@ -22,6 +22,7 @@ If not, see https://www.gnu.org/licenses/.
 #include <list>
 
 #include <guacamole/util.h>
+#include <guacamole/validator.hpp>
 #include <udpclient.hpp>
 #include <tcpclient.hpp>
 
@@ -212,17 +213,24 @@ int main (int argc, char *argv[]) {
       logging(VERBOSE_DEBUG, "Connected with the gmserver or gmclient\n");
 
       bool active = true;
+      ProtocolValidator validator;
       while ( active ) {
         n = tcpClientGmServer.receiveFrom(buffer, BUFFER_SIZE);
         logging(VERBOSE_DEBUG, "GMx received: %s\n", buffer);
         if ( n  > 0 ) { // Received message from receiving data-diode
           buffer[n] = '\0';
-          if ( n < BUFFER_SIZE ) {
-            char* temp = new char[n+1];
-            strcpy(temp, buffer);
-            queueDataDiodeSend.push(temp);
-          } else {
-            logging(VERBOSE_NO, "ERROR: buffer size larger than maximum of %d\n", BUFFER_SIZE);
+
+          validator.processData(buffer, strlen(buffer));
+
+          // Process the data that is received and put it on the send Queue to be send over the data-diode
+          queue<char*>* q = validator.getDataQueue();
+          if ( q->size() > 0 ) {
+            strcpy(buffer, "\0"); // Reuse buffer
+            while ( !q->empty() ) {
+              logging(VERBOSE_DEBUG, "Validator gmproxyin queue: %s\n", q->front());
+              queueDataDiodeSend.push(q->front()); // Move the data to the send queue
+              q->pop();
+            }
           }
 
         } else if ( n == 0 ) { // Peer properly shutted down!
