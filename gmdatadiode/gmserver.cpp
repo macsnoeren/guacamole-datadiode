@@ -82,12 +82,17 @@ void signal_sigpipe_cb (int signum) {
 void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSend) {
   TCPServer tcpServerSend(args.ddout_port, 1);
   tcpServerSend.initialize();
-  tcpServerSend.start();
+
+  if ( tcpServerSend.start() < 0 ) {
+    logging(VERBOSE_NO, "Could not bind to the port %d\n", args.ddout_port);
+    *running = false;
+    return;
+  }
 
   logging(VERBOSE_INFO, "Listening for gmproxyout to connect on port %d\n", args.ddout_port);
   while ( *running ) {
     logging(VERBOSE_DEBUG, "Waiting on gmproxyout connection...\n");
-    TCPServerClient* tcpClient = tcpServerSend.accept();
+    TCPServerClient* tcpClient = tcpServerSend.waitOnClient();
     if ( tcpClient != NULL ) {
       bool active = true;
       logging(VERBOSE_DEBUG, "gmproxyout client connected\n");
@@ -107,6 +112,9 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
         }
         usleep(5000);
       }
+    } else {
+      logging(VERBOSE_NO, "Could not initialize server to listen for gmproxyout, port taken?\n");
+      *running = false;
     }
     usleep(5000);
   }
@@ -130,12 +138,16 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
   ProtocolValidator validator;
   TCPServer tcpServerRecv(args.ddin_port, 1);
   tcpServerRecv.initialize();
-  tcpServerRecv.start();
+  if ( tcpServerRecv.start() < 0 ) {
+    logging(VERBOSE_NO, "Could not bind to the port %d\n", args.ddin_port);
+    *running = false;
+    return;
+  }
 
   logging(VERBOSE_INFO, "Listening for gmproxyout to connect on port %d\n", args.ddin_port);
   while ( *running ) {
     logging(VERBOSE_DEBUG, "Waiting on gmproxyin connection...\n");
-    TCPServerClient* tcpClient = tcpServerRecv.accept();
+    TCPServerClient* tcpClient = tcpServerRecv.waitOnClient();
     if ( tcpClient != NULL ) {
       bool active = true;
       logging(VERBOSE_DEBUG, "gmproxyin client connected\n");
@@ -213,6 +225,9 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
         }
         usleep(5000);
       }
+    } else {
+      logging(VERBOSE_NO, "Could not initialize server to listen for gmproxyin clients, port taken?\n");
+      *running = false;
     }
     usleep(5000);
   }
@@ -415,12 +430,17 @@ int main (int argc, char *argv[]) {
   // Create the TCP/IP server to accept connections from the Guacamole web client
   TCPServer tcpServerGuacamole(arguments.guacamole_port, arguments.guacamole_max_clients);
   tcpServerGuacamole.initialize();
-  tcpServerGuacamole.start();
+
+  if ( tcpServerGuacamole.start() < 0 ) {
+    logging(VERBOSE_NO, "Could not bind to the port %d\n", arguments.guacamole_port);
+    running = false;
+    return 0;
+  }
 
   logging(VERBOSE_INFO, "Listening for Guacamole to connect on port %d (max connections: %d)\n", arguments.guacamole_port, arguments.guacamole_max_clients);
   while ( running ) {
-    logging(VERBOSE_DEBUG, "Waiting on Guacamole connection...");
-    TCPServerClient* tcpGuacamoleClient = tcpServerGuacamole.accept();
+    logging(VERBOSE_DEBUG, "Waiting on Guacamole connection...\n");
+    TCPServerClient* tcpGuacamoleClient = tcpServerGuacamole.waitOnClient();
     if ( tcpGuacamoleClient != NULL ) {
       logging(VERBOSE_DEBUG, "Guacamole client connected\n");
       
@@ -450,6 +470,10 @@ int main (int argc, char *argv[]) {
       thread t2(thread_guacamole_client_send, &running, tcpServerClientHandle, &queueDataDiodeSend);
       t1.detach();
       t2.detach();
+
+    } else {
+      logging(VERBOSE_NO, "Could not initialize server to listen for Guacamole clients, port taken?\n");
+      running = false;
     }
   }
   return 0;

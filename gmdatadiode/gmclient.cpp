@@ -191,12 +191,17 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
 
   TCPServer tcpServerSend(args.ddout_port, 1);
   tcpServerSend.initialize();
-  tcpServerSend.start();
+
+  if ( tcpServerSend.start() < 0 ) {
+    logging(VERBOSE_NO, "Could not bind to the port %d\n", args.ddout_port);
+    *running = false;
+    return;
+  }
 
   logging(VERBOSE_INFO, "Listening for the gm proxyin on port %d\n", args.ddout_port);
   while ( *running ) {
     logging(VERBOSE_DEBUG, "Waiting on the gmproxyin to connect...\n");
-    TCPServerClient* tcpClient = tcpServerSend.accept();
+    TCPServerClient* tcpClient = tcpServerSend.waitOnClient();
     if ( tcpClient != NULL ) {
       bool active = true;
       logging(VERBOSE_DEBUG, "gmproxyin connected\n");
@@ -216,6 +221,9 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
         }
         usleep(5000);
       }
+    } else {
+      logging(VERBOSE_NO, "Could not initialize server to listen for gmproxyin, port taken?\n");
+      *running = false;
     }
     usleep(5000);
   }
@@ -234,12 +242,17 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
   ProtocolValidator validator;
   TCPServer tcpServerRecv(args.ddin_port, 1);
   tcpServerRecv.initialize();
-  tcpServerRecv.start();
+  
+  if ( tcpServerRecv.start() < 0 ) {
+    logging(VERBOSE_NO, "Could not bind to the port %d\n", args.ddin_port);
+    *running = false;
+    return;
+  }
 
-  logging(VERBOSE_INFO, "Listening for gmproxou on port %d\n", args.ddin_port);
+  logging(VERBOSE_INFO, "Listening for gmproxout on port %d\n", args.ddin_port);
   while ( *running ) {
     logging(VERBOSE_DEBUG, "Waining on gmproxyout to connect...\n");
-    TCPServerClient* tcpClient = tcpServerRecv.accept();
+    TCPServerClient* tcpClient = tcpServerRecv.waitOnClient();
     if ( tcpClient != NULL ) {
       bool active = true;
       logging(VERBOSE_DEBUG, "proxyout client connected\n");
@@ -352,6 +365,9 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
         }
         usleep(5000);
       }
+    } else {
+      logging(VERBOSE_NO, "Could not initialize server to listen for gmproxyout, port taken?\n");
+      *running = false;
     }
     usleep(5000);
   }

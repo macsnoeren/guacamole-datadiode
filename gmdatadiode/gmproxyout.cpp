@@ -22,6 +22,7 @@ If not, see https://www.gnu.org/licenses/.
 #include <list>
 
 #include <guacamole/util.h>
+#include <guacamole/validator.hpp>
 #include <udpserver.hpp>
 #include <tcpclient.hpp>
 
@@ -53,6 +54,7 @@ struct Arguments {
   int ddin_port;
   bool test;
   int verbosity;
+  bool validation;
 };
 
 /*
@@ -75,6 +77,7 @@ void signal_sigpipe_cb (int signum) {
 void thread_datadiode_recv (Arguments args, bool* running, queue<char*>* queueRecv) {
   char buffer[BUFFER_SIZE];
 
+  ProtocolValidator validator;
   UDPServer udpServer(args.ddin_port);
   udpServer.initialize();
   udpServer.start();
@@ -85,16 +88,33 @@ void thread_datadiode_recv (Arguments args, bool* running, queue<char*>* queueRe
     logging(VERBOSE_DEBUG, "UDP received: %s\n", buffer);
     if ( n  > 0 ) {
       buffer[n] = '\0';
+
       if ( args.test ) {
         logging(VERBOSE_NO, "Received from gmproxyin: %s\n", buffer);
       }
+      
       if ( !args.test ) {
-        if ( n < BUFFER_SIZE ) {
-          char* temp = new char[n+1];
-          strcpy(temp, buffer);
-          queueRecv->push(temp);
-        } else {
-          logging(VERBOSE_NO, "ERROR: buffer size larger than maximum of %d\n", BUFFER_SIZE);
+        if ( args.validation ) {
+          validator.processData(buffer, strlen(buffer));
+
+          // Process the data that is received and put it on the send Queue to be send over the data-diode
+          queue<char*>* q = validator.getDataQueue();
+          if ( q->size() > 0 ) {
+            while ( !q->empty() ) {
+              logging(VERBOSE_DEBUG, "Validator gmproxyin queue: %s\n", q->front());
+              queueRecv->push(q->front()); // Move the data to the send queue
+              q->pop();
+            }
+          }
+
+        } else { // No validation
+          if ( n < BUFFER_SIZE ) {
+            char* temp = new char[n+1];
+            strcpy(temp, buffer);
+            queueRecv->push(temp);
+          } else {
+            logging(VERBOSE_NO, "ERROR: buffer size larger than maximum of %d\n", BUFFER_SIZE);
+          }
         }
       }
 
@@ -116,8 +136,9 @@ void help() {
   cout << "  -g host, --gmx-host=host  host where it needs to connect to send data from gmserver or gmclient [default: " << GMx_HOST << "]" << endl;
   cout << "  -p port, --gmx-port=port  port where it need to connect to the gmserver or gmclient             [default: " << GMx_PORT << "]" << endl;
   cout << "  -i port, --ddin-port=port port that the data is received from gmproxyin on UDP port             [default: " << DATA_DIODE_RECV_PORT << "]" << endl;
-  cout << "  -t, --test                 testing mode will send UDP messages to gmproxyout" << endl;
-  cout << "  -v                         verbose add v's to increase level" << endl;
+  cout << "  -n, --no-check            disable the validation check on the protocol when it passes" << endl;
+  cout << "  -t, --test                testing mode will send UDP messages to gmproxyout" << endl;
+  cout << "  -v                        verbose add v's to increase level" << endl;
   cout << "  -h, --help                show this help page." << endl << endl;
   cout << "More documentation can be found on https://github.com/macsnoeren/guacamole-datadiode." << endl;
 }
@@ -139,13 +160,15 @@ int main (int argc, char *argv[]) {
   arguments.ddin_port = DATA_DIODE_RECV_PORT;
   arguments.test = false;
   arguments.verbosity = VERBOSE_NO;
+  arguments.validation = true;
 
   // Create the short and long options of the application.
-  const char* const short_options = "vthg:p:i:";
+  const char* const short_options = "nvthg:p:i:";
   static struct option long_options[] = {
     {"gmx-host", optional_argument, nullptr, 'g'},
     {"gmx-port", optional_argument, nullptr, 'p'},
     {"ddin-port", optional_argument, nullptr, 'i'},
+    {"no-check", optional_argument, nullptr, 'n'},
     {"test", no_argument, 0, 't'},
     {"help", no_argument, 0, 'h'},
     {0, 0, 0, 0}
@@ -169,6 +192,9 @@ int main (int argc, char *argv[]) {
       case 'i':
         arguments.ddin_port = stoi(optarg);
         break;
+      case 'n':
+        arguments.validation = false;
+        break;
       case 'v':
         arguments.verbosity++;
         if ( arguments.verbosity > VERBOSE_DEBUG ) arguments.verbosity = VERBOSE_DEBUG;
@@ -181,6 +207,11 @@ int main (int argc, char *argv[]) {
   // Set verbose level
   setVerboseLevel(arguments.verbosity);
 
+  // Create note when validation is turned off
+  if ( !arguments.validation ) {
+    logging(VERBOSE_NO, "NOTE: without protocol validation it will become less secure!\n");
+  }
+   
   // Create the running variable, buffer and queue.
   bool running = true;
   char buffer[BUFFER_SIZE];
