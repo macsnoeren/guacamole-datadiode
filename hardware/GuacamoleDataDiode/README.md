@@ -1,6 +1,8 @@
 # Guacamole Data-Diode Hardware
 
-It could be interesting to create hardware for the data-diode. Some idea is to use an FPGA.
+It could be interesting to create hardware for the data-diode. Some idea is to use an FPGA. An idea could be the following:
+
+![fpga-data-diode-design](https://github.com/macsnoeren/guacamole-datadiode/blob/7bc6c850edbb01ea2e3cb4cf7a1a79e23f21aa8d/documentation/images/fpga-gm-data-diode-design.png)
 
 - https://alexforencich.com/wiki/en/verilog/ethernet/start
 - https://github.com/alexforencich/verilog-ethernet/tree/master

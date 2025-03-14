@@ -113,7 +113,7 @@ private:
      * @param error that contains the error message.
      */
     void error (const char* error) {
-        std::cout << "ERROR: " << error << std::endl;
+        std::cout << "TCPServer: " << error << std::endl;
     }
 
 public:
@@ -157,7 +157,7 @@ public:
      */
     int start () {
         if ( bind(this->socketFd, (struct sockaddr*)&this->socketAddrServer, sizeof(this->socketAddrServer)) < 0) {
-            this->error("start: Bind failed");
+            this->error("Bind failed");
             return -1;
         }
     
@@ -173,17 +173,15 @@ public:
      * Wait for a client connection.
      * @return TCPServerClient when connected.
      */
-    TCPServerClient* accept () {
+    TCPServerClient* waitOnClient () {
         struct sockaddr_in socketAddrClient;
         socklen_t socketLenClient;
 
-        int clientSocket = accept4(this->socketFd, (struct sockaddr*)&socketAddrClient, &socketLenClient, 0);
+        int clientSocket = accept(this->socketFd, (struct sockaddr*)&socketAddrClient, &socketLenClient);
         if ( clientSocket < 0) {
             this->error("accept: Failure accepting new client");
             return NULL;
         }
-
-        std::cout << "accept: Client connected" << std::endl;
 
         return new TCPServerClient(clientSocket, socketAddrClient, socketLenClient);
     }
