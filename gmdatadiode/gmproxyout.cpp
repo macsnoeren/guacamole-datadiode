@@ -92,6 +92,7 @@ void thread_datadiode_recv (Arguments args, bool* running, queue<char*>* queueRe
       if ( args.test ) {
         logging(VERBOSE_NO, "Received from gmproxyin: %s\n", buffer);
       }
+      
       if ( !args.test ) {
         if ( args.validation ) {
           validator.processData(buffer, strlen(buffer));

@@ -113,7 +113,7 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
         usleep(5000);
       }
     } else {
-      logging(VERBOSE_NO, "Could not initialize server to listen for gmproxyout clients, port taken?\n");
+      logging(VERBOSE_NO, "Could not initialize server to listen for gmproxyout, port taken?\n");
       *running = false;
     }
     usleep(5000);
