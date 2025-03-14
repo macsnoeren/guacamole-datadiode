@@ -1,5 +1,5 @@
 # Guacamole protocol
-Here some of the details of the Guacamole protocol is documented. The messages that are send can become quite large.
+Here some of the details of the Guacamole protocol is documented. The messages that are send can become quite large. This log has been made using the pyproxy application.
 
 ## Log of the protocol
 In the log below you see the Guacamole protocol in action. It is well documented by the Guacamole project. I have added the SRC and DST, so it is clear where it is comming from. SRC are the messages send by the Guacamole web server client and DST are the messages that come back from the guacd.
