@@ -1,0 +1,4 @@
+# Possible improvements and ideas
+
+## Improve the complexity of the Guacamole Data-Diode
+At this moment six applications are required to implement the Guacamole data-diode functionality. This could be made less complex to integrate the gmserver into the Guacamole server and the gmclient into the Guacd client of the opensource Guacamole application. That means that the Guacamole project will become data-diode aware and can use any data-diode to communicatie between the two instances. How this needs to be done is not research yet and is not considered yet. However, this could be an idea for the future to integrate the full functionality into the Guacamole project. Based on the learnings of this project, this could be investigated if required.

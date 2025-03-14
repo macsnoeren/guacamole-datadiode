@@ -353,7 +353,6 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
             }
           }
 
-
         } else if ( n == 0 ) { // Peer properly shutted down!
           tcpClient->closeSocket();
           active = false;
