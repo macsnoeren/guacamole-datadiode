@@ -58,6 +58,7 @@ struct Arguments {
   int ddout_port;
   bool test;
   int verbosity;
+  bool validation;
 };
 
 /*
@@ -112,6 +113,7 @@ void help() {
   cout << "  -p port, --gmx-port=port   port where it need to connect to the gmserver ot gmclient            [default: " << GMx_PORT << "]" << endl;
   cout << "  -d host, --ddout-host=host host that the UDP data needs to send to the gmproxyout               [default: " << DATA_DIODE_SEND_HOST << "]" << endl;
   cout << "  -o port, --ddout-port=port port that the gmproxyout is using                                    [default: " << DATA_DIODE_SEND_PORT << "]" << endl;
+  cout << "  -n, --no-check             disable the validation check on the protocol when it passes" << endl;
   cout << "  -t, --test                 testing mode will send UDP messages to gmproxyout" << endl;
   cout << "  -v                         verbose add v's to increase level" << endl;
   cout << "  -h, --help                 show this help page." << endl << endl;
@@ -137,15 +139,17 @@ int main (int argc, char *argv[]) {
   arguments.ddout_port = DATA_DIODE_SEND_PORT;
   arguments.test = false;
   arguments.verbosity = VERBOSE_NO;
+  arguments.validation = true;
 
   // Create the short and long options of the application.
-  const char* const short_options = "vthg:p:d:o:";
+  const char* const short_options = "nvthg:p:d:o:";
   static struct option long_options[] = {
-    {"test", no_argument, nullptr, 't'},
     {"gmx-host", optional_argument, nullptr, 'g'},
     {"gmx-port", optional_argument, nullptr, 'p'},
     {"ddout-host", optional_argument, nullptr, 'd'},
     {"ddout-port", optional_argument, nullptr, 'o'},
+    {"no-check", optional_argument, nullptr, 'n'},
+    {"test", no_argument, nullptr, 't'},
     {"help", no_argument, nullptr, 'h'},
     {0, 0, 0, 0}
   };
@@ -171,6 +175,9 @@ int main (int argc, char *argv[]) {
       case 'o':
         arguments.ddout_port = stoi(optarg);
         break;
+      case 'n':
+        arguments.validation = false;
+        break;
       case 'v':
         arguments.verbosity++;
         if ( arguments.verbosity > VERBOSE_DEBUG ) arguments.verbosity = VERBOSE_DEBUG;
@@ -182,6 +189,11 @@ int main (int argc, char *argv[]) {
 
   // Set verbose level
   setVerboseLevel(arguments.verbosity);
+
+  // Create note when validation is turned off
+  if ( !arguments.validation ) {
+   logging(VERBOSE_NO, "NOTE: without protocol validation it will become less secure!\n");
+  }
 
   // Create the running variable, buffer and queue.
   bool running = true;
@@ -220,15 +232,26 @@ int main (int argc, char *argv[]) {
         if ( n  > 0 ) { // Received message from receiving data-diode
           buffer[n] = '\0';
 
-          validator.processData(buffer, strlen(buffer));
+          if ( arguments.validation ) {
+            validator.processData(buffer, strlen(buffer));
 
-          // Process the data that is received and put it on the send Queue to be send over the data-diode
-          queue<char*>* q = validator.getDataQueue();
-          if ( q->size() > 0 ) {
-            while ( !q->empty() ) {
-              logging(VERBOSE_DEBUG, "Validator gmproxyin queue: %s\n", q->front());
-              queueDataDiodeSend.push(q->front()); // Move the data to the send queue
-              q->pop();
+            // Process the data that is received and put it on the send Queue to be send over the data-diode
+            queue<char*>* q = validator.getDataQueue();
+            if ( q->size() > 0 ) {
+              while ( !q->empty() ) {
+                logging(VERBOSE_DEBUG, "Validator gmproxyin queue: %s\n", q->front());
+                queueDataDiodeSend.push(q->front()); // Move the data to the send queue
+                q->pop();
+              }
+            }
+
+          } else { // no validation
+            if ( n < BUFFER_SIZE ) {
+              char* temp = new char[n+1];
+              strcpy(temp, buffer);
+              queueDataDiodeSend.push(temp);
+            } else {
+              logging(VERBOSE_NO, "ERROR: buffer size larger than maximum of %d\n", BUFFER_SIZE);
             }
           }
 
