@@ -23,7 +23,7 @@ Guacamole consist of a guacamole webserver that connects with a guacd service us
 That means that the Guacd is part of the critical infrastructure and the interface to this service is protected with the hardware-based device. Attackers that gets control over the Guacamole webserver shall not be able to lateral move over the hardware-based device to the guacd. The hardware-based device only transfer application data and not network data.
 
 # Guacamole data-diode Docker
-On Docker Hub the four applications of the Guacamole data-diode is availebl:
+On Docker Hub the four applications of the Guacamole data-diode are available:
 - gmserver: https://hub.docker.com/r/macsnoeren/gmdatadiode-gmserver
 - gmclient: https://hub.docker.com/r/macsnoeren/gmdatadiode-gmclient
 - gmproxyin: https://hub.docker.com/r/macsnoeren/gmdatadiode-gmproxyin
