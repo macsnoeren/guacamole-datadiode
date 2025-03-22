@@ -13,7 +13,7 @@
 CFLAGS = -std=c++17 -static
 INCLUDE = -Iinclude
 BUILD_DIR = ../build
-LIBS = -lpthread
+LIBS =
 
 all: gmserver gmclient gmproxyin gmproxyout
 
