@@ -32,7 +32,7 @@ using namespace std;
 constexpr char VERSION[] = "1.0";
 
 // Buffer size used to read the messages from gmserver or gmclient.
-constexpr int BUFFER_SIZE = 10240;
+constexpr int BUFFER_SIZE = 20480;
 
 // Default host configuration to connect to the gmserver or gmclient.
 constexpr const char GMx_HOST[] = "127.0.0.1";
