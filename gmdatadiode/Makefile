@@ -13,20 +13,21 @@
 CFLAGS = -std=c++17 -static
 INCLUDE = -Iinclude
 BUILD_DIR = ../build
+LIBS = -lpthread
 
 all: gmserver gmclient gmproxyin gmproxyout
 
 gmserver: build_dir
-	g++ $(CFLAGS) $(INCLUDE) -o $(BUILD_DIR)/gmserver gmserver.cpp
+	g++ $(CFLAGS) $(INCLUDE) -o $(BUILD_DIR)/gmserver gmserver.cpp ${LIBS}
 
 gmclient: build_dir
-	g++ $(CFLAGS) $(INCLUDE) -o $(BUILD_DIR)/gmclient gmclient.cpp
+	g++ $(CFLAGS) $(INCLUDE) -o $(BUILD_DIR)/gmclient gmclient.cpp ${LIBS}
 
 gmproxyin: build_dir
-	g++ $(CFLAGS) $(INCLUDE) -o $(BUILD_DIR)/gmproxyin gmproxyin.cpp
+	g++ $(CFLAGS) $(INCLUDE) -o $(BUILD_DIR)/gmproxyin gmproxyin.cpp ${LIBS}
 
 gmproxyout: build_dir
-	g++ $(CFLAGS) $(INCLUDE) -o $(BUILD_DIR)/gmproxyout gmproxyout.cpp
+	g++ $(CFLAGS) $(INCLUDE) -o $(BUILD_DIR)/gmproxyout gmproxyout.cpp ${LIBS}
 
 build_dir:
 	mkdir -p $(BUILD_DIR)
