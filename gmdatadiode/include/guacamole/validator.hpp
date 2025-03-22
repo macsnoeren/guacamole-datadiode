@@ -20,7 +20,7 @@ If not, see https://www.gnu.org/licenses/.
 #include <queue>
 
 // Buffer size that is used within the validator to hold data.
-constexpr int VALIDATOR_BUFFER_SIZE = 10240;
+constexpr int VALIDATOR_BUFFER_SIZE = 20480;
 
 // State that is used to validate the protocol.
 enum class PROTOCOL_VALIDATOR_STATE {

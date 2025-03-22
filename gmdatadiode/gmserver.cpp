@@ -34,7 +34,7 @@ using namespace std;
 constexpr char VERSION[] = "1.0";
 
 // Buffer size used to read the messages from Guacamole.
-constexpr int BUFFER_SIZE = 10240;
+constexpr int BUFFER_SIZE = 20480;
 
 // Maximum connections that the Guacamole can make.
 constexpr int GUACAMOLE_MAX_CLIENTS = 25;
