@@ -228,9 +228,9 @@ int main (int argc, char *argv[]) {
       ProtocolValidator validator;
       while ( active ) {
         n = tcpClientGmServer.receiveFrom(buffer, BUFFER_SIZE);
-        logging(VERBOSE_DEBUG, "GMx received: %s\n", buffer);
         if ( n  > 0 ) { // Received message from receiving data-diode
           buffer[n] = '\0';
+          logging(VERBOSE_DEBUG, "GMx received: %s\n", buffer);
 
           if ( arguments.validation ) {
             validator.processData(buffer, strlen(buffer));
