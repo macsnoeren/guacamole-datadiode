@@ -71,6 +71,39 @@ void signal_sigpipe_cb (int signum) {
 }
 
 /*
+ * The thread that is responsible to check the TCP/IP status with the proxy client
+ * 
+ * @param[in/out] running is used to check if the program is stil running, can also be set.
+ * @param[in/out] active is used to check if the socket is stil connected, can also be set.
+ * @param[in] client is the socket connection.
+ */
+void thread_datadiode_client_recv( bool* running, bool* active, TCPServerClient* tcpClient) {
+  char buffer[100]; // No data expected, so small buffer
+
+  logging(VERBOSE_DEBUG, "thread_datadiode_client_recv: started to monitor the proxyout client TCP/IP connection.\n");
+  while ( *running && *active ) {
+    ssize_t n = tcpClient->receiveFrom(buffer, 100);
+
+    if ( n  > 0 ) { // Received message from receiving data-diode
+      buffer[n] = '\0';
+      logging(VERBOSE_NO, "Unexpected data from proxyout client received: %s\n", buffer);
+      // TODO: What to do in this case? Currenly don't care!
+
+    } else if ( n == 0 ) { // Peer properly shutted down!
+      logging(VERBOSE_DEBUG, "proxyour client connection peer closed connection\n");
+      tcpClient->closeSocket();
+      *active = false;
+      
+    } else { // Problem with the client
+      logging(VERBOSE_DEBUG, "proxyout client connection error\n");
+      tcpClient->closeSocket();      
+      *active = false;
+    }
+    sleep(1); // While loop only for checking connection status
+  }
+}
+
+/*
  * This method sends the data in the queueSend to the data-diode.
  * Ready for test
  * @param bool* running: pointer to the running flag. If false the thread
@@ -96,6 +129,11 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
     if ( tcpClient != NULL ) {
       bool active = true;
       logging(VERBOSE_DEBUG, "gmproxyout client connected\n");
+
+      // Create the thread to receive the data-diode data from gmproxtout client, to monitor the connection.
+      thread t(thread_datadiode_client_recv, running, &active, tcpClient);
+      t.detach();
+
       while ( active ) {
         while ( active && !queueSend->empty() ) {
           char* d = queueSend->front();
@@ -112,6 +150,9 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
         }
         usleep(5000);
       }
+      delete tcpClient; // Delete the memory
+      tcpClient = NULL;
+
     } else {
       logging(VERBOSE_NO, "Could not initialize server to listen for gmproxyout, port taken?\n");
       *running = false;

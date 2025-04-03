@@ -20,6 +20,7 @@
 #   -p port, --gmx-port=port   port where it need to connect to the gmserver ot gmclient            [default: 10000]
 #   -d host, --ddout-host=host host that the UDP data needs to send to the gmproxyout               [default: 127.0.0.1]
 #   -o port, --ddout-port=port port that the gmproxyout is using                                    [default: 40000]
+#   -n, --no-check             disable the validation check on the protocol when it passes
 #   -t, --test                 testing mode will send UDP messages to gmproxyout
 #   -v                         verbose add v's to increase level
 #   -h, --help                 show this help page.
