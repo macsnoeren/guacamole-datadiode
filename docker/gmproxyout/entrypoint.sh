@@ -19,6 +19,7 @@
 #   -g host, --gmx-host=host  host where it needs to connect to send data from gmserver or gmclient [default: 127.0.0.1]
 #   -p port, --gmx-port=port  port where it need to connect to the gmserver or gmclient             [default: 20000]
 #   -i port, --ddin-port=port port that the data is received from gmproxyin on UDP port             [default: 40000]
+#   -n, --no-check             disable the validation check on the protocol when it passes
 #   -t, --test                 testing mode will send UDP messages to gmproxyout
 #   -v                         verbose add v's to increase level
 #   -h, --help                show this help page.
@@ -61,6 +62,11 @@ fi
 if [ "$TEST" == "true" ];
 then
     GM_ARGS="$GM_ARGS -t"
+fi
+
+if [ "$NOCHECK" == "true" ];
+then
+    GM_ARGS="$GM_ARGS -n"
 fi
 
 echo gmproxyout $GM_ARGS
