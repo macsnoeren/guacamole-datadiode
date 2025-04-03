@@ -32,7 +32,7 @@ using namespace std;
 constexpr char VERSION[] = "1.0";
 
 // Buffer size used to read the messages from gmserver or gmclient.
-constexpr int BUFFER_SIZE = 10240;
+constexpr int BUFFER_SIZE = 20480;
 
 // Default heartbeat pulse configuration
 constexpr int HEARTBEAT_PUSLE = 20;

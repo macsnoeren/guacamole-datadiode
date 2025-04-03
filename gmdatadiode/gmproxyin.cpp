@@ -32,7 +32,7 @@ using namespace std;
 constexpr char VERSION[] = "1.0";
 
 // Buffer size used to read the messages from gmserver or gmclient.
-constexpr int BUFFER_SIZE = 10240;
+constexpr int BUFFER_SIZE = 20480;
 
 // Default host configuration to connect to the gmserver or gmclient.
 constexpr const char GMx_HOST[] = "127.0.0.1";
@@ -228,9 +228,9 @@ int main (int argc, char *argv[]) {
       ProtocolValidator validator;
       while ( active ) {
         n = tcpClientGmServer.receiveFrom(buffer, BUFFER_SIZE);
-        logging(VERBOSE_DEBUG, "GMx received: %s\n", buffer);
         if ( n  > 0 ) { // Received message from receiving data-diode
           buffer[n] = '\0';
+          logging(VERBOSE_DEBUG, "GMx received: %s\n", buffer);
 
           if ( arguments.validation ) {
             validator.processData(buffer, strlen(buffer));

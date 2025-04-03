@@ -32,7 +32,7 @@ using namespace std;
 constexpr char VERSION[] = "1.0";
 
 // Buffer size used to read the messages from gmserver or gmclient.
-constexpr int BUFFER_SIZE = 10240;
+constexpr int BUFFER_SIZE = 20480;
 
 // Default host configuration to connect to the gmserver or gmclient.
 constexpr const char GMx_HOST[] = "127.0.0.1";
@@ -128,6 +128,41 @@ void thread_datadiode_recv (Arguments args, bool* running, queue<char*>* queueRe
 }
 
 /*
+ * The thread that is responsible to check the TCP/IP status with the GMx client or server.
+ * This is done using the recv function that is able to detect closing the peer connection
+ * directly.
+ * 
+ * @param[in] args contains the arguments that are configured by the main application.
+ * @param[in/out] running is used to check if the program is stil running, can also be set.
+ * @param[in/out] active is used to check if the socket is stil connected, can also be set.
+ */
+void thread_gmx_recv (Arguments args, TCPClient* tcpClientGmx, bool* running, bool* active ) {
+  char buffer[100]; // No data expected, so small buffer
+
+  logging(VERBOSE_DEBUG, "thread_gmx_recv: started to monitor the gmx TCP/IP connection.\n");
+  while ( *running && *active ) {
+    ssize_t n = tcpClientGmx->receiveFrom(buffer, 100);
+
+    if ( n  > 0 ) { // Received message from receiving data-diode
+      buffer[n] = '\0';
+      logging(VERBOSE_NO, "Unexpected data from GMx received: %s\n", buffer);
+      // TODO: What to do in this case? Currenly don't care!
+
+    } else if ( n == 0 ) { // Peer properly shutted down!
+      logging(VERBOSE_DEBUG, "GMx connection peer closed connection\n");
+      tcpClientGmx->closeSocket();
+      *active = false;
+      
+    } else { // Problem with the client
+      logging(VERBOSE_DEBUG, "GMx connection error\n");
+      tcpClientGmx->closeSocket();      
+      *active = false;
+    }
+    sleep(1); // While loop only for checking connection status
+  }
+}
+
+/*
  * Print the help of all the options to the console
  */
 void help() {
@@ -218,12 +253,14 @@ int main (int argc, char *argv[]) {
   queue<char*> queueDataDiodeRecv;
 
   // Create the thread to receive the data-diode data from gmproxyin.
-  thread t(thread_datadiode_recv, arguments, &running, &queueDataDiodeRecv);
-  t.detach();
+  thread t1(thread_datadiode_recv, arguments, &running, &queueDataDiodeRecv);
+  t1.detach();
 
   // Create the connection with the gmserver of gmclient (gmx) and process the queue.
   TCPClient tcpClientGmx(arguments.gmx_host, arguments.gmx_port);
   tcpClientGmx.initialize();
+
+  bool active = true; // Variable that indicate whether the gmx connection is active
 
   if ( arguments.test ) logging(VERBOSE_NO, "Testing mode!\n");
   logging(VERBOSE_INFO, "Connecting to the gmserver or gmclient %s:%d\n", arguments.gmx_host.c_str(), arguments.gmx_port);
@@ -232,7 +269,14 @@ int main (int argc, char *argv[]) {
     if ( tcpClientGmx.start() == 0 ) {
       logging(VERBOSE_INFO, "Connected with the gmserver or gmclient\n");
 
-      bool active = true;
+      active = true;
+
+      // Create the thread to check whether the gmx connection is still active. No data
+      // is expected, but it can be used to get direct information when the connection
+      // is closed. (Github issue #35).
+      thread t2(thread_gmx_recv, arguments, &tcpClientGmx, &running, &active);
+      t2.detach();
+
       while ( active ) {
         while ( active && !queueDataDiodeRecv.empty() ) {
           ssize_t n = tcpClientGmx.sendTo(queueDataDiodeRecv.front(), strlen(queueDataDiodeRecv.front()));
