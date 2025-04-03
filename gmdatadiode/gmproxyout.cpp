@@ -29,7 +29,7 @@ If not, see https://www.gnu.org/licenses/.
 using namespace std;
 
 // Application version
-constexpr char VERSION[] = "1.0";
+constexpr char VERSION[] = "1.1";
 
 // Buffer size used to read the messages from gmserver or gmclient.
 constexpr int BUFFER_SIZE = 20480;
