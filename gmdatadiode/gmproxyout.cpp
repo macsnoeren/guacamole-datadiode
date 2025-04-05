@@ -18,9 +18,9 @@ If not, see https://www.gnu.org/licenses/.
 #include <signal.h>
 #include <getopt.h>
 #include <thread>
-#include <queue>
 #include <list>
 
+#include <queuets.hpp>
 #include <guacamole/util.h>
 #include <guacamole/validator.hpp>
 #include <udpserver.hpp>
@@ -29,7 +29,7 @@ If not, see https://www.gnu.org/licenses/.
 using namespace std;
 
 // Application version
-constexpr char VERSION[] = "1.1";
+constexpr char VERSION[] = "1.2";
 
 // Buffer size used to read the messages from gmserver or gmclient.
 constexpr int BUFFER_SIZE = 20480;
@@ -74,7 +74,7 @@ void signal_sigpipe_cb (int signum) {
  * @param[in/out] running is used to check if the program is stil running, can also be set.
  * @param[in] queueRecv is used to push the data that is received to.
  */
-void thread_datadiode_recv (Arguments args, bool* running, queue<char*>* queueRecv) {
+void thread_datadiode_recv (Arguments args, bool* running, queueThreadSafe<char*>* queueRecv) {
   char buffer[BUFFER_SIZE];
 
   ProtocolValidator validator;
@@ -250,7 +250,7 @@ int main (int argc, char *argv[]) {
   // Create the running variable, buffer and queue.
   bool running = true;
   char buffer[BUFFER_SIZE];
-  queue<char*> queueDataDiodeRecv;
+  queueThreadSafe<char*> queueDataDiodeRecv;
 
   // Create the thread to receive the data-diode data from gmproxyin.
   thread t1(thread_datadiode_recv, arguments, &running, &queueDataDiodeRecv);

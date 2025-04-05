@@ -24,6 +24,7 @@ If not, see https://www.gnu.org/licenses/.
 #include <unordered_map>
 #include <mutex>
 
+#include <queuets.hpp>
 #include <guacamole/util.h>
 #include <guacamole/validator.hpp>
 #include <tcpserver.hpp>
@@ -31,7 +32,7 @@ If not, see https://www.gnu.org/licenses/.
 using namespace std;
 
 // Application version
-constexpr char VERSION[] = "1.0";
+constexpr char VERSION[] = "1.1";
 
 // Buffer size used to read the messages from Guacamole.
 constexpr int BUFFER_SIZE = 20480;
@@ -112,7 +113,7 @@ void thread_datadiode_client_recv( bool* running, bool* active, TCPServerClient*
  *        messages.
  * @return void
  */
-void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSend) {
+void thread_datadiode_send (Arguments args, bool* running, queueThreadSafe<char*>* queueSend) {
   TCPServer tcpServerSend(args.ddout_port, 1);
   tcpServerSend.initialize();
 
@@ -172,7 +173,7 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
  *        messages.
  * @return void
  */
-void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string, TCPServerClientHandle*>* gmClientHandles, queue<char*>* queueRecv, queue<char*>* queueSend) {
+void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string, TCPServerClientHandle*>* gmClientHandles, queueThreadSafe<char*>* queueRecv, queueThreadSafe<char*>* queueSend) {
   char buffer[BUFFER_SIZE];
 
   TCPServerClientHandle* tcpClientHandle = NULL;
@@ -223,7 +224,6 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
                     sprintf(gmsclose, "9.GMS_CLOSE,%ld.%s;", strlen(gmsValue), gmsValue);
                     queueSend->push(gmsclose);
                   }
-                  q->pop();
 
                 } else if ( strcmp(gmsOpcode, "GMS_END") == 0 ) {
                   if ( tcpClientHandle != NULL ) {
@@ -233,7 +233,6 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
                   } else {
                     logging(VERBOSE_NO, "thread_datadiode_recv: ERROR GMS protocol (2)");
                   }
-                  q->pop();
 
                 } else if ( strcmp(gmsOpcode, "GMS_CLOSE") == 0 ) {
                   if ( gmClientHandles->find(string(gmsValue)) != gmClientHandles->end() ) { // Found and close it
@@ -242,13 +241,17 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
                     tcpClientHandle->running = false;
                     tcpClientHandle->tcpClient->closeSocket();
                   }
-                  q->pop();
                 }
+                delete [] q->front();
+                q->pop();
 
               } else {
                 if ( tcpClientHandle != NULL ) {
                   tcpClientHandle->data.push(q->front()); // Move the to the client using pointer!
                   q->pop();
+                } else {
+                  delete [] q->front();
+                  q->pop();  
                 }
               }
             }
@@ -280,7 +283,7 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
  * Data that is validated and put on the queue with information of this connection.
  * Ready for test!
  */
-void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuacamoleClientHandle, queue<char*>* queueSend, queue<char*>* queueRecv) {
+void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuacamoleClientHandle, queueThreadSafe<char*>* queueSend, queueThreadSafe<char*>* queueRecv) {
   char buffer[BUFFER_SIZE];
   bool active = true;
 
@@ -356,7 +359,7 @@ void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuac
  * When data is received from the data-diode, it needs to be dispatched to the correct Guacamole client.
  * This thread is responsible for this.
  */
-void thread_guacamole_client_send (bool* running, TCPServerClientHandle* guacamoleClient, queue<char*>* queueSend) {
+void thread_guacamole_client_send (bool* running, TCPServerClientHandle* guacamoleClient, queueThreadSafe<char*>* queueSend) {
   logging(VERBOSE_DEBUG, "Thread started to handle data to Guacamole %s\n", guacamoleClient->ID.c_str());
   while ( guacamoleClient->running ) {
     while ( !guacamoleClient->data.empty() ) {
@@ -458,8 +461,8 @@ int main (int argc, char *argv[]) {
 
   // Create the running variable, buffer and queue.
   bool running = true;
-  queue<char*> queueDataDiodeSend;
-  queue<char*> queueDataDiodeRecv;
+  queueThreadSafe<char*> queueDataDiodeSend;
+  queueThreadSafe<char*> queueDataDiodeRecv;
   unordered_map<string, TCPServerClientHandle*> guacamoleClientHandles;
 
   // Create the necessary threads

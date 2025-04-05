@@ -282,7 +282,7 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
                     tcpClientHandle = guacdClients->at(string(gmsValue));
 
                   } else { // Send close message back!
-                    logging(VERBOSE_DEBUG, "guacs client not found, closing connection.\n");
+                    logging(VERBOSE_DEBUG, "guacd client not found, closing connection.\n");
                     char* t = new char[50];
                     sprintf(t, "9.GMS_CLOSE,%ld.%s;", strlen(gmsValue), gmsValue);
                     queueRecv->push(t);
@@ -340,14 +340,18 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
                 } else {
                   logging(VERBOSE_NO, "ERROR: opcode %s not found\n", gmsOpcode);
                 }
+                delete [] q->front(); // no need anymore!
+                q->pop();
 
               } else {
                 if ( tcpClientHandle != NULL ) {
                   tcpClientHandle->data.push(q->front()); // Move the to the client using pointer!
+                  q->pop();
+                } else {
+                  delete [] q->front(); // no need anymore!
+                  q->pop();  
                 }
               }
-
-              q->pop(); // moet er nog iets opgeruimd worden?!
             }
           }
 
