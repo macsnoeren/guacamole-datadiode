@@ -21,6 +21,7 @@ If not, see https://www.gnu.org/licenses/.
 #include <queue>
 #include <unordered_map>
 
+#include <queuets.hpp>
 #include <guacamole/util.h>
 #include <guacamole/validator.hpp>
 #include <tcpserver.hpp>
@@ -71,7 +72,7 @@ void signal_sigpipe_cb (int signum) {
   // Do nothing!
 }
 
-void thread_guacd_client_send (bool* running, TCPClientHandle* tcpClientHandle, queue<char*>* queueSend) {
+void thread_guacd_client_send (bool* running, TCPClientHandle* tcpClientHandle, queueThreadSafe<char*>* queueSend) {
   logging(VERBOSE_INFO, "Thread thread_guacd_client_send with client id '%s' started\n", tcpClientHandle->ID.c_str());
   while ( tcpClientHandle->running ) {
     while ( !tcpClientHandle->data.empty() ) {
@@ -105,7 +106,7 @@ void thread_guacd_client_send (bool* running, TCPClientHandle* tcpClientHandle, 
  * information.
  * Ready for test
  */
-void thread_guacd_client_recv (bool* running, TCPClientHandle* tcpGuacdClientHandle, queue<char*>* queueSend) {
+void thread_guacd_client_recv (bool* running, TCPClientHandle* tcpGuacdClientHandle, queueThreadSafe<char*>* queueSend) {
   char buffer[BUFFER_SIZE];
   
   ProtocolValidator validator;
@@ -186,7 +187,7 @@ void thread_guacd_client_recv (bool* running, TCPClientHandle* tcpGuacdClientHan
  *        messages.
  * @return void
  */
-void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSend) {
+void thread_datadiode_send (Arguments args, bool* running, queueThreadSafe<char*>* queueSend) {
   char buffer[BUFFER_SIZE];
 
   TCPServer tcpServerSend(args.ddout_port, 1);
@@ -235,7 +236,7 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
  * Here new clients needs to be made by the function if a new connection comes by.
  * Ready for test
  */
-void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string, TCPClientHandle*>* guacdClients, queue<char*>* queueSend, queue<char*>* queueRecv) {
+void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string, TCPClientHandle*>* guacdClients, queueThreadSafe<char*>* queueSend, queueThreadSafe<char*>* queueRecv) {
   char buffer[BUFFER_SIZE];
 
   TCPClientHandle* tcpClientHandle = NULL;
@@ -364,6 +365,10 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
         }
         usleep(5000);
       }
+
+      delete tcpClient; // Free the memory
+      tcpClient = NULL;
+
     } else {
       logging(VERBOSE_NO, "Could not initialize server to listen for gmproxyout, port taken?\n");
       *running = false;
@@ -448,8 +453,8 @@ int main (int argc, char *argv[]) {
 
   // Create the running variable, buffer and queue.
   bool running = true;
-  queue<char*> queueDataDiodeSend;
-  queue<char*> queueDataDiodeRecv;
+  queueThreadSafe<char*> queueDataDiodeSend;
+  queueThreadSafe<char*> queueDataDiodeRecv;
   unordered_map<string, TCPClientHandle*> guacdClientHandles;
 
   // Create the necessary threads.
