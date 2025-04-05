@@ -74,7 +74,7 @@ protected:
                 this->stringLength = c;
                 this->state = PROTOCOL_VALIDATOR_STATE::LENGTH;
             } else {
-                std::cout << "ERROR(0): Expecting a number to start" << std::endl;
+                std::cout << "ERROR(0): Expecting a number to start '" << c << "'" << std::endl;
                 this->state = PROTOCOL_VALIDATOR_STATE::START;
             }
             break;

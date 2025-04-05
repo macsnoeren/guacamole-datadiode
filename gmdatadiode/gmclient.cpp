@@ -30,7 +30,7 @@ If not, see https://www.gnu.org/licenses/.
 using namespace std;
 
 // Application version
-constexpr char VERSION[] = "1.0";
+constexpr char VERSION[] = "1.1";
 
 // Buffer size used to read the messages from gmserver or gmclient.
 constexpr int BUFFER_SIZE = 20480;
@@ -259,7 +259,7 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
       logging(VERBOSE_DEBUG, "proxyout client connected\n");
       while ( active ) {
         ssize_t n = tcpClient->receiveFrom(buffer, BUFFER_SIZE);
-        logging(VERBOSE_DEBUG, "Received data from gmproxyou: %s\n", buffer);
+        logging(VERBOSE_DEBUG, "Received data from gmproxyout: %s\n", buffer);
         if ( n  > 0 ) { // Received message from receiving data-diode
           buffer[n] = '\0';
 
@@ -288,7 +288,6 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
                     queueRecv->push(t);
                     tcpClientHandle = NULL;
                   }
-                  q->pop();
 
                 } else if ( strcmp(gmsOpcode, "GMS_END") == 0 ) {
                   if ( tcpClientHandle != NULL ) {
@@ -298,7 +297,6 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
                   } else {
                     logging(VERBOSE_NO, "thread_datadiode_recv: ERROR GMS protocol (2)\n");
                   }
-                  q->pop();
 
                 } else if ( strcmp(gmsOpcode, "GMS_CLOSE") == 0 ) {
                   if ( guacdClients->find(string(gmsValue)) != guacdClients->end() ) { // Found and close it
@@ -307,7 +305,7 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
                     tcpClientHandle->running = false;
                     tcpClientHandle->tcpClient->closeSocket();
                   }
-                  q->pop();
+
                 } else if ( strcmp(gmsOpcode, "GMS_NEW") == 0 ) {
                   if ( guacdClients->find(string(gmsValue)) == guacdClients->end() ) { // Not found, so create it
                     
@@ -338,19 +336,18 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
                       queueSend->push(t);
                     }
                   }
-                  q->pop();
 
                 } else {
                   logging(VERBOSE_NO, "ERROR: opcode %s not found\n", gmsOpcode);
-                  q->pop();
                 }
 
               } else {
                 if ( tcpClientHandle != NULL ) {
                   tcpClientHandle->data.push(q->front()); // Move the to the client using pointer!
-                  q->pop();
                 }
               }
+
+              q->pop(); // moet er nog iets opgeruimd worden?!
             }
           }
 

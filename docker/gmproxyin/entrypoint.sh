@@ -70,5 +70,11 @@ then
     GM_ARGS="$GM_ARGS -t"
 fi
 
+if [ "$NOCHECK" == "true" ];
+then
+    GM_ARGS="$GM_ARGS -n"
+fi
+
+
 echo gmproxyin $GM_ARGS
 gmproxyin $GM_ARGS
