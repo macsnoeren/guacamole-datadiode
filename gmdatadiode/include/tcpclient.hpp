@@ -74,9 +74,19 @@ public:
         this->socketAddrServer.sin_family = AF_INET;
         this->socketAddrServer.sin_port = htons(this->port);
 
-        if ( inet_aton(this->host.c_str(), &(this->socketAddrServer.sin_addr)) == 0 ) {
+        struct addrinfo hints, *res;
+        memset(&hints, 0, sizeof(hints));
+        hints.ai_family = AF_INET;
+        hints.ai_socktype = SOCK_STREAM;
+
+        if ( getaddrinfo(this->host.c_str(), NULL, &hints, &res) != 0 ) {
             return -1;
-        } 
+        }
+
+        struct sockaddr_in *ipv4 = (struct sockaddr_in *)res->ai_addr;
+        this->socketAddrServer.sin_addr = ipv4->sin_addr;
+
+        freeaddrinfo(res);
 
         return connect(this->socketFd, (struct sockaddr*) &this->socketAddrServer, sizeof(this->socketAddrServer));
     }
