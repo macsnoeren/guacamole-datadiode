@@ -199,7 +199,7 @@ void thread_datadiode_send (Arguments args, bool* running, queueThreadSafe<char*
     return;
   }
 
-  logging(VERBOSE_INFO, "Listening for the gm proxyin on port %d\n", args.ddout_port);
+  logging(VERBOSE_INFO, "Listening for the gmproxyin on port %d\n", args.ddout_port);
   while ( *running ) {
     logging(VERBOSE_DEBUG, "Waiting on the gmproxyin to connect...\n");
     TCPServerClient* tcpClient = tcpServerSend.waitOnClient();
