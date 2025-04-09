@@ -292,6 +292,8 @@ int main (int argc, char *argv[]) {
         }
         usleep(5000);
       }
+    } else {
+      logging(VERBOSE_DEBUG, "Error connecting with the gmserver or gmclient\n");
     }
     sleep(1);
   }
