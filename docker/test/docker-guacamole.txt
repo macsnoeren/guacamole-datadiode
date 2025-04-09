@@ -1,0 +1,11 @@
+docker run --name some-mysql -e MYSQL_ROOT_PASSWORD=mysqlpassword -d mysql:latest
+docker run --name some-guacamole --link some-guacd:guacd --link some-mysql:mysql -d -p 8080:8080 guacamole/guacamole
+docker run --name some-guacd -d -p 4822:4822 guacamole/guacd
+docker run --name some-guacamole --link some-mysql:mysql -e MYSQL_DATABASE=guacamole_db -e MYSQL_USER=root -e MYSQL_PASSWORD=mysqlpassword -e GUACD_HOSTNAME=localhost -e GUACD_PORT=4822 -d -p 8080:8080 guacamole/guacamole
+
+docker restart some-guacd
+docker restart some-mysql
+docker restart some-guacamole
+docker exec -it some-mysql bash
+
+docker rm -f some-guacamole

@@ -1,0 +1,78 @@
+name: guacamole-datadiode-test
+
+services:
+
+  mysql:
+    image: mysql:latest
+    environment:
+      - MYSQL_ROOT_PASSWORD=mysqlpassword
+    volumes:
+      - "./initdb.sql:/docker-entrypoint-initdb.d/1.sql"
+
+#  gmproxyin_c2s:
+#    build: ../gmproxyin/.
+#    environment:
+#      - DEBUG=true
+#      - GMX_HOST=gmclient
+#      - DDOUT_HOST=gmproxyout_c2s
+#    links:
+#      - gmclient
+#      - gmproxyout_c2s
+
+#  gmproxyout_c2s:
+#    build: ../gmproxyout/.
+#    environment:
+#      - DEBUG=true
+#      - GMX_HOST=gmserver
+#    links:
+#      - gmserver
+
+#  gmproxyin_s2c:
+#    build: ../gmproxyin/.
+#    environment:
+#      - DEBUG=true
+#      - GMX_HOST=gmserver
+#      - DDOUT_HOST=gmproxyout_s2c
+#    links:
+#      - gmserver
+#      - gmproxyout_s2c
+
+  gmproxyout_s2c:
+    build: ../gmproxyout/.
+    environment:
+      - DEBUG=false
+      - GMX_HOST=gmclient
+    links:
+      - gmclient
+
+  gmserver:
+    build: ../gmserver/.
+    environment:
+      - DEBUG=true
+
+  gmclient:
+    build: ../gmclient/.
+    environment:
+      - DEBUG=true
+      - GUACD_HOST=guacd
+#    links:
+#      - guacd
+
+#  guacamole:
+#    image: guacamole/guacamole
+#    depends_on:
+#      - mysql
+#    environment:
+#      - MYSQL_HOSTNAME=mysql
+#      - MYSQL_DATABASE=guacamole_db
+#      - MYSQL_USER=root
+#      - MYSQL_PASSWORD=mysqlpassword
+#      - GUACD_HOSTNAME=gmserver
+#    expose: 
+#      - 8080:8080
+#    links:
+#      - mysql
+#      - gmserver
+
+#  guacd:
+#    image: guacamole/guacd
