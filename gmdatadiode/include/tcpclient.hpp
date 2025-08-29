@@ -65,20 +65,36 @@ public:
      * Creates a socket and attempts to connect to the specified host and port.
      * @return 0 if the connection was successful, -1 if there was an error.
      */
-    int start () {
-        if ( (this->socketFd = socket(AF_INET, SOCK_STREAM, 0)) < 0 ) {
+     int start () {
+        if ((this->socketFd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+            perror("socket");
             return -1;
         }
 
-        memset(&this->socketAddrServer, '\0', sizeof(this->socketAddrServer));
-        this->socketAddrServer.sin_family = AF_INET;
-        this->socketAddrServer.sin_port = htons(this->port);
+        struct addrinfo hints, *res, *p;
+        memset(&hints, 0, sizeof(hints));
+        hints.ai_family = AF_INET; //AF_UNSPEC IPv6 not yet
+        hints.ai_socktype = SOCK_STREAM;  // TCP
 
-        if ( inet_aton(this->host.c_str(), &(this->socketAddrServer.sin_addr)) == 0 ) {
+        std::string portStr = std::to_string(this->port);
+
+        int status = getaddrinfo(this->host.c_str(), portStr.c_str(), &hints, &res);
+        if (status != 0) {
+            fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(status));
             return -1;
-        } 
+        }
 
-        return connect(this->socketFd, (struct sockaddr*) &this->socketAddrServer, sizeof(this->socketAddrServer));
+        int ret = -1;
+        for (p = res; p != nullptr; p = p->ai_next) {
+            if (connect(this->socketFd, p->ai_addr, p->ai_addrlen) == 0) {
+                ret = 0; // success
+                break;
+            }
+        }
+
+        freeaddrinfo(res);
+
+        return ret;
     }
 
     /*

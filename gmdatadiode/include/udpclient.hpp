@@ -62,18 +62,29 @@ public:
      * Initialize the class to setup the object.
      */
     int initialize() {
-        if ( (this->socketFd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0 ) {
+        if ((this->socketFd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
             this->error("initialize: Socket failure");
             return -1;
         }
-        
+
+        struct hostent* server = gethostbyname(this->host.c_str());
+        if (server == nullptr) {
+            this->error("initialize: no such host");
+            return -1;
+        }
+
+        memset(&this->socketAddrServer, 0, sizeof(this->socketAddrServer));
         this->socketAddrServer.sin_family = AF_INET;
-        this->socketAddrServer.sin_addr.s_addr = inet_addr(this->host.c_str());
         this->socketAddrServer.sin_port = htons(this->port);
+        memcpy(&this->socketAddrServer.sin_addr.s_addr,
+            server->h_addr,
+            server->h_length);
+
+        this->socketLen = sizeof(this->socketAddrServer);
 
         return 0;
     }
-    
+
     /*
      * Generic error method to show errors.
      * @param error that contains the error message.

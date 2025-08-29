@@ -77,11 +77,16 @@ public:
             return -1;
         }
         
-        if ( setsockopt(this->socketFd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &this->opt, sizeof(this->opt))) {
+        if ( setsockopt(this->socketFd, SOL_SOCKET, SO_REUSEADDR, &this->opt, sizeof(this->opt))) {
             this->error("initialize: Failure setsockopt");
             return -2;
         }
 
+#ifdef SO_REUSEPORT
+        setsockopt(this->socketFd, SOL_SOCKET, SO_REUSEPORT, &this->opt, sizeof(this->opt));
+#endif
+
+        memset(&this->socketAddrServer, 0, sizeof(this->socketAddrServer));
         this->socketAddrServer.sin_family = AF_INET;
         this->socketAddrServer.sin_addr.s_addr = htonl(INADDR_ANY); // TODO: configurable?
         this->socketAddrServer.sin_port = htons(this->port);

@@ -122,6 +122,7 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
     return;
   }
 
+  // TODO: logging information must be proxyin?
   logging(VERBOSE_INFO, "Listening for gmproxyout to connect on port %d\n", args.ddout_port);
   while ( *running ) {
     logging(VERBOSE_DEBUG, "Waiting on gmproxyout connection...\n");

@@ -138,7 +138,7 @@ public:
             return -1;
         }
         
-        if ( setsockopt(this->socketFd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &this->opt, sizeof(this->opt))) {
+        if ( setsockopt(this->socketFd, SOL_SOCKET, SO_REUSEADDR, &this->opt, sizeof(this->opt))) {
             this->error("initialize: Failure setsockopt");
             return -2;
         }
@@ -175,7 +175,7 @@ public:
      */
     TCPServerClient* waitOnClient () {
         struct sockaddr_in socketAddrClient;
-        socklen_t socketLenClient;
+        socklen_t socketLenClient = sizeof(socketAddrClient);
 
         int clientSocket = accept(this->socketFd, (struct sockaddr*)&socketAddrClient, &socketLenClient);
         if ( clientSocket < 0) {
