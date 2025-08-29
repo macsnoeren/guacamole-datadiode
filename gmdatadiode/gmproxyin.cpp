@@ -71,10 +71,10 @@ void signal_sigpipe_cb (int signum) {
 }
 
 /*
- * The thread that is responsible to process the queue and send the data to the gmproxyou.
+ * The thread that is responsible to process the queue and send the data to the gmproxyout.
  * 
  * @param[in] args contains the arguments that are configured by the main application.
- * @param[in/out] running is used to check if the program is stil running, can also be set.
+ * @param[in/out] running is used to check if the program is still running, can also be set.
  * @param[in] queueSend is used to push the data to the gmproxyout.
  */
 void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSend) {
@@ -110,7 +110,7 @@ void help() {
   cout << "Usage: gmproxyin [OPTION]" << endl << endl;
   cout << "Options and their default values" << endl;
   cout << "  -g host, --gmx-host=host   host where it needs to connect to get data from gmserver or gmclient [default: " << GMx_HOST << "]" << endl;
-  cout << "  -p port, --gmx-port=port   port where it need to connect to the gmserver ot gmclient            [default: " << GMx_PORT << "]" << endl;
+  cout << "  -p port, --gmx-port=port   port where it needs to connect to the gmserver or gmclient            [default: " << GMx_PORT << "]" << endl;
   cout << "  -d host, --ddout-host=host host that the UDP data needs to send to the gmproxyout               [default: " << DATA_DIODE_SEND_HOST << "]" << endl;
   cout << "  -o port, --ddout-port=port port that the gmproxyout is using                                    [default: " << DATA_DIODE_SEND_PORT << "]" << endl;
   cout << "  -n, --no-check             disable the validation check on the protocol when it passes" << endl;
@@ -213,7 +213,7 @@ int main (int argc, char *argv[]) {
   while ( arguments.test ) {
     char* m = new char[100];
     sprintf(m, "TESTING-GMPROXYIN-MESSAGE-%010ld\n", ++n);
-    logging(VERBOSE_DEBUG, "Send test message: %s", m);
+    logging(VERBOSE_DEBUG, "Send test message: %s\n", m);
     queueDataDiodeSend.push(m);
     sleep(1);
   }
@@ -255,7 +255,7 @@ int main (int argc, char *argv[]) {
             }
           }
 
-        } else if ( n == 0 ) { // Peer properly shutted down!
+        } else if ( n == 0 ) { // Peer properly shut down!
           logging(VERBOSE_DEBUG, "GMx connection peer closed connection\n");
           tcpClientGmServer.closeSocket();
           active = false;
