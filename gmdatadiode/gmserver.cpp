@@ -19,13 +19,11 @@ If not, see https://www.gnu.org/licenses/.
 #include <time.h>
 #include <getopt.h>
 #include <thread>
-#include <queue>
 #include <random>
-#include <unordered_map>
-#include <mutex>
 
 #include <guacamole/util.h>
 #include <guacamole/validator.hpp>
+#include <threadsafe.hpp>
 #include <tcpserver.hpp>
 
 using namespace std;
@@ -77,7 +75,7 @@ void signal_sigpipe_cb (int signum) {
  * @param[in/out] active is used to check if the socket is still connected, can also be set.
  * @param[in] client is the socket connection.
  */
-void thread_datadiode_client_recv( bool* running, bool* active, TCPServerClient* tcpClient) {
+void thread_datadiode_client_recv( bool* running, bool* active, TCPServerClient* tcpClient)  {
   char buffer[100]; // No data expected, so small buffer
   const size_t cap = sizeof(buffer) - 1;
 
