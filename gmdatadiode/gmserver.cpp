@@ -79,10 +79,11 @@ void signal_sigpipe_cb (int signum) {
  */
 void thread_datadiode_client_recv( bool* running, bool* active, TCPServerClient* tcpClient) {
   char buffer[100]; // No data expected, so small buffer
+  const size_t cap = sizeof(buffer) - 1;
 
   logging(VERBOSE_DEBUG, "thread_datadiode_client_recv: started to monitor the proxyout client TCP/IP connection.\n");
   while ( *running && *active ) {
-    ssize_t n = tcpClient->receiveFrom(buffer, 100);
+    ssize_t n = tcpClient->receiveFrom(buffer, cap);
     if (n >= 0 && n < BUFFER_SIZE) {
       buffer[n] = '\0';
     } else {
@@ -499,7 +500,7 @@ int main (int argc, char *argv[]) {
       
       // Create unique id to be assiociated to this connection
       string id = createUniqueId();
-      while ( guacamoleClientHandles.find({id}) != guacamoleClientHandles.end() ) {
+      while ( guacamoleClientHandles.find(id) != guacamoleClientHandles.end() ) {
         id = createUniqueId();
       }
 
