@@ -83,9 +83,13 @@ void thread_datadiode_client_recv( bool* running, bool* active, TCPServerClient*
   logging(VERBOSE_DEBUG, "thread_datadiode_client_recv: started to monitor the proxyout client TCP/IP connection.\n");
   while ( *running && *active ) {
     ssize_t n = tcpClient->receiveFrom(buffer, 100);
+    if (n >= 0 && n < BUFFER_SIZE) {
+      buffer[n] = '\0';
+    } else {
+        buffer[BUFFER_SIZE] = '\0'; // force terminate
+    }
 
     if ( n  > 0 ) { // Received message from receiving data-diode
-      buffer[n] = '\0';
       logging(VERBOSE_NO, "Unexpected data from proxyout client received: %s\n", buffer);
       // TODO: What to do in this case? Currenly don't care!
 
@@ -173,7 +177,7 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
  * @return void
  */
 void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string, TCPServerClientHandle*>* gmClientHandles, queue<char*>* queueRecv, queue<char*>* queueSend) {
-  char buffer[BUFFER_SIZE];
+  char buffer[BUFFER_SIZE + 1];
 
   TCPServerClientHandle* tcpClientHandle = NULL;
   ProtocolValidator validator;
@@ -194,10 +198,14 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
       logging(VERBOSE_DEBUG, "gmproxyout client connected\n");
       while ( active ) {
         ssize_t n = tcpClient->receiveFrom(buffer, BUFFER_SIZE);
-        logging(VERBOSE_DEBUG, "Received from gmproxyout: %s\n", buffer);
-        if ( n  > 0 ) { // Received message from receiving data-diode
+        if (n >= 0 && n < BUFFER_SIZE) {
           buffer[n] = '\0';
-          
+        } else {
+            buffer[BUFFER_SIZE] = '\0'; // force terminate
+        }
+
+        logging(VERBOSE_DEBUG, "Received from gmproxyout: %s\n", buffer);
+        if ( n  > 0 ) { // Received message from receiving data-diode          
           validator.processData(buffer, strlen(buffer));
 
           // Process the data that is received and put it on the send Queue to be send over the data-diode
@@ -281,7 +289,7 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
  * Ready for test!
  */
 void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuacamoleClientHandle, queue<char*>* queueSend, queue<char*>* queueRecv) {
-  char buffer[BUFFER_SIZE];
+  char buffer[BUFFER_SIZE + 1];
   bool active = true;
 
   ProtocolValidator validator;
@@ -290,10 +298,14 @@ void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuac
   logging(VERBOSE_DEBUG, "Thread started to handle data from Guacamole %s\n", tcpGuacamoleClientHandle->ID.c_str());
   while ( *running && tcpGuacamoleClientHandle->running ) {
     ssize_t n = tcpGuacamoleClient->receiveFrom(buffer, BUFFER_SIZE);
+    if (n >= 0 && n < BUFFER_SIZE) {
+      buffer[n] = '\0';
+    } else {
+        buffer[BUFFER_SIZE] = '\0'; // force terminate
+    }
+
     logging(VERBOSE_DEBUG, "Received from Guacamole %s: %s\n", tcpGuacamoleClientHandle->ID.c_str(), buffer);
     if ( tcpGuacamoleClientHandle->running && n  > 0 ) { // Received message from Guacamole client, possible that the socket has been closed
-      buffer[n] = '\0';
-
       validator.processData(buffer, strlen(buffer)); // Validates the protocol AND get each opcode seperately
 
       // Process the data that is received and put it on the send Queue to be send over the data-diode
