@@ -78,7 +78,7 @@ void signal_sigpipe_cb (int signum) {
  * @param[in] queueSend is used to push the data to the gmproxyout.
  */
 void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSend) {
-  char buffer[BUFFER_SIZE];
+  char buffer[BUFFER_SIZE + 1];
 
   UDPClient udpClient(args.ddout_host, args.ddout_port);
   udpClient.initialize();
@@ -197,7 +197,7 @@ int main (int argc, char *argv[]) {
 
   // Create the running variable, buffer and queue.
   bool running = true;
-  char buffer[BUFFER_SIZE];
+  char buffer[BUFFER_SIZE + 1];
   queue<char*> queueDataDiodeSend;
 
   // Create the thread to send the data-diode data to gmproxyout.

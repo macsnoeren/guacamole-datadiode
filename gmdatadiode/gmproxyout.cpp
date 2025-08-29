@@ -75,7 +75,7 @@ void signal_sigpipe_cb (int signum) {
  * @param[in] queueRecv is used to push the data that is received to.
  */
 void thread_datadiode_recv (Arguments args, bool* running, queue<char*>* queueRecv) {
-  char buffer[BUFFER_SIZE];
+  char buffer[BUFFER_SIZE + 1];
 
   ProtocolValidator validator;
   UDPServer udpServer(args.ddin_port);
@@ -142,9 +142,13 @@ void thread_gmx_recv (Arguments args, TCPClient* tcpClientGmx, bool* running, bo
   logging(VERBOSE_DEBUG, "thread_gmx_recv: started to monitor the gmx TCP/IP connection.\n");
   while ( *running && *active ) {
     ssize_t n = tcpClientGmx->receiveFrom(buffer, 100);
+    if (n >= 0 && n < BUFFER_SIZE) {
+      buffer[n] = '\0';
+    } else {
+        buffer[BUFFER_SIZE] = '\0'; // force terminate
+    }
 
     if ( n  > 0 ) { // Received message from receiving data-diode
-      buffer[n] = '\0';
       logging(VERBOSE_NO, "Unexpected data from GMx received: %s\n", buffer);
       // TODO: What to do in this case? Currenly don't care!
 
@@ -249,7 +253,7 @@ int main (int argc, char *argv[]) {
    
   // Create the running variable, buffer and queue.
   bool running = true;
-  char buffer[BUFFER_SIZE];
+  char buffer[BUFFER_SIZE + 1];
   queue<char*> queueDataDiodeRecv;
 
   // Create the thread to receive the data-diode data from gmproxyin.

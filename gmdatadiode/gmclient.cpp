@@ -43,7 +43,7 @@ constexpr char GUACD_HOST[] = "127.0.0.1";
 // The default port that is used to connect to the guacd server
 constexpr int GUACD_PORT = 4822;
 
-// The port to which the gmproxin can connect to.
+// The port to which the gmproxyin can connect to.
 constexpr int DATADIODE_SEND_PORT = 10000;
 
 // The port to which the gmproxyout can connect to.
@@ -106,7 +106,7 @@ void thread_guacd_client_send (bool* running, TCPClientHandle* tcpClientHandle, 
  * Ready for test
  */
 void thread_guacd_client_recv (bool* running, TCPClientHandle* tcpGuacdClientHandle, queue<char*>* queueSend) {
-  char buffer[BUFFER_SIZE];
+  char buffer[BUFFER_SIZE + 1];
   
   ProtocolValidator validator;
   TCPClient* tcpClient = tcpGuacdClientHandle->tcpClient;
@@ -114,10 +114,14 @@ void thread_guacd_client_recv (bool* running, TCPClientHandle* tcpGuacdClientHan
     logging(VERBOSE_DEBUG, "Thread thread_guacd_client_recv to receive data from the guacd client '%s'\n", tcpGuacdClientHandle->ID.c_str());
     while ( tcpGuacdClientHandle->running ) {
     ssize_t n = tcpClient->receiveFrom(buffer, BUFFER_SIZE);
+    if (n >= 0 && n < BUFFER_SIZE) {
+      buffer[n] = '\0';
+    } else {
+        buffer[BUFFER_SIZE] = '\0'; // force terminate
+    }
+    
     logging(VERBOSE_DEBUG, "Received data from guacd client %s: %s\n", tcpGuacdClientHandle->ID.c_str(), buffer);
     if ( n  > 0 ) { // Received message from receiving data-diode
-      buffer[n] = '\0';
-
       validator.processData(buffer, strlen(buffer));
 
       // Process the data that is received and put information from the connection
@@ -187,7 +191,7 @@ void thread_guacd_client_recv (bool* running, TCPClientHandle* tcpGuacdClientHan
  * @return void
  */
 void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSend) {
-  char buffer[BUFFER_SIZE];
+  char buffer[BUFFER_SIZE + 1];
 
   TCPServer tcpServerSend(args.ddout_port, 1);
   tcpServerSend.initialize();
@@ -198,7 +202,7 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
     return;
   }
 
-  logging(VERBOSE_INFO, "Listening for the gm proxyin on port %d\n", args.ddout_port);
+  logging(VERBOSE_INFO, "Listening for the gmproxyin on port %d\n", args.ddout_port);
   while ( *running ) {
     logging(VERBOSE_DEBUG, "Waiting on the gmproxyin to connect...\n");
     TCPServerClient* tcpClient = tcpServerSend.waitOnClient();
@@ -235,8 +239,15 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
  * Here new clients needs to be made by the function if a new connection comes by.
  * Ready for test
  */
-void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string, TCPClientHandle*>* guacdClients, queue<char*>* queueSend, queue<char*>* queueRecv) {
-  char buffer[BUFFER_SIZE];
+void thread_datadiode_recv (Arguments args, bool* running, queue<char*>* queueSend, queue<char*>* queueRecv) {
+  char buffer[BUFFER_SIZE + 1]; // Requires to write \0 at the end
+  unordered_map<string, TCPClientHandle*> guacdClientHandles;
+
+    if (!running || !queueSend || !queueRecv) { // Null-pointer checks
+        logging(VERBOSE_NO, "Critical error: nullptr passed to thread_datadiode_recv\n");
+        if (running) *running = false;
+        return;
+    }
 
   TCPClientHandle* tcpClientHandle = NULL;
   ProtocolValidator validator;
@@ -251,17 +262,21 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
 
   logging(VERBOSE_INFO, "Listening for gmproxout on port %d\n", args.ddin_port);
   while ( *running ) {
-    logging(VERBOSE_DEBUG, "Waining on gmproxyout to connect...\n");
+    logging(VERBOSE_DEBUG, "Waiting on gmproxyout to connect...\n");
     TCPServerClient* tcpClient = tcpServerRecv.waitOnClient();
     if ( tcpClient != NULL ) {
       bool active = true;
       logging(VERBOSE_DEBUG, "proxyout client connected\n");
       while ( active ) {
         ssize_t n = tcpClient->receiveFrom(buffer, BUFFER_SIZE);
+        if (n >= 0 && n < BUFFER_SIZE) {
+          buffer[n] = '\0';
+        } else {
+            buffer[BUFFER_SIZE] = '\0'; // force terminate
+        }
+
         logging(VERBOSE_DEBUG, "Received data from gmproxyou: %s\n", buffer);
         if ( n  > 0 ) { // Received message from receiving data-diode
-          buffer[n] = '\0';
-
           // Process the data that is received and push it to the correct queue
           validator.processData(buffer, strlen(buffer));
 
@@ -273,12 +288,16 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
               char gmsOpcode[50] = "";
               char gmsValue[50] = "";
 
+              // Make sure it is terminated with \0
+              gmsOpcode[sizeof(gmsOpcode)-1] = '\0';
+              gmsValue[sizeof(gmsValue)-1] = '\0';
+
               logging(VERBOSE_DEBUG, "Read gmproxyout validation queue: %s\n", q->front());
               if ( findGmsOpcode(opcode, gmsOpcode, gmsValue) ) {
                 logging(VERBOSE_DEBUG, "Received GMS opcode %s with value %s\n", gmsOpcode, gmsValue);
                 if ( strcmp(gmsOpcode, "GMS_START") == 0 ) {
-                  if ( guacdClients->find(string(gmsValue)) != guacdClients->end() ) { // Found
-                    tcpClientHandle = guacdClients->at(string(gmsValue));
+                  if ( guacdClientHandles.find(string(gmsValue)) != guacdClientHandles.end() ) { // Found
+                    tcpClientHandle = guacdClientHandles.at(string(gmsValue));
 
                   } else { // Send close message back!
                     logging(VERBOSE_DEBUG, "guacs client not found, closing connection.\n");
@@ -300,15 +319,16 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
                   q->pop();
 
                 } else if ( strcmp(gmsOpcode, "GMS_CLOSE") == 0 ) {
-                  if ( guacdClients->find(string(gmsValue)) != guacdClients->end() ) { // Found and close it
+                  if ( guacdClientHandles.find(string(gmsValue)) != guacdClientHandles.end() ) { // Found and close it
                     logging(VERBOSE_DEBUG, "Closing the guacd socket %s\n", gmsValue);
-                    tcpClientHandle = guacdClients->at(string(gmsValue));
+                    tcpClientHandle = guacdClientHandles.at(string(gmsValue));
                     tcpClientHandle->running = false;
                     tcpClientHandle->tcpClient->closeSocket();
                   }
                   q->pop();
                 } else if ( strcmp(gmsOpcode, "GMS_NEW") == 0 ) {
-                  if ( guacdClients->find(string(gmsValue)) == guacdClients->end() ) { // Not found, so create it
+
+                  if ( guacdClientHandles.find(string(gmsValue)) == guacdClientHandles.end() ) { // Not found, so create it
                     
                     logging(VERBOSE_INFO, "Connecting to guacd on host '%s' and port '%s'\n", args.guacd_host, args.guacd_port);
                     TCPClient* tcpClient = new TCPClient(args.guacd_host, args.guacd_port);
@@ -321,7 +341,7 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
                         true,
                         string(gmsValue)
                       };
-                      guacdClients->insert({string(gmsValue), tcpClientHandle});
+                      guacdClientHandles.insert({string(gmsValue), tcpClientHandle});
                       thread t1(thread_guacd_client_recv, running, tcpClientHandle, queueSend);
                       thread t2(thread_guacd_client_send, running, tcpClientHandle, queueSend);
                       t1.detach();
@@ -450,11 +470,10 @@ int main (int argc, char *argv[]) {
   bool running = true;
   queue<char*> queueDataDiodeSend;
   queue<char*> queueDataDiodeRecv;
-  unordered_map<string, TCPClientHandle*> guacdClientHandles;
-
+  
   // Create the necessary threads.
   thread t1(thread_datadiode_send, arguments, &running, &queueDataDiodeSend);
-  thread t2(thread_datadiode_recv, arguments, &running, &guacdClientHandles, &queueDataDiodeSend, &queueDataDiodeRecv);
+  thread t2(thread_datadiode_recv, arguments, &running, &queueDataDiodeSend, &queueDataDiodeRecv);
   t1.detach();
   t2.detach();
 

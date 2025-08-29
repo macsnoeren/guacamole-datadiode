@@ -83,9 +83,13 @@ void thread_datadiode_client_recv( bool* running, bool* active, TCPServerClient*
   logging(VERBOSE_DEBUG, "thread_datadiode_client_recv: started to monitor the proxyout client TCP/IP connection.\n");
   while ( *running && *active ) {
     ssize_t n = tcpClient->receiveFrom(buffer, 100);
+    if (n >= 0 && n < BUFFER_SIZE) {
+      buffer[n] = '\0';
+    } else {
+        buffer[BUFFER_SIZE] = '\0'; // force terminate
+    }
 
     if ( n  > 0 ) { // Received message from receiving data-diode
-      buffer[n] = '\0';
       logging(VERBOSE_NO, "Unexpected data from proxyout client received: %s\n", buffer);
       // TODO: What to do in this case? Currenly don't care!
 
@@ -122,14 +126,13 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
     return;
   }
 
-  // TODO: logging information must be proxyin?
-  logging(VERBOSE_INFO, "Listening for gmproxyout to connect on port %d\n", args.ddout_port);
+  logging(VERBOSE_INFO, "Listening for gmproxyin to connect on port %d\n", args.ddout_port);
   while ( *running ) {
-    logging(VERBOSE_DEBUG, "Waiting on gmproxyout connection...\n");
+    logging(VERBOSE_DEBUG, "Waiting on gmproxyin connection...\n");
     TCPServerClient* tcpClient = tcpServerSend.waitOnClient();
     if ( tcpClient != NULL ) {
       bool active = true;
-      logging(VERBOSE_DEBUG, "gmproxyout client connected\n");
+      logging(VERBOSE_DEBUG, "gmproxyin client connected\n");
 
       // Create the thread to receive the data-diode data from gmproxtout client, to monitor the connection.
       thread t(thread_datadiode_client_recv, running, &active, tcpClient);
@@ -138,13 +141,13 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
       while ( active ) {
         while ( active && !queueSend->empty() ) {
           char* d = queueSend->front();
-          logging(VERBOSE_DEBUG, "Send to gmproxyout: %s\n", d);
+          logging(VERBOSE_DEBUG, "Send to gmproxyin: %s\n", d);
           ssize_t n = tcpClient->sendTo(d, strlen(d)); // Send data
           if ( n >= 0 ) {
             delete[] d; // Free the allocated memory
             queueSend->pop();
           } else {
-            logging(VERBOSE_NO, "gmproxyout connection error during sending data\n");
+            logging(VERBOSE_NO, "gmproxyin connection error during sending data\n");
             tcpClient->closeSocket();
             active = false;
           }
@@ -155,7 +158,7 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
       tcpClient = NULL;
 
     } else {
-      logging(VERBOSE_NO, "Could not initialize server to listen for gmproxyout, port taken?\n");
+      logging(VERBOSE_NO, "Could not initialize server to listen for gmproxyin, port taken?\n");
       *running = false;
     }
     usleep(5000);
@@ -174,7 +177,7 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
  * @return void
  */
 void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string, TCPServerClientHandle*>* gmClientHandles, queue<char*>* queueRecv, queue<char*>* queueSend) {
-  char buffer[BUFFER_SIZE];
+  char buffer[BUFFER_SIZE + 1];
 
   TCPServerClientHandle* tcpClientHandle = NULL;
   ProtocolValidator validator;
@@ -188,17 +191,21 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
 
   logging(VERBOSE_INFO, "Listening for gmproxyout to connect on port %d\n", args.ddin_port);
   while ( *running ) {
-    logging(VERBOSE_DEBUG, "Waiting on gmproxyin connection...\n");
+    logging(VERBOSE_DEBUG, "Waiting on gmproxyout connection...\n");
     TCPServerClient* tcpClient = tcpServerRecv.waitOnClient();
     if ( tcpClient != NULL ) {
       bool active = true;
-      logging(VERBOSE_DEBUG, "gmproxyin client connected\n");
+      logging(VERBOSE_DEBUG, "gmproxyout client connected\n");
       while ( active ) {
         ssize_t n = tcpClient->receiveFrom(buffer, BUFFER_SIZE);
-        logging(VERBOSE_DEBUG, "Received from gmproxyin: %s\n", buffer);
-        if ( n  > 0 ) { // Received message from receiving data-diode
+        if (n >= 0 && n < BUFFER_SIZE) {
           buffer[n] = '\0';
-          
+        } else {
+            buffer[BUFFER_SIZE] = '\0'; // force terminate
+        }
+
+        logging(VERBOSE_DEBUG, "Received from gmproxyout: %s\n", buffer);
+        if ( n  > 0 ) { // Received message from receiving data-diode          
           validator.processData(buffer, strlen(buffer));
 
           // Process the data that is received and put it on the send Queue to be send over the data-diode
@@ -206,7 +213,7 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
           if ( q->size() > 0 ) {
             strcpy(buffer, "\0");            
             while ( !q->empty() ) {
-              logging(VERBOSE_DEBUG, "Validator gmproxyin queue: %s\n", q->front());
+              logging(VERBOSE_DEBUG, "Validator gmproxyout queue: %s\n", q->front());
               char* opcode = q->front();
               char gmsOpcode[50] = "";
               char gmsValue[50] = "";
@@ -256,19 +263,19 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
           }
 
         } else if ( n == 0 ) { // Peer properly shutted down!
-          logging(VERBOSE_DEBUG, "gmproxyin peer connection closed\n");
+          logging(VERBOSE_DEBUG, "gmproxyout peer connection closed\n");
           tcpClient->closeSocket();
           active = false;
           
         } else { // Problem with the client
-          logging(VERBOSE_NO, "gmproxyin connection error\n");
+          logging(VERBOSE_NO, "gmproxyout connection error\n");
           tcpClient->closeSocket();      
           active = false;
         }
         usleep(5000);
       }
     } else {
-      logging(VERBOSE_NO, "Could not initialize server to listen for gmproxyin clients, port taken?\n");
+      logging(VERBOSE_NO, "Could not initialize server to listen for gmproxyout clients, port taken?\n");
       *running = false;
     }
     usleep(5000);
@@ -282,7 +289,7 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
  * Ready for test!
  */
 void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuacamoleClientHandle, queue<char*>* queueSend, queue<char*>* queueRecv) {
-  char buffer[BUFFER_SIZE];
+  char buffer[BUFFER_SIZE + 1];
   bool active = true;
 
   ProtocolValidator validator;
@@ -291,10 +298,14 @@ void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuac
   logging(VERBOSE_DEBUG, "Thread started to handle data from Guacamole %s\n", tcpGuacamoleClientHandle->ID.c_str());
   while ( *running && tcpGuacamoleClientHandle->running ) {
     ssize_t n = tcpGuacamoleClient->receiveFrom(buffer, BUFFER_SIZE);
+    if (n >= 0 && n < BUFFER_SIZE) {
+      buffer[n] = '\0';
+    } else {
+        buffer[BUFFER_SIZE] = '\0'; // force terminate
+    }
+
     logging(VERBOSE_DEBUG, "Received from Guacamole %s: %s\n", tcpGuacamoleClientHandle->ID.c_str(), buffer);
     if ( tcpGuacamoleClientHandle->running && n  > 0 ) { // Received message from Guacamole client, possible that the socket has been closed
-      buffer[n] = '\0';
-
       validator.processData(buffer, strlen(buffer)); // Validates the protocol AND get each opcode seperately
 
       // Process the data that is received and put it on the send Queue to be send over the data-diode
@@ -505,7 +516,7 @@ int main (int argc, char *argv[]) {
       
       // Send the new connection to the other side.
       char* t = new char[50];
-      sprintf(t, "7.GMS_NEW,%ld.%s;", id.length(), id.c_str());
+      sprintf(t, "7.GMS_NEW,%ld.%s;", id.length(), id.c_str()); // id is created by us
       queueDataDiodeSend.push(t);
       
       thread t1(thread_guacamole_client_recv, &running, tcpServerClientHandle, &queueDataDiodeSend, &queueDataDiodeRecv);
