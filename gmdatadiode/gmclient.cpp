@@ -251,7 +251,7 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
 
   logging(VERBOSE_INFO, "Listening for gmproxout on port %d\n", args.ddin_port);
   while ( *running ) {
-    logging(VERBOSE_DEBUG, "Waining on gmproxyout to connect...\n");
+    logging(VERBOSE_DEBUG, "Waiting on gmproxyout to connect...\n");
     TCPServerClient* tcpClient = tcpServerRecv.waitOnClient();
     if ( tcpClient != NULL ) {
       bool active = true;
