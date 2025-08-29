@@ -101,9 +101,10 @@ void thread_datadiode_recv (Arguments args, bool* running, ThreadSafeQueue<char*
           ThreadSafeQueue<char*>* q = validator.getDataQueue();
           if ( q->size() > 0 ) {
             while ( !q->empty() ) {
-              logging(VERBOSE_DEBUG, "Validator gmproxyin queue: %s\n", q->front());
-              queueRecv->push(q->front()); // Move the data to the send queue
-              q->pop();
+              char* data = q->pop();
+              logging(VERBOSE_DEBUG, "Validator gmproxyin queue: %s\n", data);
+              queueRecv->push(data); // Move the data to the send queue
+              //q->pop();
             }
           }
 
@@ -283,11 +284,12 @@ int main (int argc, char *argv[]) {
 
       while ( active ) {
         while ( active && !queueDataDiodeRecv.empty() ) {
-          ssize_t n = tcpClientGmx.sendTo(queueDataDiodeRecv.front(), strlen(queueDataDiodeRecv.front()));
-          logging(VERBOSE_DEBUG, "Send to gmx: %s\n", queueDataDiodeRecv.front());
+          char* data = queueDataDiodeRecv.pop();
+          ssize_t n = tcpClientGmx.sendTo(data, strlen(data));
+          logging(VERBOSE_DEBUG, "Send to gmx: %s\n", data);
           if ( n >= 0 ) {
-            delete[] queueDataDiodeRecv.front(); // Free the memory that has been allocated
-            queueDataDiodeRecv.pop();
+            delete[] data; // Free the memory that has been allocated
+            //queueDataDiodeRecv.pop();
           } else {
             logging(VERBOSE_NO, "Error with client during sending data\n");
             tcpClientGmx.closeSocket();
