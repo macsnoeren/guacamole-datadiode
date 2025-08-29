@@ -243,11 +243,11 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
 void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string, TCPClientHandle*>* guacdClients, queue<char*>* queueSend, queue<char*>* queueRecv) {
   char buffer[BUFFER_SIZE + 1]; // Requires to write \0 at the end
   
-    if (!running || !guacdClients || !queueSend || !queueRecv) { // Null-pointer checks
-        logging(VERBOSE_NO, "Critical error: nullptr passed to thread_datadiode_recv\n");
-        if (running) *running = false;
-        return;
-    }
+  if (!running || !guacdClients || !queueSend || !queueRecv) { // Null-pointer checks
+      logging(VERBOSE_NO, "Critical error: nullptr passed to thread_datadiode_recv\n");
+      if (running) *running = false;
+      return;
+  }
 
   TCPClientHandle* tcpClientHandle = NULL;
   ProtocolValidator validator;
