@@ -243,8 +243,8 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
   char buffer[BUFFER_SIZE + 1]; // Requires to write \0 at the end
 
   if (guacdClients == nullptr) {
-    logging(VERBOSE_NO, "thread_datadiode_recv: Error: guacdClients pointer is null!\n");
-    return;
+    logging(VERBOSE_NO, "thread_datadiode_recv: Error: guacdClients pointer is null, aborting!\n");
+    *running = false;
   }
 
   TCPClientHandle* tcpClientHandle = NULL;
