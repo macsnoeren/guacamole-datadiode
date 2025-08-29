@@ -74,7 +74,7 @@ void signal_sigpipe_cb (int signum) {
  * @param[in/out] running is used to check if the program is still running, can also be set.
  * @param[in] queueRecv is used to push the data that is received to.
  */
-void thread_datadiode_recv (Arguments args, bool* running, queue<char*>* queueRecv) {
+void thread_datadiode_recv (Arguments args, bool* running, ThreadSafeQueue<char*>* queueRecv) {
   char buffer[BUFFER_SIZE + 1];
 
   ProtocolValidator validator;
@@ -98,7 +98,7 @@ void thread_datadiode_recv (Arguments args, bool* running, queue<char*>* queueRe
           validator.processData(buffer, strlen(buffer));
 
           // Process the data that is received and put it on the send Queue to be send over the data-diode
-          queue<char*>* q = validator.getDataQueue();
+          ThreadSafeQueue<char*>* q = validator.getDataQueue();
           if ( q->size() > 0 ) {
             while ( !q->empty() ) {
               logging(VERBOSE_DEBUG, "Validator gmproxyin queue: %s\n", q->front());
@@ -254,7 +254,7 @@ int main (int argc, char *argv[]) {
   // Create the running variable, buffer and queue.
   bool running = true;
   char buffer[BUFFER_SIZE + 1];
-  queue<char*> queueDataDiodeRecv;
+  ThreadSafeQueue<char*> queueDataDiodeRecv;
 
   // Create the thread to receive the data-diode data from gmproxyin.
   thread t1(thread_datadiode_recv, arguments, &running, &queueDataDiodeRecv);

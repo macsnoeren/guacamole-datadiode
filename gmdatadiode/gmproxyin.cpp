@@ -77,7 +77,7 @@ void signal_sigpipe_cb (int signum) {
  * @param[in/out] running is used to check if the program is still running, can also be set.
  * @param[in] queueSend is used to push the data to the gmproxyout.
  */
-void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSend) {
+void thread_datadiode_send (Arguments args, bool* running, ThreadSafeQueue<char*>* queueSend) {
   char buffer[BUFFER_SIZE + 1];
 
   UDPClient udpClient(args.ddout_host, args.ddout_port);
@@ -86,14 +86,15 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
   logging(VERBOSE_INFO, "Starting UDP client to connect to %s:%d\n", args.ddout_host.c_str(), args.ddout_port);
   while ( *running ) {
     while ( !queueSend->empty() ) {
+      char* data = queueSend->pop();
       if ( args.test ) {
-        logging(VERBOSE_NO, "UDP client send message: %s\n", queueSend->front());
+        logging(VERBOSE_NO, "UDP client send message: %s\n", data);
       }
-      logging(VERBOSE_DEBUG, "UDP send: %s\n", queueSend->front());
-      ssize_t n = udpClient.sendTo(queueSend->front(), strlen(queueSend->front()));
+      logging(VERBOSE_DEBUG, "UDP send: %s\n", data);
+      ssize_t n = udpClient.sendTo(data, strlen(data));
       if ( n >= 0 ) {
-        delete[] queueSend->front(); // Free memory that has been allocated
-        queueSend->pop();
+        delete[] data; // Free memory that has been allocated
+        //queueSend->pop();
       } else {
         logging(VERBOSE_NO, "Error with client during sending data\n");
         // TODO: What do we need to do here?!
@@ -198,7 +199,7 @@ int main (int argc, char *argv[]) {
   // Create the running variable, buffer and queue.
   bool running = true;
   char buffer[BUFFER_SIZE + 1];
-  queue<char*> queueDataDiodeSend;
+  ThreadSafeQueue<char*> queueDataDiodeSend;
 
   // Create the thread to send the data-diode data to gmproxyout.
   thread t(thread_datadiode_send, arguments, &running, &queueDataDiodeSend);
@@ -236,12 +237,13 @@ int main (int argc, char *argv[]) {
             validator.processData(buffer, strlen(buffer));
 
             // Process the data that is received and put it on the send Queue to be send over the data-diode
-            queue<char*>* q = validator.getDataQueue();
+            ThreadSafeQueue<char*>* q = validator.getDataQueue();
             if ( q->size() > 0 ) {
               while ( !q->empty() ) {
-                logging(VERBOSE_DEBUG, "Validator gmproxyin queue: %s\n", q->front());
-                queueDataDiodeSend.push(q->front()); // Move the data to the send queue
-                q->pop();
+                char* data = q->pop();
+                logging(VERBOSE_DEBUG, "Validator gmproxyin queue: %s\n", data);
+                queueDataDiodeSend.push(data); // Move the data to the send queue
+                //q->pop();
               }
             }
 
