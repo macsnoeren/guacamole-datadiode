@@ -111,11 +111,11 @@ void thread_datadiode_client_recv( bool* running, bool* active, TCPServerClient*
  * Ready for test
  * @param bool* running: pointer to the running flag. If false the thread
  *        need to close.
- * @param queue<string>* queueSend: the queue that contains the string
+ * @param ThreadSafeQueue<string>* queueSend: the queue that contains the string
  *        messages.
  * @return void
  */
-void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSend) {
+void thread_datadiode_send (Arguments args, bool* running, ThreadSafeQueue<char*>* queueSend) {
   TCPServer tcpServerSend(args.ddout_port, 1);
   tcpServerSend.initialize();
 
@@ -139,12 +139,13 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
 
       while ( active ) {
         while ( active && !queueSend->empty() ) {
-          char* d = queueSend->front();
+          //char* d = queueSend->front();
+          char* d = queueSend->pop();
           logging(VERBOSE_DEBUG, "Send to gmproxyin: %s\n", d);
           ssize_t n = tcpClient->sendTo(d, strlen(d)); // Send data
           if ( n >= 0 ) {
             delete[] d; // Free the allocated memory
-            queueSend->pop();
+            //queueSend->pop();
           } else {
             logging(VERBOSE_NO, "gmproxyin connection error during sending data\n");
             tcpClient->closeSocket();
@@ -171,11 +172,11 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
  * Ready for test
  * @param bool* running: pointer to the running flag. If false the thread
  *        need to close.
- * @param queue<string>* queueRecv: the queue that contains the string
+ * @param ThreadSafeQueue<string>* queueRecv: the queue that contains the string
  *        messages.
  * @return void
  */
-void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string, TCPServerClientHandle*>* gmClientHandles, queue<char*>* queueRecv, queue<char*>* queueSend) {
+void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string, TCPServerClientHandle*>* gmClientHandles, ThreadSafeQueue<char*>* queueRecv, ThreadSafeQueue<char*>* queueSend) {
   char buffer[BUFFER_SIZE + 1];
 
   TCPServerClientHandle* tcpClientHandle = NULL;
@@ -208,15 +209,15 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
           validator.processData(buffer, strlen(buffer));
 
           // Process the data that is received and put it on the send Queue to be send over the data-diode
-          queue<char*>* q = validator.getDataQueue();
+          ThreadSafeQueue<char*>* q = validator.getDataQueue();
           if ( q->size() > 0 ) {
             strcpy(buffer, "\0");            
             while ( !q->empty() ) {
-              logging(VERBOSE_DEBUG, "Validator gmproxyout queue: %s\n", q->front());
-              char* opcode = q->front();
+              char* opcode = q->pop();
               char gmsOpcode[50] = "";
               char gmsValue[50] = "";
 
+              logging(VERBOSE_DEBUG, "Validator gmproxyout queue: %s\n", opcode);
               if ( findGmsOpcode(opcode, gmsOpcode, gmsValue) ) {
                 logging(VERBOSE_DEBUG, "Found opcode %s with value %s\n", gmsOpcode, gmsValue);
                 if ( strcmp(gmsOpcode, "GMS_START") == 0 ) {
@@ -226,11 +227,11 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
 
                   } else { // Not found
                     logging(VERBOSE_DEBUG, "TCP client Guacamole is NOT found, send GMS_CLOSE message\n");
-                    char* gmsclose = new char[50];
+                    char* gmsclose = new char[100];
                     sprintf(gmsclose, "9.GMS_CLOSE,%ld.%s;", strlen(gmsValue), gmsValue);
                     queueSend->push(gmsclose);
                   }
-                  q->pop();
+                  //q->pop();
 
                 } else if ( strcmp(gmsOpcode, "GMS_END") == 0 ) {
                   if ( tcpClientHandle != NULL ) {
@@ -240,7 +241,7 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
                   } else {
                     logging(VERBOSE_NO, "thread_datadiode_recv: ERROR GMS protocol (2)");
                   }
-                  q->pop();
+                  //q->pop();
 
                 } else if ( strcmp(gmsOpcode, "GMS_CLOSE") == 0 ) {
                   if ( gmClientHandles->find(string(gmsValue)) != gmClientHandles->end() ) { // Found and close it
@@ -249,13 +250,13 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
                     tcpClientHandle->running = false;
                     tcpClientHandle->tcpClient->closeSocket();
                   }
-                  q->pop();
+                  //q->pop();
                 }
 
               } else {
                 if ( tcpClientHandle != NULL ) {
-                  tcpClientHandle->data.push(q->front()); // Move the to the client using pointer!
-                  q->pop();
+                  tcpClientHandle->data.push(opcode); // Move the to the client using pointer!
+                  //q->pop();
                 }
               }
             }
@@ -287,7 +288,7 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
  * Data that is validated and put on the queue with information of this connection.
  * Ready for test!
  */
-void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuacamoleClientHandle, queue<char*>* queueSend, queue<char*>* queueRecv) {
+void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuacamoleClientHandle, ThreadSafeQueue<char*>* queueSend, ThreadSafeQueue<char*>* queueRecv) {
   char buffer[BUFFER_SIZE + 1];
   bool active = true;
 
@@ -308,7 +309,7 @@ void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuac
       validator.processData(buffer, strlen(buffer)); // Validates the protocol AND get each opcode separately
 
       // Process the data that is received and put it on the send Queue to be send over the data-diode
-      queue<char*>* q = validator.getDataQueue();
+      ThreadSafeQueue<char*>* q = validator.getDataQueue();
       if ( q->size() > 0 ) {
         bool ready = false;
         char gmsId[50];
@@ -317,8 +318,8 @@ void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuac
         sprintf(gmsEnd, "7.GMS_END,%ld.%s;", tcpGuacamoleClientHandle->ID.length(), tcpGuacamoleClientHandle->ID.c_str());
         strcpy(buffer, gmsId); // Re-use the buffer
         while ( !q->empty() && !ready ) { // Process the received data
-          logging(VERBOSE_DEBUG, "Validator Guacamole %s queue: %s\n", tcpGuacamoleClientHandle->ID.c_str(), q->front());
-          char* opcode = q->front();
+          char* opcode = q->pop();
+          logging(VERBOSE_DEBUG, "Validator Guacamole %s queue: %s\n", tcpGuacamoleClientHandle->ID.c_str(), opcode);
           if ( strlen(buffer) + strlen(opcode) < BUFFER_SIZE - strlen(gmsEnd) - 1) { // It still fits!
             strcat(buffer, opcode);
             delete[] opcode; // Free the memory space that was created
@@ -367,7 +368,7 @@ void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuac
  * When data is received from the data-diode, it needs to be dispatched to the correct Guacamole client.
  * This thread is responsible for this.
  */
-void thread_guacamole_client_send (bool* running, TCPServerClientHandle* guacamoleClient, queue<char*>* queueSend) {
+void thread_guacamole_client_send (bool* running, TCPServerClientHandle* guacamoleClient, ThreadSafeQueue<char*>* queueSend) {
   logging(VERBOSE_DEBUG, "Thread started to handle data to Guacamole %s\n", guacamoleClient->ID.c_str());
   while ( guacamoleClient->running ) {
     while ( !guacamoleClient->data.empty() ) {
@@ -469,8 +470,8 @@ int main (int argc, char *argv[]) {
 
   // Create the running variable, buffer and queue.
   bool running = true;
-  queue<char*> queueDataDiodeSend;
-  queue<char*> queueDataDiodeRecv;
+  ThreadSafeQueue<char*> queueDataDiodeSend;
+  ThreadSafeQueue<char*> queueDataDiodeRecv;
   unordered_map<string, TCPServerClientHandle*> guacamoleClientHandles;
 
   // Create the necessary threads
