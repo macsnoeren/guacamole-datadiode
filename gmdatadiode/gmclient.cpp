@@ -35,7 +35,7 @@ constexpr char VERSION[] = "1.0";
 constexpr int BUFFER_SIZE = 20480;
 
 // Default heartbeat pulse configuration
-constexpr int HEARTBEAT_PUSLE = 20;
+constexpr int HEARTBEAT_PULSE = 20;
 
 // The default host that is used to connect to the guacd server. 
 constexpr char GUACD_HOST[] = "127.0.0.1";
@@ -96,7 +96,7 @@ void thread_guacd_client_send (bool* running, TCPClientHandle* tcpClientHandle, 
     usleep(5000);
   }
 
-  logging(VERBOSE_INFO, "Thread thread_guacd_client_send with guacd client id '%s' stoppen\n", tcpClientHandle->ID.c_str());
+  logging(VERBOSE_INFO, "Thread thread_guacd_client_send with guacd client id '%s' stopped\n", tcpClientHandle->ID.c_str());
 }
 
 /*
@@ -158,7 +158,7 @@ void thread_guacd_client_recv (bool* running, TCPClientHandle* tcpGuacdClientHan
       }
       
     } else if ( n == 0 ) { // Peer properly shutted down!
-      logging(VERBOSE_NO, "Peer shutted down of guacd clien: %s\n", tcpGuacdClientHandle->ID.c_str());
+      logging(VERBOSE_NO, "Peer shut down of guacd client: %s\n", tcpGuacdClientHandle->ID.c_str());
       tcpClient->closeSocket();
       tcpGuacdClientHandle->running = false;
       
@@ -275,7 +275,7 @@ void thread_datadiode_recv (Arguments args, bool* running, queue<char*>* queueSe
             buffer[BUFFER_SIZE] = '\0'; // force terminate
         }
 
-        logging(VERBOSE_DEBUG, "Received data from gmproxyou: %s\n", buffer);
+        logging(VERBOSE_DEBUG, "Received data from gmproxyout: %s\n", buffer);
         if ( n  > 0 ) { // Received message from receiving data-diode
           // Process the data that is received and push it to the correct queue
           validator.processData(buffer, strlen(buffer));
@@ -330,7 +330,7 @@ void thread_datadiode_recv (Arguments args, bool* running, queue<char*>* queueSe
 
                   if ( guacdClientHandles.find(string(gmsValue)) == guacdClientHandles.end() ) { // Not found, so create it
                     
-                    logging(VERBOSE_INFO, "Connecting to guacd on host '%s' and port '%s'\n", args.guacd_host, args.guacd_port);
+                    logging(VERBOSE_INFO, "Connecting to guacd on host '%s' and port '%d'\n", args.guacd_host.c_str(), args.guacd_port);
                     TCPClient* tcpClient = new TCPClient(args.guacd_host, args.guacd_port);
                     tcpClient->initialize();
                     if ( tcpClient->start() == 0 ) { // Connected!
