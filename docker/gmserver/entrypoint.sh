@@ -55,7 +55,7 @@ fi
 
 if [ "$DDOUT_PORT" != "" ];
 then
-    GM_ARGS="$GM_ARGS -o $DDIN_PORT"
+    GM_ARGS="$GM_ARGS -o $DDOUT_PORT"
 fi
 
 echo gmserver $GM_ARGS
