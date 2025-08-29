@@ -17,7 +17,7 @@ If not, see https://www.gnu.org/licenses/.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <queue>
+#include <threadsafe.hpp>
 
 // Buffer size that is used within the validator to hold data.
 constexpr int VALIDATOR_BUFFER_SIZE = 20480;
@@ -54,7 +54,7 @@ private:
     std::string opcode;                        // The opcode that has been found.
     long valueLength;                          // The real length converted from the string to be used by the validation.
  
-    std::queue<char*> data;                    // Queue of the validated data per opcode (OPCODE.ARG1,...,ARGVn;)
+    ThreadSafeQueue<char*> data;                    // Queue of the validated data per opcode (OPCODE.ARG1,...,ARGVn;)
 
 protected:
     /*
@@ -152,7 +152,7 @@ public:
      * Returns the queue that contains the validated data. If read, make sure you free the char* memory
      * while this has been allocated by this class, but not freed anymore.
      */
-    std::queue<char*>* getDataQueue() {
+    ThreadSafeQueue<char*>* getDataQueue() {
         return &this->data;
     }
 };

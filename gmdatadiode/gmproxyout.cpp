@@ -71,10 +71,10 @@ void signal_sigpipe_cb (int signum) {
  * messages from gmproxyin via the data-diode.
  * 
  * @param[in] args contains the arguments that are configured by the main application.
- * @param[in/out] running is used to check if the program is stil running, can also be set.
+ * @param[in/out] running is used to check if the program is still running, can also be set.
  * @param[in] queueRecv is used to push the data that is received to.
  */
-void thread_datadiode_recv (Arguments args, bool* running, queue<char*>* queueRecv) {
+void thread_datadiode_recv (Arguments args, bool* running, ThreadSafeQueue<char*>* queueRecv) {
   char buffer[BUFFER_SIZE + 1];
 
   ProtocolValidator validator;
@@ -98,12 +98,13 @@ void thread_datadiode_recv (Arguments args, bool* running, queue<char*>* queueRe
           validator.processData(buffer, strlen(buffer));
 
           // Process the data that is received and put it on the send Queue to be send over the data-diode
-          queue<char*>* q = validator.getDataQueue();
+          ThreadSafeQueue<char*>* q = validator.getDataQueue();
           if ( q->size() > 0 ) {
             while ( !q->empty() ) {
-              logging(VERBOSE_DEBUG, "Validator gmproxyin queue: %s\n", q->front());
-              queueRecv->push(q->front()); // Move the data to the send queue
-              q->pop();
+              char* data = q->pop();
+              logging(VERBOSE_DEBUG, "Validator gmproxyin queue: %s\n", data);
+              queueRecv->push(data); // Move the data to the send queue
+              //q->pop();
             }
           }
 
@@ -133,8 +134,8 @@ void thread_datadiode_recv (Arguments args, bool* running, queue<char*>* queueRe
  * directly.
  * 
  * @param[in] args contains the arguments that are configured by the main application.
- * @param[in/out] running is used to check if the program is stil running, can also be set.
- * @param[in/out] active is used to check if the socket is stil connected, can also be set.
+ * @param[in/out] running is used to check if the program is still running, can also be set.
+ * @param[in/out] active is used to check if the socket is still connected, can also be set.
  */
 void thread_gmx_recv (Arguments args, TCPClient* tcpClientGmx, bool* running, bool* active ) {
   char buffer[100]; // No data expected, so small buffer
@@ -152,7 +153,7 @@ void thread_gmx_recv (Arguments args, TCPClient* tcpClientGmx, bool* running, bo
       logging(VERBOSE_NO, "Unexpected data from GMx received: %s\n", buffer);
       // TODO: What to do in this case? Currenly don't care!
 
-    } else if ( n == 0 ) { // Peer properly shutted down!
+    } else if ( n == 0 ) { // Peer properly shut down!
       logging(VERBOSE_DEBUG, "GMx connection peer closed connection\n");
       tcpClientGmx->closeSocket();
       *active = false;
@@ -173,7 +174,7 @@ void help() {
   cout << "Usage: gmproxyout [OPTION]" << endl << endl;
   cout << "Options and their default values" << endl;
   cout << "  -g host, --gmx-host=host  host where it needs to connect to send data from gmserver or gmclient [default: " << GMx_HOST << "]" << endl;
-  cout << "  -p port, --gmx-port=port  port where it need to connect to the gmserver or gmclient             [default: " << GMx_PORT << "]" << endl;
+  cout << "  -p port, --gmx-port=port  port where it needs to connect to the gmserver or gmclient             [default: " << GMx_PORT << "]" << endl;
   cout << "  -i port, --ddin-port=port port that the data is received from gmproxyin on UDP port             [default: " << DATA_DIODE_RECV_PORT << "]" << endl;
   cout << "  -n, --no-check            disable the validation check on the protocol when it passes" << endl;
   cout << "  -t, --test                testing mode will send UDP messages to gmproxyout" << endl;
@@ -254,7 +255,7 @@ int main (int argc, char *argv[]) {
   // Create the running variable, buffer and queue.
   bool running = true;
   char buffer[BUFFER_SIZE + 1];
-  queue<char*> queueDataDiodeRecv;
+  ThreadSafeQueue<char*> queueDataDiodeRecv;
 
   // Create the thread to receive the data-diode data from gmproxyin.
   thread t1(thread_datadiode_recv, arguments, &running, &queueDataDiodeRecv);
@@ -283,11 +284,12 @@ int main (int argc, char *argv[]) {
 
       while ( active ) {
         while ( active && !queueDataDiodeRecv.empty() ) {
-          ssize_t n = tcpClientGmx.sendTo(queueDataDiodeRecv.front(), strlen(queueDataDiodeRecv.front()));
-          logging(VERBOSE_DEBUG, "Send to gmx: %s\n", queueDataDiodeRecv.front());
+          char* data = queueDataDiodeRecv.pop();
+          ssize_t n = tcpClientGmx.sendTo(data, strlen(data));
+          logging(VERBOSE_DEBUG, "Send to gmx: %s\n", data);
           if ( n >= 0 ) {
-            delete[] queueDataDiodeRecv.front(); // Free the memory that has been allocated
-            queueDataDiodeRecv.pop();
+            delete[] data; // Free the memory that has been allocated
+            //queueDataDiodeRecv.pop();
           } else {
             logging(VERBOSE_NO, "Error with client during sending data\n");
             tcpClientGmx.closeSocket();
