@@ -239,13 +239,15 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
  * Here new clients needs to be made by the function if a new connection comes by.
  * Ready for test
  */
-void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string, TCPClientHandle*>* guacdClients, queue<char*>* queueSend, queue<char*>* queueRecv) {
+void thread_datadiode_recv (Arguments args, bool* running, queue<char*>* queueSend, queue<char*>* queueRecv) {
   char buffer[BUFFER_SIZE + 1]; // Requires to write \0 at the end
+  unordered_map<string, TCPClientHandle*> guacdClientHandles;
 
-  if (guacdClients == nullptr) {
-    logging(VERBOSE_NO, "thread_datadiode_recv: Error: guacdClients pointer is null, aborting!\n");
-    *running = false;
-  }
+    if (!running || !queueSend || !queueRecv) { // Null-pointer checks
+        logging(VERBOSE_NO, "Critical error: nullptr passed to thread_datadiode_recv\n");
+        if (running) *running = false;
+        return;
+    }
 
   TCPClientHandle* tcpClientHandle = NULL;
   ProtocolValidator validator;
@@ -294,8 +296,8 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
               if ( findGmsOpcode(opcode, gmsOpcode, gmsValue) ) {
                 logging(VERBOSE_DEBUG, "Received GMS opcode %s with value %s\n", gmsOpcode, gmsValue);
                 if ( strcmp(gmsOpcode, "GMS_START") == 0 ) {
-                  if ( guacdClients->find(string(gmsValue)) != guacdClients->end() ) { // Found
-                    tcpClientHandle = guacdClients->at(string(gmsValue));
+                  if ( guacdClientHandles.find(string(gmsValue)) != guacdClientHandles.end() ) { // Found
+                    tcpClientHandle = guacdClientHandles.at(string(gmsValue));
 
                   } else { // Send close message back!
                     logging(VERBOSE_DEBUG, "guacs client not found, closing connection.\n");
@@ -317,16 +319,16 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
                   q->pop();
 
                 } else if ( strcmp(gmsOpcode, "GMS_CLOSE") == 0 ) {
-                  if ( guacdClients->find(string(gmsValue)) != guacdClients->end() ) { // Found and close it
+                  if ( guacdClientHandles.find(string(gmsValue)) != guacdClientHandles.end() ) { // Found and close it
                     logging(VERBOSE_DEBUG, "Closing the guacd socket %s\n", gmsValue);
-                    tcpClientHandle = guacdClients->at(string(gmsValue));
+                    tcpClientHandle = guacdClientHandles.at(string(gmsValue));
                     tcpClientHandle->running = false;
                     tcpClientHandle->tcpClient->closeSocket();
                   }
                   q->pop();
                 } else if ( strcmp(gmsOpcode, "GMS_NEW") == 0 ) {
 
-                  if ( guacdClients->find(string(gmsValue)) == guacdClients->end() ) { // Not found, so create it
+                  if ( guacdClientHandles.find(string(gmsValue)) == guacdClientHandles.end() ) { // Not found, so create it
                     
                     logging(VERBOSE_INFO, "Connecting to guacd on host '%s' and port '%s'\n", args.guacd_host, args.guacd_port);
                     TCPClient* tcpClient = new TCPClient(args.guacd_host, args.guacd_port);
@@ -339,7 +341,7 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
                         true,
                         string(gmsValue)
                       };
-                      guacdClients->insert({string(gmsValue), tcpClientHandle});
+                      guacdClientHandles.insert({string(gmsValue), tcpClientHandle});
                       thread t1(thread_guacd_client_recv, running, tcpClientHandle, queueSend);
                       thread t2(thread_guacd_client_send, running, tcpClientHandle, queueSend);
                       t1.detach();
@@ -468,11 +470,10 @@ int main (int argc, char *argv[]) {
   bool running = true;
   queue<char*> queueDataDiodeSend;
   queue<char*> queueDataDiodeRecv;
-  unordered_map<string, TCPClientHandle*> guacdClientHandles; // TODO: unordered map is not thread safe
-
+  
   // Create the necessary threads.
   thread t1(thread_datadiode_send, arguments, &running, &queueDataDiodeSend);
-  thread t2(thread_datadiode_recv, arguments, &running, &guacdClientHandles, &queueDataDiodeSend, &queueDataDiodeRecv);
+  thread t2(thread_datadiode_recv, arguments, &running, &queueDataDiodeSend, &queueDataDiodeRecv);
   t1.detach();
   t2.detach();
 
