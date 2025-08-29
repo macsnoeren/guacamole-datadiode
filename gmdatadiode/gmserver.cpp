@@ -73,8 +73,8 @@ void signal_sigpipe_cb (int signum) {
 /*
  * The thread that is responsible to check the TCP/IP status with the proxy client
  * 
- * @param[in/out] running is used to check if the program is stil running, can also be set.
- * @param[in/out] active is used to check if the socket is stil connected, can also be set.
+ * @param[in/out] running is used to check if the program is still running, can also be set.
+ * @param[in/out] active is used to check if the socket is still connected, can also be set.
  * @param[in] client is the socket connection.
  */
 void thread_datadiode_client_recv( bool* running, bool* active, TCPServerClient* tcpClient) {
@@ -91,9 +91,9 @@ void thread_datadiode_client_recv( bool* running, bool* active, TCPServerClient*
 
     if ( n  > 0 ) { // Received message from receiving data-diode
       logging(VERBOSE_NO, "Unexpected data from proxyout client received: %s\n", buffer);
-      // TODO: What to do in this case? Currenly don't care!
+      // TODO: What to do in this case? Currently don't care!
 
-    } else if ( n == 0 ) { // Peer properly shutted down!
+    } else if ( n == 0 ) { // Peer properly shut down!
       logging(VERBOSE_DEBUG, "proxyour client connection peer closed connection\n");
       tcpClient->closeSocket();
       *active = false;
@@ -112,7 +112,7 @@ void thread_datadiode_client_recv( bool* running, bool* active, TCPServerClient*
  * Ready for test
  * @param bool* running: pointer to the running flag. If false the thread
  *        need to close.
- * @param qeueu<string>* queueSend: the queue that contains the string
+ * @param queue<string>* queueSend: the queue that contains the string
  *        messages.
  * @return void
  */
@@ -168,11 +168,11 @@ void thread_datadiode_send (Arguments args, bool* running, queue<char*>* queueSe
 
 /*
  * This thread handles the data it receives from the data-diode the
- * is connected to the guacd. It pushed the data to the queue.
+ * is connected to the guacd. It pushes the data to the queue.
  * Ready for test
  * @param bool* running: pointer to the running flag. If false the thread
  *        need to close.
- * @param qeueu<string>* queueRecv: the queue that contains the string
+ * @param queue<string>* queueRecv: the queue that contains the string
  *        messages.
  * @return void
  */
@@ -262,7 +262,7 @@ void thread_datadiode_recv (Arguments args, bool* running, unordered_map<string,
             }
           }
 
-        } else if ( n == 0 ) { // Peer properly shutted down!
+        } else if ( n == 0 ) { // Peer properly shut down!
           logging(VERBOSE_DEBUG, "gmproxyout peer connection closed\n");
           tcpClient->closeSocket();
           active = false;
@@ -306,7 +306,7 @@ void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuac
 
     logging(VERBOSE_DEBUG, "Received from Guacamole %s: %s\n", tcpGuacamoleClientHandle->ID.c_str(), buffer);
     if ( tcpGuacamoleClientHandle->running && n  > 0 ) { // Received message from Guacamole client, possible that the socket has been closed
-      validator.processData(buffer, strlen(buffer)); // Validates the protocol AND get each opcode seperately
+      validator.processData(buffer, strlen(buffer)); // Validates the protocol AND get each opcode separately
 
       // Process the data that is received and put it on the send Queue to be send over the data-diode
       queue<char*>* q = validator.getDataQueue();
@@ -340,7 +340,7 @@ void thread_guacamole_client_recv (bool* running, TCPServerClientHandle* tcpGuac
         }
       }
 
-    } else if ( n == 0 ) { // Peer properly shutted down!
+    } else if ( n == 0 ) { // Peer properly shut down!
       logging(VERBOSE_DEBUG, "Guacamole client %s peer stopped\n", tcpGuacamoleClientHandle->ID.c_str());
       tcpGuacamoleClient->closeSocket();
       tcpGuacamoleClientHandle->running = false;
@@ -402,7 +402,7 @@ void thread_guacamole_client_send (bool* running, TCPServerClientHandle* guacamo
 void help() {
   cout << "Usage: gmserver [OPTION]" << endl << endl;
   cout << "Options and their default values" << endl;
-  cout << "  -c num, --max-clients=num  maximal connections that the Guacamole web client can make [default: " << GUACAMOLE_MAX_CLIENTS << "]" << endl;
+  cout << "  -c num, --max-clients=num  maximum connections that the Guacamole web client can make [default: " << GUACAMOLE_MAX_CLIENTS << "]" << endl;
   cout << "  -p port, --port=port       port where the Guacamole web client is connecting to       [default: " << GUACAMOLE_PORT << "]" << endl;
   cout << "  -i port, --ddin-port=port  port that the gmproxyout needs to connect to               [default: " << DATADIODE_RECV_PORT << "]" << endl;
   cout << "  -o port, --ddout-port=port port that the gmproxyin needs to connect to                [default: " << DATADIODE_SEND_PORT << "]" << endl;
@@ -497,7 +497,7 @@ int main (int argc, char *argv[]) {
     if ( tcpGuacamoleClient != NULL ) {
       logging(VERBOSE_DEBUG, "Guacamole client connected\n");
       
-      // Create unique id to be assiocated to this connection
+      // Create unique id to be assiociated to this connection
       string id = createUniqueId();
       while ( guacamoleClientHandles.find({id}) != guacamoleClientHandles.end() ) {
         id = createUniqueId();
