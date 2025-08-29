@@ -220,7 +220,7 @@ int main (int argc, char *argv[]) {
 
   logging(VERBOSE_INFO, "Connecting to the gmserver or gmclient %s:%d\n", arguments.gmx_host.c_str(), arguments.gmx_port);
   while ( running ) {
-    logging(VERBOSE_DEBUG, "Trying to connect to the gmserver ot gmclient...\n");
+    logging(VERBOSE_DEBUG, "Trying to connect to the gmserver or gmclient...\n");
     if ( tcpClientGmServer.start() == 0 ) {
       logging(VERBOSE_DEBUG, "Connected with the gmserver or gmclient\n");
 
