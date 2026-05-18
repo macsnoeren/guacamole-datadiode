@@ -1,0 +1,69 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: guac_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: guacamole
+      POSTGRES_PASSWORD: some-password
+      POSTGRES_DB: guacamole_db
+    volumes:
+      - "initdb:/docker-entrypoint-initdb.d:ro"
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - guac_internal
+
+  guacamole:
+    image: guacamole/guacamole:1.5.5
+    container_name: guacamole
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    environment:
+      POSTGRES_HOSTNAME: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DATABASE: guacamole_db
+      POSTGRES_USER: guacamole
+      POSTGRES_PASSWORD: some-password
+
+      # Point Guacamole at the bridge container
+      GUACD_HOSTNAME: host.docker.internal
+      GUACD_PORT: 4822
+    volumes:
+      - "initdb:/opt/guacamole/extensions/guacamole-auth-jdbc/postgresql/schema:ro"
+    ports:
+      - "8080:8080"  # Guacamole web UI
+    networks:
+      - guac_internal
+    # Make sure Guacamole can talk to the bridge that is on the host network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # Converts between TCP and UDP when sending and receiving over the bridge
+  guac-bridge:
+    build:
+      context: ./
+    container_name: guac_bridge
+    restart: unless-stopped
+    stop_grace_period: 1s
+    # Runs on the host machine's network
+    network_mode: "host"
+    command:
+      [
+        "python", "/app/lbridgeadapter.py",
+        "--listen-ip", "0.0.0.0",
+
+        # Where guacd lives
+        "--listen-port", "4822",
+        "--udp-in-ip", "0.0.0.0",
+        "--udp-in-port", "5601",       # Port where UDP is received
+        "--udp-out-ip", "10.0.0.2",   # IP where UDP is sent to
+        "--udp-out-port", "5501",
+      ]
+
+volumes:
+  db-data:
+  initdb:
+
+networks:
+  guac_internal:
