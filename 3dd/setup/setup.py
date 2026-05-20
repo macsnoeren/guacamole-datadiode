@@ -126,8 +126,8 @@ def main():
     # Add new IPv4 address
     print("\n[2/4] Adding new IPv4 address...")
     print(f"Adding address: {ip_address}")
-    run(["ip", "addr", "add", in_ip + "/16", "dev", in_iface])
-    run(["ip", "addr", "add", ip_address + "/16", "dev", interface])
+    run(["ip", "addr", "add", in_ip + "/24", "dev", in_iface])
+    run(["ip", "addr", "add", ip_address + "/24", "dev", interface])
 
     # Remove existing neighbors
     print("\n[3/4] Removing existing neighbor entries...")
