@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 TCPReceiver::~TCPReceiver() {
+    ::close(src_fd);
     ::close(sock_fd);
 }
 
@@ -43,8 +44,8 @@ int TCPReceiver::Initialize() {
 }
 
 std::optional<std::tuple<sockaddr*, socklen_t>> TCPReceiver::AcceptSender() {
-    client_fd = ::accept(sock_fd, reinterpret_cast<sockaddr*>(&src_addr), &src_addr_len);
-    if (client_fd < 0) {
+    src_fd = ::accept(sock_fd, reinterpret_cast<sockaddr*>(&src_addr), &src_addr_len);
+    if (src_fd < 0) {
         perror("accept");
         return std::nullopt;
     }
@@ -53,7 +54,7 @@ std::optional<std::tuple<sockaddr*, socklen_t>> TCPReceiver::AcceptSender() {
 }
 
 int TCPReceiver::Receive(char *buffer, size_t len) {
-    ssize_t received = ::recv(client_fd, buffer, len - 1, 0);
+    ssize_t received = ::recv(src_fd, buffer, len - 1, 0);
 
     if (received < 0) {
         perror("recv");

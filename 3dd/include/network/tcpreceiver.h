@@ -11,7 +11,7 @@ class TCPReceiver {
     int port;
     int sock_fd;
 
-    int client_fd;
+    int src_fd;
     sockaddr_in src_addr;
     socklen_t src_addr_len = sizeof(src_addr);
 
