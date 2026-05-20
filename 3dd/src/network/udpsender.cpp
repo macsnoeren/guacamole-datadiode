@@ -13,11 +13,10 @@ int UDPSender::Initialize() {
         return 1;
     }
 
-    sockaddr_in addr;
-    std::memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(static_cast<uint16_t>(port));
-    int res = ::inet_pton(AF_INET, host.c_str(), &addr.sin_addr);
+    std::memset(&sock_addr, 0, sizeof(sock_addr));
+    sock_addr.sin_family = AF_INET;
+    sock_addr.sin_port = htons(static_cast<uint16_t>(port));
+    int res = ::inet_pton(AF_INET, host.c_str(), &sock_addr.sin_addr);
 
     if (res <= 0) {
         perror("inet_pton");
@@ -37,9 +36,9 @@ ssize_t UDPSender::Send(const char *buffer, size_t len) {
         ::close(sock_fd);
         return 1;
     }
-
-    std::cout << "Sent " << sent << " bytes to " << host << ":" << port << "\n";
-
-    ::close(sock_fd);
     return 0;
+}
+
+void UDPSender::Close() {
+    ::close(sock_fd);
 }
