@@ -17,7 +17,6 @@ int main(int argc, char *argv[]) {
     int src_port = std::stoi(argv[1]);
     const char *dst_ip = argv[2];
     int dst_port = std::stoi(argv[3]);
-    const int buf_len = 4096;
 
     UDPReceiver receiver = UDPReceiver(src_port);
     receiver.Initialize();
@@ -26,12 +25,12 @@ int main(int argc, char *argv[]) {
     sender.Initialize();
 
     while (true) {
-        char buffer[buf_len];
-        std::memset(&buffer, 0, buf_len);
-        int received = receiver.Receive(buffer, buf_len);
+        char buffer[1024];
+        std::memset(&buffer, 0, sizeof(buffer));
+        int received = receiver.Receive(buffer, 1024);
 
-        std::cout << "Sending " << received << " bytes from :" << src_port
+        std::cout << "Sending" << received << " bytes from :" << src_port
                   << " -> " << dst_ip << ":" << dst_port << "\n";
-        sender.Send(buffer, received);
+        sender.Send(buffer, 1024);
     }
 }
