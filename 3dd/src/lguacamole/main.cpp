@@ -17,4 +17,5 @@ int main(int argc, char *argv[]) {
     UDPSender sender = UDPSender(ip, port);
     sender.Initialize();
     sender.Send(message.c_str(), message.size());
+    sender.Close();
 }

@@ -48,7 +48,6 @@ int UDPReceiver::Receive(char *buffer, size_t len) {
 
     char src_ip[INET_ADDRSTRLEN];
     ::inet_ntop(AF_INET, &src_addr.sin_addr, src_ip, sizeof(src_ip));
-    int src_port = ntohs(src_addr.sin_port);
 
     return received;
 }
