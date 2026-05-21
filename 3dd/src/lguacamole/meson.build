@@ -1,5 +1,5 @@
 project(
-  'udp_sender',
+  'lguacamole',
   'cpp',
   version: '0.1',
   default_options: ['cpp_std=c++17']
@@ -7,13 +7,15 @@ project(
 
 sources = [
   'main.cpp',
-  '../network/udpsender.cpp'
+  '../network/udpsender.cpp',
+  '../network/udpreceiver.cpp',
+  '../network/tcpserver.cpp',
   ]
 
 incdir = include_directories('../../include/network')
 
 executable(
-  'udp_sender',
+  'lguacamole',
   sources: sources,
   include_directories: incdir,
   )
