@@ -5,6 +5,13 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+UDPReceiver::~UDPReceiver() {
+    if (sock_fd >= 0) {
+        ::shutdown(sock_fd, SHUT_RDWR);
+        ::close(sock_fd);
+    }
+}
+
 int UDPReceiver::Initialize() {
     sock_fd = ::socket(AF_INET, SOCK_DGRAM, 0);
     if (sock_fd < 0) {
@@ -26,8 +33,6 @@ int UDPReceiver::Initialize() {
         return 1;
     }
 
-    std::cout << "Listening on UDP port " << port << "...\n";
-
     return 0;
 }
 
@@ -47,8 +52,4 @@ int UDPReceiver::Receive(char *buffer, size_t len) {
     buffer[received] = '\0'; // make it a C-string for printing
 
     return received;
-}
-
-void UDPReceiver::Close() {
-    ::close(sock_fd);
 }

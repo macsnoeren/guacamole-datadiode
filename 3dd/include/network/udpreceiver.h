@@ -1,8 +1,8 @@
 #pragma once
 
-#include <string>
 #include <netinet/in.h>
 #include <stdlib.h>
+#include <string>
 
 class UDPReceiver {
   private:
@@ -12,10 +12,9 @@ class UDPReceiver {
 
   public:
     UDPReceiver(int port) : port(port) {}
+    ~UDPReceiver();
 
     int Initialize();
 
     int Receive(char buffer[], size_t len);
-
-    void Close();
 };

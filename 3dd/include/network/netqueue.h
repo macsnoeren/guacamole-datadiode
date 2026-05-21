@@ -8,33 +8,33 @@
 #include <stdlib.h>
 
 class NetQueue {
-private:
+  private:
     mutable std::mutex mtx;
     std::condition_variable cv;
-    std::queue<char*> queue;
-public:
+    std::queue<std::string> queue;
 
+  public:
     NetQueue() = default;
 
-    void Enqueue(char* message) {
+    void Enqueue(std::string&& message) {
         {
             std::lock_guard<std::mutex> lock(mtx);
-            queue.push(message);
+            queue.push(std::move(message));
         }
         cv.notify_one();
     }
 
-    char* Dequeue() {
+    std::string Dequeue() {
         std::unique_lock<std::mutex> lock(mtx);
 
         // Wait until a message arrives if queue is empty
         cv.wait(lock, [this] { return !queue.empty(); });
-        char* value = std::move(queue.front());
+        std::string value = std::move(queue.front());
         queue.pop();
         return value;
     }
 
-    std::optional<char*> Peek() const {
+    std::optional<std::string> Peek() const {
         std::lock_guard<std::mutex> lock(mtx);
         if (queue.empty()) {
             return std::nullopt;
