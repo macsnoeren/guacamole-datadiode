@@ -18,7 +18,6 @@ services:
     restart: unless-stopped
     depends_on:
       - guac_postgres
-      - lguacamole
     environment:
       # DB config
       POSTGRES_HOSTNAME: guac_postgres
@@ -33,7 +32,7 @@ services:
     networks:
       - guac_internal
     extra_hosts:
-      - "host.docker.internal:10.0.1.1"
+      - "host.docker.internal:host-gateway"
 
   lguacamole:
     build:
@@ -46,7 +45,7 @@ services:
     command:
       [
         "./build/lguacamole",
-        "127.0.0.1", "4822",
+        "0.0.0.0", "4822",
         "0.0.0.0", "5501",
         "10.0.0.2", "5601"
       ]
