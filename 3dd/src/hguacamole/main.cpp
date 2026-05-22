@@ -41,7 +41,7 @@ void tcp_send_handler(TCPClient &tcp_client, NetQueue &recv_queue) {
 }
 
 void tcp_recv_handler(TCPClient &tcp_client, NetQueue &send_queue) {
-    char buffer[65535];
+    char buffer[1200];
 
     while (running) {
         int received;
@@ -64,7 +64,7 @@ void tcp_recv_handler(TCPClient &tcp_client, NetQueue &send_queue) {
 }
 
 void udp_recv_handler(UDPReceiver &udp_receiver, NetQueue &recv_queue) {
-    char buffer[65535]; // UDP max packet size
+    char buffer[1200]; // UDP max packet size
 
     while (running) {
         int received = udp_receiver.Receive(buffer, sizeof(buffer));
@@ -115,13 +115,6 @@ int main(int argc, char *argv[]) {
 
     // Initialize UDP and TCP infrastructure
     int exit;
-    auto tcp_client = TCPClient(guacd_ip, guacd_port);
-    if ((exit = tcp_client.Initialize()) != 0)
-        return exit;
-
-    std::cout << "Connected to address " << guacd_ip << ":" << guacd_port
-              << std::endl;
-
     UDPReceiver udp_receiver(udp_recv_port);
     if ((exit = udp_receiver.Initialize()) != 0)
         return exit;
@@ -139,7 +132,16 @@ int main(int argc, char *argv[]) {
     auto recv_queue = NetQueue();
     auto send_queue = NetQueue();
 
-    std::optional<std::tuple<sockaddr_in, socklen_t>> client_result;
+    char buffer[1200];
+    int received = udp_receiver.Receive(buffer, sizeof(buffer));
+    recv_queue.Enqueue(std::string(buffer, received));
+
+    auto tcp_client = TCPClient(guacd_ip, guacd_port);
+    if ((exit = tcp_client.Initialize()) != 0)
+        return exit;
+
+    std::cout << "Connected to address " << guacd_ip << ":" << guacd_port
+              << std::endl;
 
     // Start threads
     std::thread t_tcp_send(tcp_send_handler, std::ref(tcp_client),
