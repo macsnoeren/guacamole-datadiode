@@ -1,0 +1,53 @@
+services:
+  guacd:
+    image: guacamole/guacd:1.5.5
+    container_name: guacd
+    restart: unless-stopped
+    # guacd listens on 4822 TCP by default
+    ports:
+      - "4822:4822"
+    networks:
+      - guacd_internal
+
+  hguacamole:
+    build:
+      context: ../../
+      dockerfile: docker/hguacamole/Dockerfile
+    stop_grace_period: 1s
+    container_name: hguacamole
+    restart: unless-stopped
+    depends_on:
+      - guacd
+    command:
+      [
+        "./build/hguacamole",
+        "127.0.0.1", "4822",
+        "0.0.0.0", "5505",
+        "10.0.2.2", "5506"
+      ]
+    network_mode: "host"
+
+  # guac-bridge:
+  #   build:
+  #     context: ./bridge
+  #   container_name: guacd_bridge
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - guacd
+  #   command:
+  #     [
+  #       "python", "/app/guac_udp_to_tcp.py",
+  #       "--udp-in-ip", "0.0.0.0",
+  #       "--udp-in-port", "5501",
+  #       "--udp-out-ip", "10.0.1.1",  # IP on Side A that receives B->A UDP
+  #       "--udp-out-port", "5601",
+  #       "--guacd-ip", "guacd",
+  #       "--guacd-port", "4822"
+  #     ]
+  #   networks:
+  #     - guacd_internal
+  #   network_mode: "host"
+  #   # As above, host networking simplifies using the diode NICs and ARP
+
+networks:
+  guacd_internal:
