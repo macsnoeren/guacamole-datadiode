@@ -42,7 +42,6 @@ void tcp_send_handler(TCPServer &tcp_server, NetQueue &recv_queue) {
 
 void tcp_recv_handler(TCPServer &tcp_server, NetQueue &send_queue) {
     char buffer[65535];
-    std::cout << "tcp_recv_handler: init" << std::endl;
 
     while (running) {
         int received;
