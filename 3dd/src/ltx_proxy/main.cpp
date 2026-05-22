@@ -20,6 +20,8 @@ int main(int argc, char *argv[]) {
     UDPReceiver receiver = UDPReceiver(src_port);
     receiver.Initialize();
 
+    std::cout << "Listening on UDP port " << src_port << std::endl;
+
     UDPSender sender = UDPSender(dst_ip, dst_port);
     sender.Initialize();
 
