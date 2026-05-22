@@ -36,12 +36,13 @@ void tcp_send_handler(TCPServer &tcp_server, NetQueue &recv_queue) {
 
         std::stringstream info;
         info << "tcp_send_handler: Sent message '" << msg.c_str() << std::endl;
-        std::cout << info.str();
+        std::cout << info.str() << std::endl;
     }
 }
 
 void tcp_recv_handler(TCPServer &tcp_server, NetQueue &send_queue) {
     char buffer[65535];
+    std::cout << "tcp_recv_handler: init" << std::endl;
 
     while (running) {
         int received;
@@ -50,7 +51,7 @@ void tcp_recv_handler(TCPServer &tcp_server, NetQueue &send_queue) {
             std::stringstream info;
             info << "tcp_recv_handler: Received message '" << buffer
                  << std::endl;
-            std::cout << info.str();
+            std::cout << info.str() << std::endl;
 
             send_queue.Enqueue(std::string(buffer, received));
         } else if (received == 0) {
@@ -72,7 +73,7 @@ void udp_recv_handler(UDPReceiver &udp_receiver, NetQueue &recv_queue) {
         std::stringstream info;
         info << "udp_recv_handler: Queued " << received << " bytes"
              << std::endl;
-        std::cout << info.str();
+        std::cout << info.str() << std::endl;
     }
 }
 
@@ -84,7 +85,7 @@ void udp_send_handler(UDPSender &udp_sender, NetQueue &send_queue) {
         std::stringstream info;
         info << "udp_send_handler: Sent " << msg.size() << " bytes"
              << std::endl;
-        std::cout << info.str();
+        std::cout << info.str() << std::endl;
     }
 }
 
@@ -104,8 +105,6 @@ int main(int argc, char *argv[]) {
     udp_recv_port = std::stoi(argv[4]);
     udp_send_ip = argv[5];
     udp_send_port = std::stoi(argv[6]);
-
-    std::cout << "1cout" << std::endl;
 
     // Set interrupt handler
     struct sigaction sa{};
@@ -142,10 +141,8 @@ int main(int argc, char *argv[]) {
 
     std::optional<std::tuple<sockaddr_in, socklen_t>> client_result;
 
-    std::cout << "before accept" << std::endl;
     // Accept the first client trying to connect (Guacamole)
     if ((client_result = tcp_server.AcceptSender()) != std::nullopt) {
-        std::cout << "inside accept" << std::endl;
         sockaddr_in client_addr = std::get<0>(client_result.value());
         char ip_str[INET_ADDRSTRLEN];
 
@@ -155,7 +152,6 @@ int main(int argc, char *argv[]) {
         std::cout << "Client connected from " << ip_str << ":" << port
                   << std::endl;
     } else {
-        std::cout << "error" << std::endl;
         return 1;
     }
 
