@@ -1,7 +1,6 @@
 #include "../../include/network/udpreceiver.h"
 #include "../../include/network/udpsender.h"
 #include <arpa/inet.h>
-#include <cstring>
 #include <iostream>
 #include <string>
 #include <sys/socket.h>
@@ -24,13 +23,13 @@ int main(int argc, char *argv[]) {
     UDPSender sender = UDPSender(dst_ip, dst_port);
     sender.Initialize();
 
+    char buffer[65535];
+
     while (true) {
-        char buffer[1024];
-        std::memset(&buffer, 0, sizeof(buffer));
-        int received = receiver.Receive(buffer, 1024);
+        int received = receiver.Receive(buffer, sizeof(buffer));
 
         std::cout << "Sending" << received << " bytes from :" << src_port
-                  << " -> " << dst_ip << ":" << dst_port << "\n";
-        sender.Send(buffer, 1024);
+                  << " -> " << dst_ip << ":" << dst_port << std::endl;
+        sender.Send(buffer, received);
     }
 }
