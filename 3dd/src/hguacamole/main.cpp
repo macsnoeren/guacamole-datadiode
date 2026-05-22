@@ -54,7 +54,8 @@ void tcp_recv_handler(TCPClient &tcp_client, NetQueue &send_queue) {
 
             send_queue.Enqueue(std::string(buffer, received));
         } else if (received == 0) {
-            std::cout << "Client disconnected";
+            std::cout << "Client disconnected" << std::endl;
+            running = false;
         } else {
             running = false;
             break;
