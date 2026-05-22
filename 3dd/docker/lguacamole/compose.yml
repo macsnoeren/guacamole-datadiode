@@ -13,7 +13,7 @@ services:
       - guac_internal
 
   guacamole:
-    image: guacamole/guacamole:1.5.5
+    image: guacamole/guacamole:1.6.0
     container_name: guacamole
     restart: unless-stopped
     depends_on:
