@@ -134,7 +134,7 @@ int main(int argc, char *argv[]) {
         return exit;
 
     std::cout << "Initialized UDP sender for " << udp_send_ip << ":"
-              << udp_recv_port << std::endl;
+              << udp_send_port << std::endl;
 
     auto recv_queue = NetQueue();
     auto send_queue = NetQueue();
