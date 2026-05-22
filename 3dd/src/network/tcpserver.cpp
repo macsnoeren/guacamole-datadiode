@@ -27,6 +27,9 @@ int TCPServer::Initialize() {
         return 1;
     }
 
+    int one = 1;
+    ::setsockopt(recv_sock_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+
     sockaddr_in addr;
     std::memset(&addr, 0, sizeof(addr));
     std::memset(&client_sock_addr, 0, sizeof(client_sock_addr));
@@ -67,12 +70,12 @@ int TCPServer::Receive(char *buffer, size_t len) {
 
     if (received < 0) {
         switch (errno) {
-            case EAGAIN:
-                // No data available, not an error
-                return 0;
-            default:
-                perror("recv");
-                return -1;
+        case EAGAIN:
+            // No data available, not an error
+            return 0;
+        default:
+            perror("recv");
+            return -1;
         }
     }
 
