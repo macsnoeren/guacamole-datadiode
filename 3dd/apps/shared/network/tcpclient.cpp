@@ -1,4 +1,4 @@
-#include "../../include/network/tcpclient.h"
+#include "../include/network/tcpclient.h"
 #include <arpa/inet.h>
 #include <cstring>
 #include <iostream>

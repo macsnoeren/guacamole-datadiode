@@ -4,14 +4,13 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y build-essential meson ninja-build
 
-COPY include/ include/
-COPY src/network/ src/network/
-COPY src/lguacamole/main.cpp src/lguacamole/main.cpp
-COPY src/lguacamole/meson.build src/lguacamole/meson.build
+COPY apps/shared/include/ apps/shared/include/
+COPY apps/shared/network/ apps/shared/network/
+COPY apps/lguacamole/src apps/lguacamole/src
 
-WORKDIR /app/src/lguacamole
+WORKDIR /app/apps/lguacamole
 
-RUN meson setup build
+RUN meson setup build src/
 RUN meson compile -C build
 
 EXPOSE 5501/udp

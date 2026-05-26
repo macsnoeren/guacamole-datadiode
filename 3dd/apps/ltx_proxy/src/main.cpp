@@ -1,5 +1,5 @@
-#include "../../include/network/udpreceiver.h"
-#include "../../include/network/udpsender.h"
+#include "../../shared/include/network/udpreceiver.h"
+#include "../../shared/include/network/udpsender.h"
 #include <arpa/inet.h>
 #include <iostream>
 #include <string>

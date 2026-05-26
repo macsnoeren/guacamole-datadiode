@@ -7,12 +7,12 @@ project(
 
 sources = [
   'main.cpp',
-  '../network/udpsender.cpp',
-  '../network/udpreceiver.cpp',
-  '../network/tcpclient.cpp',
+  '../../shared/network/udpsender.cpp',
+  '../../shared/network/udpreceiver.cpp',
+  '../../shared/network/tcpclient.cpp',
   ]
 
-incdir = include_directories('../../include/network')
+incdir = include_directories('../../shared/include/network')
 
 executable(
   'hguacamole',

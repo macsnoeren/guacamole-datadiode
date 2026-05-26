@@ -1,7 +1,7 @@
-#include "../../include/network/netqueue.h"
-#include "../../include/network/tcpserver.h"
-#include "../../include/network/udpreceiver.h"
-#include "../../include/network/udpsender.h"
+#include "../../shared/include/network/netqueue.h"
+#include "../../shared/include/network/tcpserver.h"
+#include "../../shared/include/network/udpreceiver.h"
+#include "../../shared/include/network/udpsender.h"
 #include <arpa/inet.h>
 #include <atomic>
 #include <iostream>

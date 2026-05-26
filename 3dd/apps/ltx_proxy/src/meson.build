@@ -1,5 +1,5 @@
 project(
-  'udp_receiver',
+  'ltx_proxy',
   'cpp',
   version: '0.1',
   default_options: ['cpp_std=c++17']
@@ -7,13 +7,14 @@ project(
 
 sources = [
   'main.cpp',
-  '../network/udpreceiver.cpp'
+  '../../shared/network/udpsender.cpp',
+  '../../shared/network/udpreceiver.cpp',
   ]
 
-incdir = include_directories('../../include/network')
+incdir = include_directories('../../shared/include/network')
 
 executable(
-  'udp_receiver',
+  'ltx_proxy',
   sources: sources,
   include_directories: incdir,
   )
