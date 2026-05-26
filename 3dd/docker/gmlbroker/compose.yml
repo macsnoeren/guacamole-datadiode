@@ -34,17 +34,17 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
-  lguacamole:
+  gmlbroker:
     build:
       context: ../../
-      dockerfile: docker/lguacamole/Dockerfile
+      dockerfile: docker/gmlbroker/Dockerfile
     stop_grace_period: 1s
-    container_name: lguacamole
+    container_name: gmlbroker
     restart: unless-stopped
     network_mode: "host"
     command:
       [
-        "./build/lguacamole",
+        "./build/gmlbroker",
         "0.0.0.0", "4822",
         "0.0.0.0", "5501",
         "10.0.0.2", "5502"

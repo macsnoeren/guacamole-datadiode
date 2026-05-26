@@ -1,5 +1,5 @@
 project(
-  'lguacamole',
+  'gmlbroker',
   'cpp',
   version: '0.1',
   default_options: ['cpp_std=c++17']
@@ -15,7 +15,7 @@ sources = [
 incdir = include_directories('../../shared/include/network')
 
 executable(
-  'lguacamole',
+  'gmlbroker',
   sources: sources,
   include_directories: incdir,
   )
