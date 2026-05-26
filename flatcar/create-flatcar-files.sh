@@ -97,11 +97,27 @@ mkdir -p "${CACHE_DIR}"
 # Flatcar artifacts downloaden (gecached)
 # ------------------------------------------------------------
 
-BASE_URL="https://${FLATCAR_CHANNEL}.release.flatcar-linux.net/${FLATCAR_ARCH}/${FLATCAR_VERSION}"
-
 FLATCAR_IMAGE="flatcar_production_image.bin.bz2"
 FLATCAR_INSTALLER="flatcar-install"
 FLATCAR_UPDATE_PAYLOAD="flatcar_production_update.gz"
+
+# Als de config "current" zegt: resolve naar de feitelijke versie via
+# version.txt. Dit voorkomt dat de update-payload op 'current/' ontbreekt en
+# zorgt dat alle URLs naar dezelfde concrete versie wijzen.
+if [[ "${FLATCAR_VERSION}" == "current" ]]; then
+  log "Laatste ${FLATCAR_CHANNEL} versie opzoeken voor ${FLATCAR_ARCH}"
+  VERSION_URL="https://${FLATCAR_CHANNEL}.release.flatcar-linux.net/${FLATCAR_ARCH}/current/version.txt"
+  RESOLVED_VERSION="$(curl -fsSL "${VERSION_URL}" | awk -F= '/^FLATCAR_VERSION=/{print $2}' | tr -d '\r')"
+  [[ -n "${RESOLVED_VERSION}" ]] || die "Kon FLATCAR_VERSION niet uit ${VERSION_URL} parsen."
+  log "  current => ${RESOLVED_VERSION}"
+  FLATCAR_VERSION="${RESOLVED_VERSION}"
+fi
+
+BASE_URL="https://${FLATCAR_CHANNEL}.release.flatcar-linux.net/${FLATCAR_ARCH}/${FLATCAR_VERSION}"
+
+# Cache per versie, zodat een nieuwe release oude cache niet hergebruikt.
+VERSION_CACHE_DIR="${CACHE_DIR}/${FLATCAR_ARCH}/${FLATCAR_VERSION}"
+mkdir -p "${VERSION_CACHE_DIR}"
 
 download_cached() {
   local url="$1"
@@ -120,20 +136,18 @@ download_cached() {
 }
 
 log "Flatcar artifacts ophalen (channel=${FLATCAR_CHANNEL}, versie=${FLATCAR_VERSION}, arch=${FLATCAR_ARCH})"
-download_cached "${BASE_URL}/${FLATCAR_IMAGE}"          "${CACHE_DIR}/${FLATCAR_IMAGE}"
+download_cached "${BASE_URL}/${FLATCAR_IMAGE}"          "${VERSION_CACHE_DIR}/${FLATCAR_IMAGE}"
 download_cached "https://raw.githubusercontent.com/flatcar/init/flatcar-master/bin/flatcar-install" \
                 "${CACHE_DIR}/${FLATCAR_INSTALLER}"
 
-# OS update payload — verplicht, want zonder werkt update-os.sh niet en kan een
-# bestaande machine niet bijgewerkt worden. Proberen release-server eerst, dan
-# de update-server als fallback (beide hosten dezelfde payloads).
+# OS update payload: probeer release-server, val terug op update-server.
 UPDATE_URLS=(
   "${BASE_URL}/${FLATCAR_UPDATE_PAYLOAD}"
   "https://update.release.flatcar-linux.net/${FLATCAR_ARCH}/${FLATCAR_VERSION}/${FLATCAR_UPDATE_PAYLOAD}"
 )
 PAYLOAD_OK=0
 for url in "${UPDATE_URLS[@]}"; do
-  if download_cached "${url}" "${CACHE_DIR}/${FLATCAR_UPDATE_PAYLOAD}"; then
+  if download_cached "${url}" "${VERSION_CACHE_DIR}/${FLATCAR_UPDATE_PAYLOAD}"; then
     PAYLOAD_OK=1
     break
   fi
@@ -142,19 +156,12 @@ done
 if [[ "${PAYLOAD_OK}" -ne 1 ]]; then
   err "Kon de Flatcar update payload niet downloaden. Geprobeerde URLs:"
   for url in "${UPDATE_URLS[@]}"; do err "  ${url}"; done
-  err ""
-  err "Mogelijke oorzaken:"
-  err "  - FLATCAR_VERSION='${FLATCAR_VERSION}' bestaat niet meer voor channel '${FLATCAR_CHANNEL}'."
-  err "  - Voor sommige releases publiceert 'current/' geen update.gz; gebruik een"
-  err "    expliciete versie. Kijk op https://www.flatcar.org/releases voor"
-  err "    beschikbare versies en zet bv. FLATCAR_VERSION=\"4152.2.3\" in flatcar.conf."
-  err "  - Verifieer handmatig: curl -fI ${UPDATE_URLS[0]}"
   die "Stop: update payload is vereist voor update-os.sh."
 fi
 
-cp "${CACHE_DIR}/${FLATCAR_IMAGE}"          "${BUILD_DIR}/flatcar/${FLATCAR_IMAGE}"
-cp "${CACHE_DIR}/${FLATCAR_INSTALLER}"      "${BUILD_DIR}/flatcar/${FLATCAR_INSTALLER}"
-cp "${CACHE_DIR}/${FLATCAR_UPDATE_PAYLOAD}" "${BUILD_DIR}/updates/${FLATCAR_UPDATE_PAYLOAD}"
+cp "${VERSION_CACHE_DIR}/${FLATCAR_IMAGE}"          "${BUILD_DIR}/flatcar/${FLATCAR_IMAGE}"
+cp "${CACHE_DIR}/${FLATCAR_INSTALLER}"              "${BUILD_DIR}/flatcar/${FLATCAR_INSTALLER}"
+cp "${VERSION_CACHE_DIR}/${FLATCAR_UPDATE_PAYLOAD}" "${BUILD_DIR}/updates/${FLATCAR_UPDATE_PAYLOAD}"
 chmod +x "${BUILD_DIR}/flatcar/${FLATCAR_INSTALLER}"
 
 # ------------------------------------------------------------
