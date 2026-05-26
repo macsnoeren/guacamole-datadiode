@@ -174,6 +174,28 @@ IGNITION_FILE="${BUILD_DIR}/flatcar/config.ign"
 
 log "Butane config genereren: ${BUTANE_FILE}"
 
+# Eén bron van waarheid voor de inhoud van een service unit, zodat butane en
+# update-app.sh niet uit elkaar lopen.
+emit_service_unit_body() {
+  local name="$1" image="$2" args="$3"
+  cat <<EOF
+[Unit]
+Description=${name} container
+After=docker.service import-images.service
+Requires=docker.service import-images.service
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/docker rm -f ${name}
+ExecStart=/usr/bin/docker run --name ${name} ${args} ${image}
+ExecStop=/usr/bin/docker stop ${name}
+
+[Install]
+WantedBy=multi-user.target
+EOF
+}
+
 {
   cat <<EOF
 variant: flatcar
@@ -234,26 +256,8 @@ EOF
     name="$(printf '%s' "${svc}" | awk -F'|' '{print $1}')"
     image="$(printf '%s' "${svc}" | awk -F'|' '{print $2}')"
     args="$(printf '%s' "${svc}" | awk -F'|' '{print $3}')"
-    cat <<EOF
-
-    - name: ${name}.service
-      enabled: true
-      contents: |
-        [Unit]
-        Description=${name} container
-        After=docker.service import-images.service
-        Requires=docker.service import-images.service
-
-        [Service]
-        Restart=always
-        RestartSec=5
-        ExecStartPre=-/usr/bin/docker rm -f ${name}
-        ExecStart=/usr/bin/docker run --name ${name} ${args} ${image}
-        ExecStop=/usr/bin/docker stop ${name}
-
-        [Install]
-        WantedBy=multi-user.target
-EOF
+    printf '\n    - name: %s.service\n      enabled: true\n      contents: |\n' "${name}"
+    emit_service_unit_body "${name}" "${image}" "${args}" | sed 's/^/        /'
   done
 } > "${BUTANE_FILE}"
 
@@ -302,10 +306,70 @@ sudo umount /mnt/newroot
 echo "[+] Klaar. Reboot de machine."
 EOF
 
-cat > "${BUILD_DIR}/scripts/update-flatcar.sh" <<EOF
+# --- update-app.sh: alleen docker images + service units, geen OS update ---
+{
+  cat <<'HEADER'
 #!/usr/bin/env bash
-# Voert een OTA update uit met de meegeleverde payload.
-# Draai dit script ON THE RUNNING Flatcar machine (ssh core@host).
+# Update alleen de applicatie laag op een draaiende Flatcar machine:
+#   - laadt nieuwe docker images uit ./docker-images/*.tar
+#   - overschrijft de bijbehorende /etc/systemd/system/<svc>.service units
+#   - daemon-reload + restart per service
+# Raakt de OS partities (USR-A/USR-B) NIET aan. Geen reboot nodig.
+set -euo pipefail
+
+USB_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
+
+echo "[+] Nieuwe images kopieren naar /opt/images en laden"
+sudo mkdir -p /opt/images
+sudo cp "${USB_DIR}/docker-images/"*.tar /opt/images/
+for f in "${USB_DIR}/docker-images/"*.tar; do
+  echo "  load $(basename "${f}")"
+  sudo docker load -i "${f}"
+done
+
+write_unit() {
+  local name="$1"
+  local path="/etc/systemd/system/${name}.service"
+  echo "[+] schrijf ${path}"
+  sudo tee "${path}" > /dev/null
+}
+
+HEADER
+
+  for svc in "${SERVICES[@]}"; do
+    name="$(printf '%s' "${svc}" | awk -F'|' '{print $1}')"
+    image="$(printf '%s' "${svc}" | awk -F'|' '{print $2}')"
+    args="$(printf '%s' "${svc}" | awk -F'|' '{print $3}')"
+    term="UNIT_$(printf '%s' "${name}" | tr -c 'A-Za-z0-9_' '_')"
+    printf 'write_unit %q <<'"'"'%s'"'"'\n' "${name}" "${term}"
+    emit_service_unit_body "${name}" "${image}" "${args}"
+    printf '%s\n\n' "${term}"
+  done
+
+  cat <<'FOOTER'
+echo "[+] daemon-reload"
+sudo systemctl daemon-reload
+
+FOOTER
+
+  for svc in "${SERVICES[@]}"; do
+    name="$(printf '%s' "${svc}" | awk -F'|' '{print $1}')"
+    printf 'echo "[+] restart %s.service"\nsudo systemctl enable --now %s.service\nsudo systemctl restart %s.service\n' \
+      "${name}" "${name}" "${name}"
+  done
+
+  printf '\necho "[+] App update klaar."\n'
+} > "${BUILD_DIR}/scripts/update-app.sh"
+
+# --- update-os.sh: alleen Flatcar OS update naar inactieve partitie ---
+cat > "${BUILD_DIR}/scripts/update-os.sh" <<EOF
+#!/usr/bin/env bash
+# Schrijft de meegeleverde Flatcar update payload naar de inactieve USR
+# partitie en markeert die als next boot target. Raakt docker images en
+# service units NIET aan.
+#
+# Na succes: handmatig 'sudo reboot' om de nieuwe partitie te activeren.
+# Bij boot- of health-check failure rolt update_engine automatisch terug.
 set -euo pipefail
 
 USB_DIR="\$( cd -- "\$( dirname -- "\${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
@@ -318,16 +382,11 @@ if [[ ! -f "\${PAYLOAD}" ]]; then
   exit 1
 fi
 
-echo "[+] Nieuwe docker images laden"
-for f in "\${USB_DIR}/docker-images/"*.tar; do
-  sudo cp "\${f}" /opt/images/
-done
-
-echo "[+] Flatcar update naar versie \${VERSION}"
+echo "[+] Flatcar OS update naar versie \${VERSION}"
 sudo flatcar-update --to-version "\${VERSION}" --to-payload "\${PAYLOAD}"
 
-echo "[+] Reboot om de update te activeren"
-sudo reboot
+echo "[+] Geschreven naar inactieve partitie."
+echo "    Reboot wanneer je klaar bent:  sudo reboot"
 EOF
 
 cat > "${BUILD_DIR}/scripts/import-images.sh" <<'EOF'
@@ -383,21 +442,28 @@ Architectuur:    ${FLATCAR_ARCH}
 Structuur:
   flatcar/        Flatcar image, installer, butane + ignition config
   docker-images/  Vooraf gebouwde/gepullde docker images als .tar
-  scripts/        install-flatcar.sh, update-flatcar.sh, import-images.sh, health-check.sh
-  updates/        Optionele OTA update payload
+  scripts/        install-flatcar.sh, update-app.sh, update-os.sh,
+                  import-images.sh, health-check.sh
+  updates/        Flatcar OTA update payload
   checksums/      SHA256 hashes van alle artifacts
 
 Eerste installatie:
-  1. Kopieer deze hele directory naar een USB stick (of zet via netwerk klaar)
+  1. Kopieer deze hele directory naar een USB stick
   2. Boot de bare-metal machine vanaf een Ubuntu Live USB
   3. Mount de stick: sudo mount /dev/sdX1 /mnt/usb
   4. Draai: sudo bash /mnt/usb/scripts/install-flatcar.sh
   5. Reboot
 
-OTA update van een al draaiend systeem:
-  1. Kopieer deze directory naar de Flatcar machine (scp)
+App update (alleen docker images / services, geen OS reboot):
+  1. scp -r build/ core@host:/tmp/bundle
   2. ssh core@host
-  3. Draai: sudo bash <pad>/scripts/update-flatcar.sh
+  3. sudo bash /tmp/bundle/scripts/update-app.sh
+
+OS update (Flatcar zelf naar nieuwe versie, A/B partitie):
+  1. scp -r build/ core@host:/tmp/bundle
+  2. ssh core@host
+  3. sudo bash /tmp/bundle/scripts/update-os.sh
+  4. sudo reboot   (rollt automatisch terug bij boot/health failure)
 EOF
 
 log "Klaar."
