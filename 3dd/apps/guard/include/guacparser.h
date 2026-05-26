@@ -5,18 +5,9 @@
 
 #define MAX_ELEMENT_SIZE 8192
 
-enum class ParserState {
-    READY,
-    PARSING,
-    INVALID,
-    DENIED_OPCODE
-};
+enum class ParserState { READY, PARSING, INVALID, DENIED_OPCODE };
 
-enum class ParserPhase {
-    READING_LENGTH,
-    READING_DATA,
-    EXPECT_DELIM
-};
+enum class ParserPhase { READING_LENGTH, READING_DATA, EXPECT_DELIM };
 
 struct GuacElement {
     uint32_t len;
@@ -30,28 +21,28 @@ struct GuacElement {
 // };
 
 class GuacParser {
-    public:
-        GuacParser() = default;
+  public:
+    GuacParser() = default;
 
-        ParserState GetState() { return state; };
-        ParserState Parse(const char *data, size_t len);
-        void Reset();
+    ParserState GetState() { return state; };
+    ParserState Parse(const char *data, size_t len);
+    void Reset();
 
-        // bool ParseOne(size_t &offset);
-        //
-        // bool IsOpcodeAllowed(const GuacElement &opcode);
+    // bool ParseOne(size_t &offset);
+    //
+    // bool IsOpcodeAllowed(const GuacElement &opcode);
 
-    protected:
-        virtual bool OnInstructionBegin(const GuacElement &instr);
-        virtual bool OnArgument(const GuacElement &arg) {return true;}
-        virtual bool OnInstructionEnd() {return true;}
+  protected:
+    virtual bool OnInstructionBegin(const GuacElement &instr);
+    virtual bool OnArgument(const GuacElement &arg) { return true; }
+    virtual bool OnInstructionEnd() { return true; }
 
-    private:
-        ParserState state = ParserState::READY;
-        ParserPhase phase = ParserPhase::READING_LENGTH;
+  private:
+    ParserState state = ParserState::READY;
+    ParserPhase phase = ParserPhase::READING_LENGTH;
 
-        uint32_t current_length = 0;
-        uint32_t current_read = 0;
-        bool reading_opcode = true;
-        char element_buffer[MAX_ELEMENT_SIZE];
+    int current_length = -1;
+    uint32_t current_read = 0;
+    bool reading_opcode = true;
+    char element_buffer[MAX_ELEMENT_SIZE];
 };
