@@ -124,23 +124,38 @@ download_cached "${BASE_URL}/${FLATCAR_IMAGE}"          "${CACHE_DIR}/${FLATCAR_
 download_cached "https://raw.githubusercontent.com/flatcar/init/flatcar-master/bin/flatcar-install" \
                 "${CACHE_DIR}/${FLATCAR_INSTALLER}"
 
-HAVE_UPDATE_PAYLOAD=0
-if download_cached "${BASE_URL}/${FLATCAR_UPDATE_PAYLOAD}" "${CACHE_DIR}/${FLATCAR_UPDATE_PAYLOAD}"; then
-  HAVE_UPDATE_PAYLOAD=1
-else
-  warn "Update payload niet beschikbaar voor deze versie."
-  warn "update-os.sh wordt overgeslagen — bare-metal install en update-app.sh blijven werken."
+# OS update payload — verplicht, want zonder werkt update-os.sh niet en kan een
+# bestaande machine niet bijgewerkt worden. Proberen release-server eerst, dan
+# de update-server als fallback (beide hosten dezelfde payloads).
+UPDATE_URLS=(
+  "${BASE_URL}/${FLATCAR_UPDATE_PAYLOAD}"
+  "https://update.release.flatcar-linux.net/${FLATCAR_ARCH}/${FLATCAR_VERSION}/${FLATCAR_UPDATE_PAYLOAD}"
+)
+PAYLOAD_OK=0
+for url in "${UPDATE_URLS[@]}"; do
+  if download_cached "${url}" "${CACHE_DIR}/${FLATCAR_UPDATE_PAYLOAD}"; then
+    PAYLOAD_OK=1
+    break
+  fi
+done
+
+if [[ "${PAYLOAD_OK}" -ne 1 ]]; then
+  err "Kon de Flatcar update payload niet downloaden. Geprobeerde URLs:"
+  for url in "${UPDATE_URLS[@]}"; do err "  ${url}"; done
+  err ""
+  err "Mogelijke oorzaken:"
+  err "  - FLATCAR_VERSION='${FLATCAR_VERSION}' bestaat niet meer voor channel '${FLATCAR_CHANNEL}'."
+  err "  - Voor sommige releases publiceert 'current/' geen update.gz; gebruik een"
+  err "    expliciete versie. Kijk op https://www.flatcar.org/releases voor"
+  err "    beschikbare versies en zet bv. FLATCAR_VERSION=\"4152.2.3\" in flatcar.conf."
+  err "  - Verifieer handmatig: curl -fI ${UPDATE_URLS[0]}"
+  die "Stop: update payload is vereist voor update-os.sh."
 fi
 
-cp "${CACHE_DIR}/${FLATCAR_IMAGE}"     "${BUILD_DIR}/flatcar/${FLATCAR_IMAGE}"
-cp "${CACHE_DIR}/${FLATCAR_INSTALLER}" "${BUILD_DIR}/flatcar/${FLATCAR_INSTALLER}"
+cp "${CACHE_DIR}/${FLATCAR_IMAGE}"          "${BUILD_DIR}/flatcar/${FLATCAR_IMAGE}"
+cp "${CACHE_DIR}/${FLATCAR_INSTALLER}"      "${BUILD_DIR}/flatcar/${FLATCAR_INSTALLER}"
+cp "${CACHE_DIR}/${FLATCAR_UPDATE_PAYLOAD}" "${BUILD_DIR}/updates/${FLATCAR_UPDATE_PAYLOAD}"
 chmod +x "${BUILD_DIR}/flatcar/${FLATCAR_INSTALLER}"
-
-if [[ "${HAVE_UPDATE_PAYLOAD}" -eq 1 ]]; then
-  cp "${CACHE_DIR}/${FLATCAR_UPDATE_PAYLOAD}" "${BUILD_DIR}/updates/${FLATCAR_UPDATE_PAYLOAD}"
-else
-  rmdir "${BUILD_DIR}/updates" 2>/dev/null || true
-fi
 
 # ------------------------------------------------------------
 # Docker images bouwen en pullen
@@ -374,9 +389,7 @@ FOOTER
 } > "${BUILD_DIR}/scripts/update-app.sh"
 
 # --- update-os.sh: alleen Flatcar OS update naar inactieve partitie ---
-# Wordt alleen gegenereerd als er een update payload beschikbaar is.
-if [[ "${HAVE_UPDATE_PAYLOAD}" -eq 1 ]]; then
-  cat > "${BUILD_DIR}/scripts/update-os.sh" <<EOF
+cat > "${BUILD_DIR}/scripts/update-os.sh" <<EOF
 #!/usr/bin/env bash
 # Schrijft de meegeleverde Flatcar update payload naar de inactieve USR
 # partitie en markeert die als next boot target. Raakt docker images en
@@ -402,7 +415,6 @@ sudo flatcar-update --to-version "\${VERSION}" --to-payload "\${PAYLOAD}"
 echo "[+] Geschreven naar inactieve partitie."
 echo "    Reboot wanneer je klaar bent:  sudo reboot"
 EOF
-fi
 
 cat > "${BUILD_DIR}/scripts/import-images.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -443,12 +455,6 @@ log "SHA256 checksums genereren"
 # README in de build dir
 # ------------------------------------------------------------
 
-if [[ "${HAVE_UPDATE_PAYLOAD}" -eq 1 ]]; then
-  OS_UPDATE_STATUS="beschikbaar (update-os.sh aanwezig)"
-else
-  OS_UPDATE_STATUS="NIET beschikbaar — update-os.sh overgeslagen"
-fi
-
 cat > "${BUILD_DIR}/README.txt" <<EOF
 Flatcar deployment bundle
 =========================
@@ -459,14 +465,13 @@ Install device:  ${INSTALL_DEVICE}
 Flatcar channel: ${FLATCAR_CHANNEL}
 Flatcar versie:  ${FLATCAR_VERSION}
 Architectuur:    ${FLATCAR_ARCH}
-OS update:       ${OS_UPDATE_STATUS}
 
 Structuur:
   flatcar/        Flatcar image, installer, butane + ignition config
   docker-images/  Vooraf gebouwde/gepullde docker images als .tar
-  scripts/        install-flatcar.sh, update-app.sh, import-images.sh,
-                  health-check.sh (en update-os.sh indien payload beschikbaar)
-  updates/        Flatcar OTA update payload (alleen indien beschikbaar)
+  scripts/        install-flatcar.sh, update-app.sh, update-os.sh,
+                  import-images.sh, health-check.sh
+  updates/        Flatcar OTA update payload
   checksums/      SHA256 hashes van alle artifacts
 
 Eerste installatie:
