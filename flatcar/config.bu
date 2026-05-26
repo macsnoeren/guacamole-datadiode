@@ -1,0 +1,85 @@
+variant: flatcar
+version: 1.0.0
+
+passwd:
+  users:
+    - name: core
+      ssh_authorized_keys:
+        - ssh-ed25519 AAAAC3NzaC1....
+
+storage:
+  filesystems:
+    - device: /dev/sda12
+      format: ext4
+      path: /mnt/data
+      with_mount_unit: true
+
+  files:
+    - path: /etc/hostname
+      mode: 0644
+      contents:
+        inline: flatcar-node
+
+    - path: /etc/flatcar/update.conf
+      mode: 0644
+      contents:
+        inline: |
+          GROUP=stable
+          SERVER=
+
+  directories:
+    - path: /opt/images
+      mode: 0755
+
+    - path: /var/log/app
+      mode: 0755
+
+    - path: /opt/appdata
+      mode: 0755
+
+systemd:
+  units:
+    - name: docker.service
+      enabled: true
+
+    # Import docker images once
+    - name: import-images.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Import Offline Docker Images
+        After=docker.service
+        Requires=docker.service
+
+        [Service]
+        Type=oneshot
+        ExecStart=/opt/import-images.sh
+
+        [Install]
+        WantedBy=multi-user.target
+
+    # Python webserver container
+    - name: flatcar-test.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Flatcar Python Test Container
+        After=docker.service import-images.service
+        Requires=docker.service import-images.service
+
+        [Service]
+        Restart=always
+        RestartSec=5
+
+        ExecStartPre=-/usr/bin/docker rm -f flatcar-test
+
+        ExecStart=/usr/bin/docker run \
+          --name flatcar-test \
+          -p 80:80 \
+          -v /var/log/app:/logs \
+          flatcar-test-web:1.0
+
+        ExecStop=/usr/bin/docker stop flatcar-test
+
+        [Install]
+        WantedBy=multi-user.target
