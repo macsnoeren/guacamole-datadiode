@@ -108,26 +108,38 @@ download_cached() {
   local out="$2"
   if [[ -f "${out}" ]]; then
     log "  cache hit: $(basename "${out}")"
-  else
-    log "  downloaden: ${url}"
-    curl -fL --retry 3 -o "${out}.part" "${url}"
-    mv "${out}.part" "${out}"
+    return 0
   fi
+  log "  downloaden: ${url}"
+  if curl -fL --retry 3 -o "${out}.part" "${url}"; then
+    mv "${out}.part" "${out}"
+    return 0
+  fi
+  rm -f "${out}.part"
+  return 1
 }
 
 log "Flatcar artifacts ophalen (channel=${FLATCAR_CHANNEL}, versie=${FLATCAR_VERSION}, arch=${FLATCAR_ARCH})"
 download_cached "${BASE_URL}/${FLATCAR_IMAGE}"          "${CACHE_DIR}/${FLATCAR_IMAGE}"
 download_cached "https://raw.githubusercontent.com/flatcar/init/flatcar-master/bin/flatcar-install" \
                 "${CACHE_DIR}/${FLATCAR_INSTALLER}"
-download_cached "${BASE_URL}/${FLATCAR_UPDATE_PAYLOAD}" "${CACHE_DIR}/${FLATCAR_UPDATE_PAYLOAD}" || \
-  warn "Update payload niet beschikbaar voor deze versie, sla over."
+
+HAVE_UPDATE_PAYLOAD=0
+if download_cached "${BASE_URL}/${FLATCAR_UPDATE_PAYLOAD}" "${CACHE_DIR}/${FLATCAR_UPDATE_PAYLOAD}"; then
+  HAVE_UPDATE_PAYLOAD=1
+else
+  warn "Update payload niet beschikbaar voor deze versie."
+  warn "update-os.sh wordt overgeslagen — bare-metal install en update-app.sh blijven werken."
+fi
 
 cp "${CACHE_DIR}/${FLATCAR_IMAGE}"     "${BUILD_DIR}/flatcar/${FLATCAR_IMAGE}"
 cp "${CACHE_DIR}/${FLATCAR_INSTALLER}" "${BUILD_DIR}/flatcar/${FLATCAR_INSTALLER}"
 chmod +x "${BUILD_DIR}/flatcar/${FLATCAR_INSTALLER}"
 
-if [[ -f "${CACHE_DIR}/${FLATCAR_UPDATE_PAYLOAD}" ]]; then
+if [[ "${HAVE_UPDATE_PAYLOAD}" -eq 1 ]]; then
   cp "${CACHE_DIR}/${FLATCAR_UPDATE_PAYLOAD}" "${BUILD_DIR}/updates/${FLATCAR_UPDATE_PAYLOAD}"
+else
+  rmdir "${BUILD_DIR}/updates" 2>/dev/null || true
 fi
 
 # ------------------------------------------------------------
@@ -362,7 +374,9 @@ FOOTER
 } > "${BUILD_DIR}/scripts/update-app.sh"
 
 # --- update-os.sh: alleen Flatcar OS update naar inactieve partitie ---
-cat > "${BUILD_DIR}/scripts/update-os.sh" <<EOF
+# Wordt alleen gegenereerd als er een update payload beschikbaar is.
+if [[ "${HAVE_UPDATE_PAYLOAD}" -eq 1 ]]; then
+  cat > "${BUILD_DIR}/scripts/update-os.sh" <<EOF
 #!/usr/bin/env bash
 # Schrijft de meegeleverde Flatcar update payload naar de inactieve USR
 # partitie en markeert die als next boot target. Raakt docker images en
@@ -388,6 +402,7 @@ sudo flatcar-update --to-version "\${VERSION}" --to-payload "\${PAYLOAD}"
 echo "[+] Geschreven naar inactieve partitie."
 echo "    Reboot wanneer je klaar bent:  sudo reboot"
 EOF
+fi
 
 cat > "${BUILD_DIR}/scripts/import-images.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -428,6 +443,12 @@ log "SHA256 checksums genereren"
 # README in de build dir
 # ------------------------------------------------------------
 
+if [[ "${HAVE_UPDATE_PAYLOAD}" -eq 1 ]]; then
+  OS_UPDATE_STATUS="beschikbaar (update-os.sh aanwezig)"
+else
+  OS_UPDATE_STATUS="NIET beschikbaar — update-os.sh overgeslagen"
+fi
+
 cat > "${BUILD_DIR}/README.txt" <<EOF
 Flatcar deployment bundle
 =========================
@@ -438,13 +459,14 @@ Install device:  ${INSTALL_DEVICE}
 Flatcar channel: ${FLATCAR_CHANNEL}
 Flatcar versie:  ${FLATCAR_VERSION}
 Architectuur:    ${FLATCAR_ARCH}
+OS update:       ${OS_UPDATE_STATUS}
 
 Structuur:
   flatcar/        Flatcar image, installer, butane + ignition config
   docker-images/  Vooraf gebouwde/gepullde docker images als .tar
-  scripts/        install-flatcar.sh, update-app.sh, update-os.sh,
-                  import-images.sh, health-check.sh
-  updates/        Flatcar OTA update payload
+  scripts/        install-flatcar.sh, update-app.sh, import-images.sh,
+                  health-check.sh (en update-os.sh indien payload beschikbaar)
+  updates/        Flatcar OTA update payload (alleen indien beschikbaar)
   checksums/      SHA256 hashes van alle artifacts
 
 Eerste installatie:
