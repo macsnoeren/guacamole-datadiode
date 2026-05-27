@@ -22,11 +22,4 @@ executable(
   include_directories: incdirs,
 )
 
-test_sources = core_sources + files('tests/main.cpp')
-
-test_exe = executable(
-  'tests',
-  sources: test_sources,
-  include_directories: incdirs
-)
-test('tests_main', test_exe)
+subdir('tests')
