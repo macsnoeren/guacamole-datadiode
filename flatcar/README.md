@@ -274,6 +274,87 @@ Zo zie je per stap of er iets misgaat.
 
 ---
 
+## Secure Boot
+
+Secure Boot zorgt dat alleen door de leverancier ondertekende bootloader en
+kernel mogen draaien. Doet niets aan userspace of docker containers — die
+worden niet gevalideerd door UEFI.
+
+### Pad A — Microsoft-signed shim (geïmplementeerd, aanbevolen)
+
+Flatcar's standaard image bevat een Microsoft-signed `shim` die op zijn beurt
+de Flatcar-signed `grub` + kernel verifieert. Er hoeft niets aan deze bundle
+te veranderen; alleen het BIOS/UEFI van de doelmachine.
+
+**Voorwaarden:**
+- Flatcar versie 3815+ (alle recente `stable` releases)
+- Moederbord ondersteunt UEFI Secure Boot (vrijwel alles van na 2012)
+
+**Stappen op de doelmachine, voor de eerste install:**
+
+1. Boot het BIOS/UEFI setup menu (meestal F2 / Del / F10 bij power-on).
+2. **CSM / Legacy boot uit** zetten — Secure Boot vereist pure UEFI.
+3. **Secure Boot aan** zetten. Als je menu een keuze geeft:
+   - "Standard / Microsoft keys" — laadt de default MS CA, dit is wat je wil.
+   - "Custom / Setup mode" — alleen kiezen als je naar Pad B gaat.
+4. Bewaar en reboot terug naar de Ubuntu Live USB (die moet ook in UEFI mode
+   booten — kijk in het boot-menu of er twee entries staan, kies de "UEFI:"
+   variant).
+5. Draai `install-flatcar.sh` zoals normaal. De installer maakt automatisch
+   een GPT layout met EFI System Partition.
+
+**Verifiëren na boot:**
+
+```bash
+ssh core@<ip>
+sudo bash /tmp/bundle/scripts/health-check.sh   # toont "Secure Boot: enabled"
+# of direct:
+od -An -t u1 /sys/firmware/efi/efivars/SecureBoot-*  | awk '{print $NF}'
+# moet 1 zijn
+```
+
+**OS updates blijven werken:** `flatcar-update` schrijft een nieuwe `usr`
+partitie met dezelfde signed binaries; shim valideert die bij de volgende boot.
+
+### Pad B — Eigen Secure Boot keys (NIET geïmplementeerd)
+
+Voor airgapped / hoogvertrouwelijke omgevingen kun je de Microsoft CA expliciet
+*niet* vertrouwen en eigen Platform Key, KEK en signatuur-database genereren.
+Dit is **niet in dit project geautomatiseerd**; hieronder staat wat het zou
+kosten als je het later wil oppakken.
+
+**Wat erbij komt kijken:**
+
+1. **Key generatie** op de build-machine:
+   ```bash
+   openssl req -new -x509 -newkey rsa:4096 -subj "/CN=PK/"  -keyout PK.key  -out PK.crt
+   openssl req -new -x509 -newkey rsa:4096 -subj "/CN=KEK/" -keyout KEK.key -out KEK.crt
+   openssl req -new -x509 -newkey rsa:4096 -subj "/CN=db/"  -keyout db.key  -out db.crt
+   # omzetten naar EFI Signature List (.esl) en authenticated (.auth) formaten
+   # met cert-to-efi-sig-list, sign-efi-sig-list (efitools package)
+   ```
+2. **Re-signing van Flatcar binaries** met `sbsign`:
+   - shim, grub.efi en vmlinuz uit `flatcar_production_image.bin.bz2`
+   - dit moet bij elke Flatcar release-upgrade opnieuw
+3. **BIOS in Setup Mode** zetten en jouw `PK.auth` enrollen — kan alleen
+   handmatig in de meeste firmwares (UEFI shell of menu).
+4. **Update flow aanpassen**: `flatcar_production_update.gz` bevat ook
+   binaries die ge-resigned moeten worden voordat `update-os.sh` ze
+   accepteert, anders weigert shim de nieuwe USR partitie.
+
+Geschatte effort: 1-2 dagen werk + onderhoudslast bij elke versie-bump.
+Beginnen zou met een script `flatcar/generate-sb-keys.sh` en aanpassingen
+in `install-flatcar.sh` en `update-os.sh`.
+
+**Wanneer overwegen:**
+- Compliance vereist het expliciet
+- Dreigingsmodel sluit Microsoft als root-of-trust uit
+- Je wil afdwingen dat alléén intern gebouwde firmware-images mogen booten
+
+Voor de meeste deployments is Pad A voldoende.
+
+---
+
 ## Troubleshooting
 
 ### SSH lukt niet na install

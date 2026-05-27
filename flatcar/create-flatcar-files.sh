@@ -487,6 +487,20 @@ cat > "${BUILD_DIR}/scripts/health-check.sh" <<'EOF'
 # Eenvoudige health check. Pas aan naar de geleverde services.
 set -e
 EXIT=0
+
+# Secure Boot status (informational; faalt nooit zodat tests zonder SB ook draaien)
+sb_file=$(ls /sys/firmware/efi/efivars/SecureBoot-* 2>/dev/null | head -n 1)
+if [[ -n "${sb_file}" ]]; then
+  state=$(od -An -t u1 "${sb_file}" 2>/dev/null | awk '{print $NF}')
+  if [[ "${state}" == "1" ]]; then
+    echo "INFO Secure Boot: enabled"
+  else
+    echo "INFO Secure Boot: disabled"
+  fi
+else
+  echo "INFO Secure Boot: state onbekend (geen UEFI?)"
+fi
+
 for svc in $(systemctl list-units --type=service --state=running \
               --no-legend --plain | awk '{print $1}' | grep -v '^$'); do
   systemctl is-active --quiet "${svc}" || { echo "FAIL ${svc}"; EXIT=1; }
