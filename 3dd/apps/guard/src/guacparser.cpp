@@ -30,8 +30,13 @@ ParserState GuacParser::Parse(const char *data, size_t len) {
                 current_read = 0;
                 if (current_length == 0)
                     phase = ParserPhase::EXPECT_DELIM;
-                else
+                else if (next_args_max_length == 0 || static_cast<uint32_t>(current_length) <= next_args_max_length)
                     phase = ParserPhase::READING_DATA;
+                else {
+                    // Argument length exceeded next_args_max_length
+                    state = ParserState::INVALID;
+                    return state;
+                }
             } else {
                 // This is not a digit or length-terminating character
                 state = ParserState::INVALID;
@@ -39,14 +44,14 @@ ParserState GuacParser::Parse(const char *data, size_t len) {
             }
             break;
         case ParserPhase::READING_DATA:
-            // add data to the buffer, then advance current_read
-            element_buffer[current_read++] = c;
-
             // byte MUST be ascii value
             if (static_cast<unsigned char>(c) > 127) {
                 state = ParserState::INVALID;
                 return state;
             }
+
+            // add data to the buffer, then advance current_read
+            element_buffer[current_read++] = c;
 
             // current_read has advanced to the observed length
             if (current_read == static_cast<uint32_t>(current_length)) {
@@ -65,6 +70,7 @@ ParserState GuacParser::Parse(const char *data, size_t len) {
             if (c == ',' || c == ';') {
                 if (reading_opcode) {
                     // If this was an opcode, check if it is allowed
+                    // Also sets next_args_max_length if needed
                     if (!OnInstructionBegin(elem)) {
                         state = ParserState::DENIED_OPCODE;
                         return state;
@@ -88,6 +94,7 @@ ParserState GuacParser::Parse(const char *data, size_t len) {
                 // Semicolon read, expecting end of buffer or another opcode
                 OnInstructionEnd();
                 reading_opcode = true;
+                next_args_max_length = 0;
                 current_length = -1;
                 phase = ParserPhase::READING_LENGTH;
             } else {
@@ -135,6 +142,10 @@ bool GuacParser::OnInstructionBegin(const GuacElement &opcode) {
         return !memcmp(opcode.ptr, "key", 3) || !memcmp(opcode.ptr, "ack", 3) ||
                !memcmp(opcode.ptr, "end", 3);
     case 4:
+        if (!memcmp(opcode.ptr, "blob", 4)) {
+            next_args_max_length = CLIPBOARD_MAX_BYTES;
+            return true;
+        }
         return !memcmp(opcode.ptr, "size", 4) ||
                !memcmp(opcode.ptr, "name", 4) ||
                !memcmp(opcode.ptr, "argv", 4) || !memcmp(opcode.ptr, "sync", 4);
@@ -149,6 +160,8 @@ bool GuacParser::OnInstructionBegin(const GuacElement &opcode) {
         return !memcmp(opcode.ptr, "connect", 7);
     case 8:
         return !memcmp(opcode.ptr, "timezone", 8);
+    case 9:
+        return !memcmp(opcode.ptr, "clipboard", 9);
     case 10:
         return !memcmp(opcode.ptr, "disconnect", 10);
     default:

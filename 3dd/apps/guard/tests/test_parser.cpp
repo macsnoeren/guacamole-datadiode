@@ -125,9 +125,9 @@ void test_invalid_guacamole() {
 }
 
 void test_denied_opcodes() {
-    test_parsing("9.clipboard,", ParserState::DENIED_OPCODE);
+    // test_parsing("9.clipboard,", ParserState::DENIED_OPCODE);
     test_parsing("5.abcde,", ParserState::DENIED_OPCODE);
-    test_parsing("4.blob,1.1,12.bW9ub3NwYWNl;3.end,1.1;", ParserState::DENIED_OPCODE);
+    // test_parsing("4.blob,1.1,12.bW9ub3NwYWNl;3.end,1.1;", ParserState::DENIED_OPCODE);
     test_parsing("4.rect,", ParserState::DENIED_OPCODE);
     test_parsing("5.cfill,", ParserState::DENIED_OPCODE);
     test_parsing("10.filesystem,", ParserState::DENIED_OPCODE);
@@ -140,12 +140,25 @@ void test_denied_opcodes() {
     test_parsing("10.disconnect;", ParserState::READY);
 }
 
+void test_length_bound_opcodes() {
+    // Should pass, payload is below maximum
+    test_parsing("9.clipboard;", ParserState::READY);
+    test_parsing("4.blob,9.abcdefghi;", ParserState::READY);
+    test_parsing("9.clipboard,1.0,10.text/plain;4.blob,1.0,9.abcdefghi;3.end,1.0;", ParserState::READY);
+
+    // Should fail, maximum payload length exceeded
+    test_parsing("4.blob,15.abcdefghijklmno;", ParserState::INVALID);
+    test_parsing("9.clipboard,1.0,10.text/plain;4.blob,1.0,20.aGV5IGhldCB3ZXJrdA==;3.end,1.0;", ParserState::INVALID);
+}
+
 int main(int argc, char **argv) {
     test_valid_opcodes();
 
     test_invalid_guacamole();
 
     test_denied_opcodes();
+
+    test_length_bound_opcodes();
 
     return 0;
 }
