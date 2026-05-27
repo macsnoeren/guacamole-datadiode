@@ -125,10 +125,48 @@ Eerste keer, of na een complete herinstallatie. Wist de hele schijf.
 ### Verifiëren
 
 ```bash
-ssh core@<ip-adres>
+ssh -i flatcar/id_ed25519 core@<ip-adres>
 systemctl status flatcar-test.service   # of jouw service-naam
 docker ps
 ```
+
+`<ip-adres>` is een van de adressen uit je `NETWORK_INTERFACES`. Je build-machine
+moet in hetzelfde subnet zitten om de Flatcar host te kunnen bereiken.
+
+### Inloggen op de Flatcar machine
+
+Op de console verschijnt wel een `login:` prompt, maar de `core` user heeft
+**geen wachtwoord** — by design. Toegang loopt uitsluitend via SSH met de
+private key die hoort bij de public key in [flatcar.conf](flatcar.conf).
+
+```bash
+ssh -i flatcar/id_ed25519 core@<ip-adres>
+```
+
+Heeft je private key een passphrase (aangeraden), gebruik dan ssh-agent zodat
+je niet bij elke `ssh` / `scp` opnieuw hoeft te typen:
+
+```bash
+eval "$(ssh-agent -s)"
+ssh-add flatcar/id_ed25519          # 1x passphrase invullen
+ssh core@<ip-adres>                 # daarna geen prompt meer in deze shell
+```
+
+Permanente oplossing: zet in `~/.ssh/config`:
+
+```
+Host flatcar-node
+  HostName 192.168.100.1
+  User core
+  IdentityFile ~/path/to/flatcar/id_ed25519
+  AddKeysToAgent yes
+```
+
+Daarna volstaat `ssh flatcar-node`.
+
+> **Let op voor automation:** voor CI of cron-gestuurde `update-app.sh` /
+> `update-os.sh` heb je een agent nodig op die machine, óf een aparte key
+> zonder passphrase met beperkte rechten.
 
 ---
 
