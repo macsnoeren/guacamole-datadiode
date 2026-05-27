@@ -42,7 +42,8 @@ Bewerk [flatcar.conf](flatcar.conf):
 | `SSH_KEY_FILE` | pad naar de public key (default `./id_ed25519.pub`) |
 | `INSTALL_DEVICE` | doelschijf op de bare-metal machine (`/dev/sda`, `/dev/nvme0n1`, ...) |
 | `FLATCAR_CHANNEL` | `stable` / `beta` / `alpha` |
-| `FLATCAR_VERSION` | `current` of expliciet bv. `4152.2.0` |
+| `FLATCAR_VERSION` | `current` (auto-resolved naar laatste release) of expliciet bv. `4152.2.0` |
+| `NETWORK_INTERFACES` | array, één regel per interface: `"naam\|dhcp"` of `"naam\|static\|adres/cidr\|gateway\|dns1 dns2"` |
 | `DOCKER_BUILD_IMAGES` | images om lokaal te bouwen: `naam:tag\|pad-naar-Dockerfile-dir` |
 | `DOCKER_PULL_IMAGES` | images om van een registry te pullen: `naam:tag` |
 | `SERVICES` | systemd services: `naam\|image:tag\|docker run args` |

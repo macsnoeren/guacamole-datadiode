@@ -52,6 +52,15 @@ source "${CONFIG_FILE}"
 : "${BUILD_DIR:?BUILD_DIR ontbreekt in config}"
 : "${CACHE_DIR:?CACHE_DIR ontbreekt in config}"
 
+[[ "${#NETWORK_INTERFACES[@]:-0}" -gt 0 ]] || die "NETWORK_INTERFACES is leeg in config."
+for iface_entry in "${NETWORK_INTERFACES[@]}"; do
+  mode="$(printf '%s' "${iface_entry}" | awk -F'|' '{print $2}' | tr -d ' ')"
+  case "${mode}" in
+    dhcp|static) ;;
+    *) die "Onbekende network mode '${mode}' in interface entry '${iface_entry}'. Gebruik 'dhcp' of 'static'." ;;
+  esac
+done
+
 # Maak paden absoluut t.o.v. de config-locatie
 CONFIG_DIR="$( cd -- "$( dirname -- "${CONFIG_FILE}" )" &> /dev/null && pwd )"
 resolve_path() {
@@ -230,6 +239,31 @@ WantedBy=multi-user.target
 EOF
 }
 
+# Bouwt de inhoud van één systemd-networkd .network file voor een interface.
+emit_network_file_body() {
+  local iface_entry="$1"
+  local name mode address gateway dns_list
+  name="$(printf '%s' "${iface_entry}" | awk -F'|' '{print $1}' | tr -d ' ')"
+  mode="$(printf '%s' "${iface_entry}" | awk -F'|' '{print $2}' | tr -d ' ')"
+  printf '[Match]\nName=%s\n\n[Network]\n' "${name}"
+  case "${mode}" in
+    dhcp)
+      printf 'DHCP=yes\n'
+      ;;
+    static)
+      address="$(printf '%s' "${iface_entry}" | awk -F'|' '{print $3}')"
+      gateway="$(printf '%s' "${iface_entry}" | awk -F'|' '{print $4}')"
+      dns_list="$(printf '%s' "${iface_entry}" | awk -F'|' '{print $5}')"
+      [[ -n "${address}" ]] || die "static interface '${iface_entry}' mist een adres"
+      printf 'Address=%s\n' "${address}"
+      [[ -n "${gateway}" ]] && printf 'Gateway=%s\n' "${gateway}"
+      for d in ${dns_list}; do
+        [[ -n "${d}" ]] && printf 'DNS=%s\n' "${d}"
+      done
+      ;;
+  esac
+}
+
 {
   cat <<EOF
 variant: flatcar
@@ -250,10 +284,24 @@ storage:
 
     - path: /etc/flatcar/update.conf
       mode: 0644
+      overwrite: true
       contents:
         inline: |
           GROUP=${FLATCAR_CHANNEL}
           SERVER=
+EOF
+
+  # Eén .network file per geconfigureerde interface
+  idx=10
+  for iface_entry in "${NETWORK_INTERFACES[@]}"; do
+    iface_name="$(printf '%s' "${iface_entry}" | awk -F'|' '{print $1}' | tr -d ' ')"
+    printf '\n    - path: /etc/systemd/network/%d-%s.network\n      mode: 0644\n      contents:\n        inline: |\n' \
+      "${idx}" "${iface_name}"
+    emit_network_file_body "${iface_entry}" | sed 's/^/          /'
+    idx=$((idx + 1))
+  done
+
+  cat <<EOF
 
   directories:
     - path: /opt/images
