@@ -52,7 +52,8 @@ source "${CONFIG_FILE}"
 : "${BUILD_DIR:?BUILD_DIR ontbreekt in config}"
 : "${CACHE_DIR:?CACHE_DIR ontbreekt in config}"
 
-[[ "${#NETWORK_INTERFACES[@]:-0}" -gt 0 ]] || die "NETWORK_INTERFACES is leeg in config."
+[[ -n "${NETWORK_INTERFACES+x}" ]] || die "NETWORK_INTERFACES ontbreekt in config."
+[[ "${#NETWORK_INTERFACES[@]}" -gt 0 ]] || die "NETWORK_INTERFACES is leeg in config."
 for iface_entry in "${NETWORK_INTERFACES[@]}"; do
   mode="$(printf '%s' "${iface_entry}" | awk -F'|' '{print $2}' | tr -d ' ')"
   case "${mode}" in
