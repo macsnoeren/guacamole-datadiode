@@ -18,7 +18,8 @@ std::string cvt_state(ParserState state) {
     }
 }
 
-void test_parsing(std::string input, ParserState expected, GuacParser *parser = nullptr) {
+void test_parsing(std::string input, ParserState expected,
+                  GuacParser *parser = nullptr) {
     if (parser == nullptr)
         parser = new GuacParser();
     parser->Parse(input.data(), input.size());
@@ -31,8 +32,7 @@ void test_parsing(std::string input, ParserState expected, GuacParser *parser = 
     }
 }
 
-int main(int argc, char **argv) {
-    // Valid opcode
+void test_valid_opcodes() {
     test_parsing("6.select,3.ssh;", ParserState::READY);
     test_parsing("4.size,4.1680,3.933,2.96;", ParserState::READY);
     test_parsing(
@@ -73,8 +73,9 @@ int main(int argc, char **argv) {
             "0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.;",
             ParserState::READY, &parser);
     }
+}
 
-    // Invalid Guacamole
+void test_invalid_guacamole() {
     test_parsing("nonsense", ParserState::INVALID);
     test_parsing("ncat -l -p 1337", ParserState::INVALID);
     test_parsing("8,nonsense", ParserState::INVALID);
@@ -84,6 +85,7 @@ int main(int argc, char **argv) {
 
     // Invalid opcode length
     test_parsing("3.badlength;", ParserState::INVALID);
+    test_parsing("999999999.toolarge;", ParserState::INVALID);
     test_parsing("-8.negative;", ParserState::INVALID);
     test_parsing("0.zero;", ParserState::INVALID);
     test_parsing("4.argv,18.0,10.text/plain,12.color-scheme;",
@@ -98,11 +100,11 @@ int main(int argc, char **argv) {
     test_parsing("9.😊nonsense;", ParserState::INVALID);
 
     // No closing semicolon after first opcode
-    test_parsing("6.abCdeF3.foo;", ParserState::INVALID);
+    test_parsing("6.select3.foo;", ParserState::INVALID);
 
     // No commas
-    test_parsing("5.ghiJk,3.foo6.barbaz;", ParserState::INVALID);
-    test_parsing("7.lmopqrs3.doc5.frotz;", ParserState::INVALID);
+    test_parsing("5.video,3.foo6.barbaz;", ParserState::INVALID);
+    test_parsing("7.connect3.doc5.frotz;", ParserState::INVALID);
     test_parsing("4.argv,1.5,10.text/plain9.font-size;", ParserState::INVALID,
                  nullptr);
 
@@ -120,6 +122,30 @@ int main(int argc, char **argv) {
             "0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.;",
             ParserState::INVALID, &parser);
     }
+}
+
+void test_denied_opcodes() {
+    test_parsing("9.clipboard,", ParserState::DENIED_OPCODE);
+    test_parsing("5.abcde,", ParserState::DENIED_OPCODE);
+    test_parsing("4.blob,1.1,12.bW9ub3NwYWNl;3.end,1.1;", ParserState::DENIED_OPCODE);
+    test_parsing("4.rect,", ParserState::DENIED_OPCODE);
+    test_parsing("5.cfill,", ParserState::DENIED_OPCODE);
+    test_parsing("10.filesystem,", ParserState::DENIED_OPCODE);
+    test_parsing("4.file,", ParserState::DENIED_OPCODE);
+
+    test_parsing("3.key,", ParserState::READY);
+    test_parsing("4.size,", ParserState::READY);
+    test_parsing("5.video,", ParserState::READY);
+    test_parsing("6.select,", ParserState::READY);
+    test_parsing("10.disconnect;", ParserState::READY);
+}
+
+int main(int argc, char **argv) {
+    test_valid_opcodes();
+
+    test_invalid_guacamole();
+
+    test_denied_opcodes();
 
     return 0;
 }
