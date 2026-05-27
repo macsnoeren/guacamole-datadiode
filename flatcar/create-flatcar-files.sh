@@ -183,6 +183,38 @@ tar_name_for() {
   printf '%s.tar' "${1//[:\/]/_}"
 }
 
+# Waarschuwt voor images die wel geladen worden op een node maar geen
+# corresponderende SERVICES entry hebben — die starten dus niet automatisch.
+# Vereist dat SERVICES, DOCKER_BUILD_IMAGES, DOCKER_PULL_IMAGES gezet zijn
+# (door load_node_config).
+warn_unused_images() {
+  local node="$1"
+  local -A used=()
+  local svc img entry
+  if [[ "${#SERVICES[@]}" -gt 0 ]]; then
+    for svc in "${SERVICES[@]}"; do
+      img="$(printf '%s' "${svc}" | awk -F'|' '{print $2}')"
+      used["${img}"]=1
+    done
+  fi
+  if [[ "${#DOCKER_BUILD_IMAGES[@]}" -gt 0 ]]; then
+    for entry in "${DOCKER_BUILD_IMAGES[@]}"; do
+      img="${entry%%|*}"
+      if [[ -z "${used[${img}]+x}" ]]; then
+        warn "node ${node}: image '${img}' wordt geladen maar heeft geen SERVICES entry — er start geen container voor."
+      fi
+    done
+  fi
+  if [[ "${#DOCKER_PULL_IMAGES[@]}" -gt 0 ]]; then
+    for entry in "${DOCKER_PULL_IMAGES[@]}"; do
+      img="${entry}"
+      if [[ -z "${used[${img}]+x}" ]]; then
+        warn "node ${node}: image '${img}' wordt geladen maar heeft geen SERVICES entry — er start geen container voor."
+      fi
+    done
+  fi
+}
+
 emit_service_unit_body() {
   local name="$1" image="$2" args="$3"
   cat <<EOF
@@ -503,6 +535,7 @@ for node in "${NODES[@]}"; do
 
   log "  ${node}"
   generate_butane_for_node "${node}" "${butane_file}"
+  warn_unused_images "${node}"
   generate_images_list_for_node "${node}" "${images_list}"
   generate_node_update_fragment "${node}" "${node_update_sh}"
 
