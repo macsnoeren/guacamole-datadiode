@@ -3,16 +3,21 @@
 # create-flatcar-files.sh
 #
 # Bouwt een complete build/ directory met alle bestanden die nodig zijn om
-# een bare-metal machine te installeren of te updaten met Flatcar +
-# de geconfigureerde Docker applicaties.
+# meerdere bare-metal Flatcar machines te installeren of te updaten.
 #
-# Lees flatcar.conf voor de instellingen.
+# Setup:
+#   - flatcar.conf           : gedeelde config (kanaal, versie, ssh-key, lijst van nodes)
+#   - nodes/<naam>/node.conf : per-node config (install device, netwerk, images, services)
+#
+# Output:
+#   - Eén Flatcar OS image en één update payload (gedeeld)
+#   - Eén pool van docker image tars (gedeeld, gededupliceerd)
+#   - Per-node butane + ignition + manifest + per-node update-fragment
+#   - Scripts die op de USB / target machine de juiste node selecteren
 #
 # Vereisten op het build-systeem:
 #   - bash, curl, sha256sum, awk, sed
 #   - docker (voor het bouwen/pullen/opslaan van images en het draaien van butane)
-#
-# Output: zie ${BUILD_DIR} na succesvolle run.
 
 set -euo pipefail
 
@@ -32,37 +37,29 @@ require_cmd() {
 }
 
 # ------------------------------------------------------------
-# Config laden
+# Gedeelde config laden
 # ------------------------------------------------------------
 
 CONFIG_FILE="${1:-${SCRIPT_DIR}/flatcar.conf}"
 
 [[ -f "${CONFIG_FILE}" ]] || die "Config bestand niet gevonden: ${CONFIG_FILE}"
 
-log "Config laden uit ${CONFIG_FILE}"
+log "Gedeelde config laden uit ${CONFIG_FILE}"
 # shellcheck source=/dev/null
 source "${CONFIG_FILE}"
 
-: "${HOSTNAME:?HOSTNAME ontbreekt in config}"
-: "${SSH_KEY_FILE:?SSH_KEY_FILE ontbreekt in config}"
-: "${INSTALL_DEVICE:?INSTALL_DEVICE ontbreekt in config}"
-: "${FLATCAR_CHANNEL:?FLATCAR_CHANNEL ontbreekt in config}"
-: "${FLATCAR_VERSION:?FLATCAR_VERSION ontbreekt in config}"
-: "${FLATCAR_ARCH:?FLATCAR_ARCH ontbreekt in config}"
-: "${BUILD_DIR:?BUILD_DIR ontbreekt in config}"
-: "${CACHE_DIR:?CACHE_DIR ontbreekt in config}"
+: "${FLATCAR_CHANNEL:?FLATCAR_CHANNEL ontbreekt in gedeelde config}"
+: "${FLATCAR_VERSION:?FLATCAR_VERSION ontbreekt in gedeelde config}"
+: "${FLATCAR_ARCH:?FLATCAR_ARCH ontbreekt in gedeelde config}"
+: "${SSH_KEY_FILE:?SSH_KEY_FILE ontbreekt in gedeelde config}"
+: "${BUILD_DIR:?BUILD_DIR ontbreekt in gedeelde config}"
+: "${CACHE_DIR:?CACHE_DIR ontbreekt in gedeelde config}"
+: "${NODE_CONFIG_DIR:?NODE_CONFIG_DIR ontbreekt in gedeelde config}"
 
-[[ -n "${NETWORK_INTERFACES+x}" ]] || die "NETWORK_INTERFACES ontbreekt in config."
-[[ "${#NETWORK_INTERFACES[@]}" -gt 0 ]] || die "NETWORK_INTERFACES is leeg in config."
-for iface_entry in "${NETWORK_INTERFACES[@]}"; do
-  mode="$(printf '%s' "${iface_entry}" | awk -F'|' '{print $2}' | tr -d ' ')"
-  case "${mode}" in
-    dhcp|static) ;;
-    *) die "Onbekende network mode '${mode}' in interface entry '${iface_entry}'. Gebruik 'dhcp' of 'static'." ;;
-  esac
-done
+[[ -n "${NODES+x}" ]] || die "NODES ontbreekt in gedeelde config."
+[[ "${#NODES[@]}" -gt 0 ]] || die "NODES is leeg in gedeelde config."
 
-# Maak paden absoluut t.o.v. de config-locatie
+# Maak paden absoluut t.o.v. de gedeelde config-locatie
 CONFIG_DIR="$( cd -- "$( dirname -- "${CONFIG_FILE}" )" &> /dev/null && pwd )"
 resolve_path() {
   local p="$1"
@@ -76,6 +73,7 @@ resolve_path() {
 SSH_KEY_FILE="$(resolve_path "${SSH_KEY_FILE}")"
 BUILD_DIR="$(resolve_path "${BUILD_DIR}")"
 CACHE_DIR="$(resolve_path "${CACHE_DIR}")"
+NODE_CONFIG_DIR="$(resolve_path "${NODE_CONFIG_DIR}")"
 
 require_cmd curl
 require_cmd sha256sum
@@ -88,6 +86,12 @@ Genereer er een met: ssh-keygen -t ed25519 -a 100 -f \"${SSH_KEY_FILE%.pub}\""
 
 SSH_KEY_CONTENT="$(tr -d '\n\r' < "${SSH_KEY_FILE}")"
 
+# Valideer dat elke node een node.conf heeft
+for node in "${NODES[@]}"; do
+  nc="${NODE_CONFIG_DIR}/${node}/node.conf"
+  [[ -f "${nc}" ]] || die "Node config ontbreekt: ${nc}"
+done
+
 # ------------------------------------------------------------
 # Build directory structuur
 # ------------------------------------------------------------
@@ -97,6 +101,7 @@ rm -rf "${BUILD_DIR}"
 mkdir -p \
   "${BUILD_DIR}/flatcar" \
   "${BUILD_DIR}/docker-images" \
+  "${BUILD_DIR}/nodes" \
   "${BUILD_DIR}/scripts" \
   "${BUILD_DIR}/updates" \
   "${BUILD_DIR}/checksums"
@@ -104,16 +109,13 @@ mkdir -p \
 mkdir -p "${CACHE_DIR}"
 
 # ------------------------------------------------------------
-# Flatcar artifacts downloaden (gecached)
+# Flatcar artifacts ophalen (gedeeld, gecached)
 # ------------------------------------------------------------
 
 FLATCAR_IMAGE="flatcar_production_image.bin.bz2"
 FLATCAR_INSTALLER="flatcar-install"
 FLATCAR_UPDATE_PAYLOAD="flatcar_production_update.gz"
 
-# Als de config "current" zegt: resolve naar de feitelijke versie via
-# version.txt. Dit voorkomt dat de update-payload op 'current/' ontbreekt en
-# zorgt dat alle URLs naar dezelfde concrete versie wijzen.
 if [[ "${FLATCAR_VERSION}" == "current" ]]; then
   log "Laatste ${FLATCAR_CHANNEL} versie opzoeken voor ${FLATCAR_ARCH}"
   VERSION_URL="https://${FLATCAR_CHANNEL}.release.flatcar-linux.net/${FLATCAR_ARCH}/current/version.txt"
@@ -125,7 +127,6 @@ fi
 
 BASE_URL="https://${FLATCAR_CHANNEL}.release.flatcar-linux.net/${FLATCAR_ARCH}/${FLATCAR_VERSION}"
 
-# Cache per versie, zodat een nieuwe release oude cache niet hergebruikt.
 VERSION_CACHE_DIR="${CACHE_DIR}/${FLATCAR_ARCH}/${FLATCAR_VERSION}"
 mkdir -p "${VERSION_CACHE_DIR}"
 
@@ -150,7 +151,6 @@ download_cached "${BASE_URL}/${FLATCAR_IMAGE}"          "${VERSION_CACHE_DIR}/${
 download_cached "https://raw.githubusercontent.com/flatcar/init/flatcar-master/bin/flatcar-install" \
                 "${CACHE_DIR}/${FLATCAR_INSTALLER}"
 
-# OS update payload: probeer release-server, val terug op update-server.
 UPDATE_URLS=(
   "${BASE_URL}/${FLATCAR_UPDATE_PAYLOAD}"
   "https://update.release.flatcar-linux.net/${FLATCAR_ARCH}/${FLATCAR_VERSION}/${FLATCAR_UPDATE_PAYLOAD}"
@@ -175,7 +175,7 @@ cp "${VERSION_CACHE_DIR}/${FLATCAR_UPDATE_PAYLOAD}" "${BUILD_DIR}/updates/${FLAT
 chmod +x "${BUILD_DIR}/flatcar/${FLATCAR_INSTALLER}"
 
 # ------------------------------------------------------------
-# Docker images bouwen en pullen
+# Helpers voor butane / units / netwerk
 # ------------------------------------------------------------
 
 tar_name_for() {
@@ -183,43 +183,6 @@ tar_name_for() {
   printf '%s.tar' "${1//[:\/]/_}"
 }
 
-if [[ "${#DOCKER_BUILD_IMAGES[@]}" -gt 0 ]]; then
-  log "Docker images bouwen"
-  for entry in "${DOCKER_BUILD_IMAGES[@]}"; do
-    image="${entry%%|*}"
-    ctx_rel="${entry#*|}"
-    ctx="$(resolve_path "${ctx_rel}")"
-    [[ -d "${ctx}" ]] || die "Build context bestaat niet: ${ctx}"
-    log "  build ${image} <= ${ctx}"
-    docker build -t "${image}" "${ctx}"
-    out="${BUILD_DIR}/docker-images/$(tar_name_for "${image}")"
-    log "  save  ${image} => ${out}"
-    docker save "${image}" -o "${out}"
-  done
-fi
-
-if [[ "${#DOCKER_PULL_IMAGES[@]}" -gt 0 ]]; then
-  log "Docker images pullen"
-  for image in "${DOCKER_PULL_IMAGES[@]}"; do
-    log "  pull  ${image}"
-    docker pull "${image}"
-    out="${BUILD_DIR}/docker-images/$(tar_name_for "${image}")"
-    log "  save  ${image} => ${out}"
-    docker save "${image}" -o "${out}"
-  done
-fi
-
-# ------------------------------------------------------------
-# Butane config genereren
-# ------------------------------------------------------------
-
-BUTANE_FILE="${BUILD_DIR}/flatcar/config.bu"
-IGNITION_FILE="${BUILD_DIR}/flatcar/config.ign"
-
-log "Butane config genereren: ${BUTANE_FILE}"
-
-# Eén bron van waarheid voor de inhoud van een service unit, zodat butane en
-# update-app.sh niet uit elkaar lopen.
 emit_service_unit_body() {
   local name="$1" image="$2" args="$3"
   cat <<EOF
@@ -240,7 +203,6 @@ WantedBy=multi-user.target
 EOF
 }
 
-# Bouwt de inhoud van één systemd-networkd .network file voor een interface.
 emit_network_file_body() {
   local iface_entry="$1"
   local name mode address gateway dns_list
@@ -262,11 +224,138 @@ emit_network_file_body() {
         [[ -n "${d}" ]] && printf 'DNS=%s\n' "${d}"
       done
       ;;
+    *)
+      die "Onbekende network mode '${mode}' in interface '${iface_entry}'. Gebruik 'dhcp' of 'static'."
+      ;;
   esac
 }
 
-{
-  cat <<EOF
+# Laadt een node.conf in de huidige shell met defaults en validatie.
+# Reset alle per-node arrays vooraf zodat er niets lekt tussen nodes.
+load_node_config() {
+  local node="$1"
+  HOSTNAME="${node}"
+  INSTALL_DEVICE=""
+  NETWORK_INTERFACES=()
+  DOCKER_BUILD_IMAGES=()
+  DOCKER_PULL_IMAGES=()
+  SERVICES=()
+  # shellcheck source=/dev/null
+  source "${NODE_CONFIG_DIR}/${node}/node.conf"
+  : "${INSTALL_DEVICE:?INSTALL_DEVICE ontbreekt in nodes/${node}/node.conf}"
+  [[ "${#NETWORK_INTERFACES[@]}" -gt 0 ]] \
+    || die "NETWORK_INTERFACES leeg voor node ${node}."
+  for iface_entry in "${NETWORK_INTERFACES[@]}"; do
+    mode="$(printf '%s' "${iface_entry}" | awk -F'|' '{print $2}' | tr -d ' ')"
+    case "${mode}" in
+      dhcp|static) ;;
+      *) die "Onbekende network mode '${mode}' in node '${node}' (interface '${iface_entry}')." ;;
+    esac
+  done
+}
+
+# ------------------------------------------------------------
+# Fase 1: per node de image-referenties verzamelen
+# ------------------------------------------------------------
+
+mkdir -p "${CACHE_DIR}/manifests"
+
+log "Image-referenties verzamelen per node"
+for node in "${NODES[@]}"; do
+  (
+    load_node_config "${node}"
+    if [[ "${#DOCKER_BUILD_IMAGES[@]}" -gt 0 ]]; then
+      for entry in "${DOCKER_BUILD_IMAGES[@]}"; do
+        printf 'BUILD\t%s\n' "${entry}"
+      done
+    fi
+    if [[ "${#DOCKER_PULL_IMAGES[@]}" -gt 0 ]]; then
+      for entry in "${DOCKER_PULL_IMAGES[@]}"; do
+        printf 'PULL\t%s\n' "${entry}"
+      done
+    fi
+  ) > "${CACHE_DIR}/manifests/${node}.images"
+done
+
+# Dedupliceer over alle nodes heen
+declare -A SEEN_BUILD_CTX
+GLOBAL_BUILD_ENTRIES=()
+declare -A SEEN_PULL
+GLOBAL_PULL_ENTRIES=()
+
+for node in "${NODES[@]}"; do
+  while IFS=$'\t' read -r kind entry; do
+    [[ -n "${kind:-}" ]] || continue
+    case "${kind}" in
+      BUILD)
+        image="${entry%%|*}"
+        ctx_rel="${entry#*|}"
+        ctx_abs="$(resolve_path "${ctx_rel}")"
+        if [[ -n "${SEEN_BUILD_CTX[${image}]+x}" ]]; then
+          if [[ "${SEEN_BUILD_CTX[${image}]}" != "${ctx_abs}" ]]; then
+            die "Image ${image} wordt door meerdere nodes gebouwd vanuit verschillende contexten:
+  ${SEEN_BUILD_CTX[${image}]}
+  ${ctx_abs}"
+          fi
+        else
+          SEEN_BUILD_CTX[${image}]="${ctx_abs}"
+          GLOBAL_BUILD_ENTRIES+=( "${image}|${ctx_abs}" )
+        fi
+        ;;
+      PULL)
+        image="${entry}"
+        if [[ -z "${SEEN_PULL[${image}]+x}" ]]; then
+          SEEN_PULL[${image}]=1
+          GLOBAL_PULL_ENTRIES+=( "${image}" )
+        fi
+        ;;
+    esac
+  done < "${CACHE_DIR}/manifests/${node}.images"
+done
+
+# ------------------------------------------------------------
+# Fase 2: unieke docker images bouwen en pullen (gedeelde pool)
+# ------------------------------------------------------------
+
+if [[ "${#GLOBAL_BUILD_ENTRIES[@]}" -gt 0 ]]; then
+  log "Docker images bouwen (gedeelde pool, ${#GLOBAL_BUILD_ENTRIES[@]} unieke)"
+  for entry in "${GLOBAL_BUILD_ENTRIES[@]}"; do
+    image="${entry%%|*}"
+    ctx="${entry#*|}"
+    [[ -d "${ctx}" ]] || die "Build context bestaat niet: ${ctx}"
+    log "  build ${image} <= ${ctx}"
+    docker build -t "${image}" "${ctx}"
+    out="${BUILD_DIR}/docker-images/$(tar_name_for "${image}")"
+    log "  save  ${image} => ${out}"
+    docker save "${image}" -o "${out}"
+  done
+else
+  log "Geen images om te bouwen."
+fi
+
+if [[ "${#GLOBAL_PULL_ENTRIES[@]}" -gt 0 ]]; then
+  log "Docker images pullen (gedeelde pool, ${#GLOBAL_PULL_ENTRIES[@]} unieke)"
+  for image in "${GLOBAL_PULL_ENTRIES[@]}"; do
+    log "  pull  ${image}"
+    docker pull "${image}"
+    out="${BUILD_DIR}/docker-images/$(tar_name_for "${image}")"
+    log "  save  ${image} => ${out}"
+    docker save "${image}" -o "${out}"
+  done
+else
+  log "Geen images om te pullen."
+fi
+
+# ------------------------------------------------------------
+# Fase 3: per node butane + ignition + manifest + update-fragment
+# ------------------------------------------------------------
+
+generate_butane_for_node() {
+  local node="$1"
+  local out_bu="$2"
+  load_node_config "${node}"
+  {
+    cat <<EOF
 variant: flatcar
 version: 1.0.0
 
@@ -292,17 +381,16 @@ storage:
           SERVER=
 EOF
 
-  # Eén .network file per geconfigureerde interface
-  idx=10
-  for iface_entry in "${NETWORK_INTERFACES[@]}"; do
-    iface_name="$(printf '%s' "${iface_entry}" | awk -F'|' '{print $1}' | tr -d ' ')"
-    printf '\n    - path: /etc/systemd/network/%d-%s.network\n      mode: 0644\n      contents:\n        inline: |\n' \
-      "${idx}" "${iface_name}"
-    emit_network_file_body "${iface_entry}" | sed 's/^/          /'
-    idx=$((idx + 1))
-  done
+    local idx=10
+    for iface_entry in "${NETWORK_INTERFACES[@]}"; do
+      iface_name="$(printf '%s' "${iface_entry}" | awk -F'|' '{print $1}' | tr -d ' ')"
+      printf '\n    - path: /etc/systemd/network/%d-%s.network\n      mode: 0644\n      contents:\n        inline: |\n' \
+        "${idx}" "${iface_name}"
+      emit_network_file_body "${iface_entry}" | sed 's/^/          /'
+      idx=$((idx + 1))
+    done
 
-  cat <<EOF
+    cat <<EOF
 
   directories:
     - path: /opt/images
@@ -335,129 +423,239 @@ systemd:
         WantedBy=multi-user.target
 EOF
 
-  for svc in "${SERVICES[@]}"; do
-    name="$(printf '%s' "${svc}" | awk -F'|' '{print $1}')"
-    image="$(printf '%s' "${svc}" | awk -F'|' '{print $2}')"
-    args="$(printf '%s' "${svc}" | awk -F'|' '{print $3}')"
-    printf '\n    - name: %s.service\n      enabled: true\n      contents: |\n' "${name}"
-    emit_service_unit_body "${name}" "${image}" "${args}" | sed 's/^/        /'
-  done
-} > "${BUTANE_FILE}"
+    if [[ "${#SERVICES[@]}" -gt 0 ]]; then
+      for svc in "${SERVICES[@]}"; do
+        name="$(printf '%s' "${svc}" | awk -F'|' '{print $1}')"
+        image="$(printf '%s' "${svc}" | awk -F'|' '{print $2}')"
+        args="$(printf '%s' "${svc}" | awk -F'|' '{print $3}')"
+        printf '\n    - name: %s.service\n      enabled: true\n      contents: |\n' "${name}"
+        emit_service_unit_body "${name}" "${image}" "${args}" | sed 's/^/        /'
+      done
+    fi
+  } > "${out_bu}"
+}
+
+generate_images_list_for_node() {
+  local node="$1"
+  local out="$2"
+  (
+    load_node_config "${node}"
+    if [[ "${#DOCKER_BUILD_IMAGES[@]}" -gt 0 ]]; then
+      for entry in "${DOCKER_BUILD_IMAGES[@]}"; do
+        tar_name_for "${entry%%|*}"
+      done
+    fi
+    if [[ "${#DOCKER_PULL_IMAGES[@]}" -gt 0 ]]; then
+      for image in "${DOCKER_PULL_IMAGES[@]}"; do
+        tar_name_for "${image}"
+      done
+    fi
+  ) > "${out}"
+}
+
+generate_node_update_fragment() {
+  local node="$1"
+  local out="$2"
+  (
+    load_node_config "${node}"
+    cat <<NHEADER
+#!/usr/bin/env bash
+# Per-node app-update fragment voor: ${HOSTNAME}
+# Wordt aangeroepen door scripts/update-app.sh.
+set -euo pipefail
+
+NHEADER
+
+    if [[ "${#SERVICES[@]}" -eq 0 ]]; then
+      printf 'echo "[+] Node %s heeft geen services geconfigureerd."\n' "${HOSTNAME}"
+    else
+      for svc in "${SERVICES[@]}"; do
+        name="$(printf '%s' "${svc}" | awk -F'|' '{print $1}')"
+        image="$(printf '%s' "${svc}" | awk -F'|' '{print $2}')"
+        args="$(printf '%s' "${svc}" | awk -F'|' '{print $3}')"
+        term="UNIT_$(printf '%s' "${name}" | tr -c 'A-Za-z0-9_' '_')"
+        printf 'echo "[+] schrijf /etc/systemd/system/%s.service"\n' "${name}"
+        printf 'sudo tee /etc/systemd/system/%s.service > /dev/null <<'"'"'%s'"'"'\n' "${name}" "${term}"
+        emit_service_unit_body "${name}" "${image}" "${args}"
+        printf '%s\n\n' "${term}"
+      done
+      printf 'echo "[+] daemon-reload"\nsudo systemctl daemon-reload\n\n'
+      for svc in "${SERVICES[@]}"; do
+        name="$(printf '%s' "${svc}" | awk -F'|' '{print $1}')"
+        printf 'echo "[+] restart %s.service"\nsudo systemctl enable --now %s.service\nsudo systemctl restart %s.service\n' \
+          "${name}" "${name}" "${name}"
+      done
+    fi
+  ) > "${out}"
+  chmod +x "${out}"
+}
+
+log "Per-node butane + ignition + manifests genereren"
+for node in "${NODES[@]}"; do
+  node_build_dir="${BUILD_DIR}/nodes/${node}"
+  mkdir -p "${node_build_dir}"
+
+  butane_file="${node_build_dir}/config.bu"
+  ignition_file="${node_build_dir}/config.ign"
+  images_list="${node_build_dir}/images.list"
+  node_update_sh="${node_build_dir}/update-services.sh"
+  node_env="${node_build_dir}/node.env"
+
+  log "  ${node}"
+  generate_butane_for_node "${node}" "${butane_file}"
+  generate_images_list_for_node "${node}" "${images_list}"
+  generate_node_update_fragment "${node}" "${node_update_sh}"
+
+  # node.env voor install-flatcar.sh
+  (
+    load_node_config "${node}"
+    cat > "${node_env}" <<NENV
+HOSTNAME="${HOSTNAME}"
+INSTALL_DEVICE="${INSTALL_DEVICE}"
+NENV
+  )
+
+  log "    ignition genereren"
+  docker run --rm -i \
+    -v "${node_build_dir}:/work" \
+    -w /work \
+    quay.io/coreos/butane:release \
+    --pretty --strict config.bu --output config.ign
+
+  [[ -s "${ignition_file}" ]] || die "Ignition genereren is mislukt voor ${node}: ${ignition_file} is leeg."
+done
 
 # ------------------------------------------------------------
-# Ignition genereren via butane (in container, geen lokale install nodig)
+# Gedeelde scripts (zelfde voor alle nodes)
 # ------------------------------------------------------------
 
-log "Ignition genereren: ${IGNITION_FILE}"
-docker run --rm -i \
-  -v "${BUILD_DIR}/flatcar:/work" \
-  -w /work \
-  quay.io/coreos/butane:release \
-  --pretty --strict config.bu --output config.ign
-
-[[ -s "${IGNITION_FILE}" ]] || die "Ignition genereren is mislukt: ${IGNITION_FILE} is leeg."
-
-# ------------------------------------------------------------
-# Scripts kopiëren / genereren
-# ------------------------------------------------------------
-
-log "Scripts genereren in ${BUILD_DIR}/scripts"
+log "Gedeelde scripts genereren in ${BUILD_DIR}/scripts"
 
 cat > "${BUILD_DIR}/scripts/install-flatcar.sh" <<EOF
 #!/usr/bin/env bash
-# Installeert Flatcar op de bare-metal machine.
-# Draai dit script vanaf de Ubuntu Live USB.
+# Bare-metal installatie van Flatcar voor een specifieke node.
+#
+# Gebruik vanaf de Ubuntu Live USB:
+#   sudo bash install-flatcar.sh <node-naam> [device]
+#
+# Voorbeeld:
+#   sudo bash install-flatcar.sh agent
+#   sudo bash install-flatcar.sh proxy-stpa-tx /dev/sda
 set -euo pipefail
 
-USB_DIR="\$( cd -- "\$( dirname -- "\${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
+BUNDLE_DIR="\$( cd -- "\$( dirname -- "\${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
 
-DEVICE="\${1:-${INSTALL_DEVICE}}"
+NODE="\${1:-}"
+if [[ -z "\${NODE}" ]]; then
+  echo "Gebruik: sudo bash install-flatcar.sh <node-naam> [device]" >&2
+  echo "Beschikbare nodes:" >&2
+  ls -1 "\${BUNDLE_DIR}/nodes" | sed 's/^/  /' >&2
+  exit 1
+fi
 
-echo "[+] Flatcar installeren op \${DEVICE}"
-sudo bash "\${USB_DIR}/flatcar/${FLATCAR_INSTALLER}" \\
+NODE_DIR="\${BUNDLE_DIR}/nodes/\${NODE}"
+if [[ ! -d "\${NODE_DIR}" ]]; then
+  echo "Onbekende node: \${NODE}" >&2
+  echo "Beschikbare nodes:" >&2
+  ls -1 "\${BUNDLE_DIR}/nodes" | sed 's/^/  /' >&2
+  exit 1
+fi
+
+# shellcheck source=/dev/null
+source "\${NODE_DIR}/node.env"
+
+DEVICE="\${2:-\${INSTALL_DEVICE}}"
+
+echo "[+] Flatcar installeren op \${DEVICE} voor node \${HOSTNAME}"
+sudo bash "\${BUNDLE_DIR}/flatcar/${FLATCAR_INSTALLER}" \\
   -d "\${DEVICE}" \\
-  -f "\${USB_DIR}/flatcar/${FLATCAR_IMAGE}" \\
-  -i "\${USB_DIR}/flatcar/config.ign"
+  -f "\${BUNDLE_DIR}/flatcar/${FLATCAR_IMAGE}" \\
+  -i "\${NODE_DIR}/config.ign"
 
-echo "[+] Docker images kopieren naar /opt/images"
+echo "[+] Docker images voor \${HOSTNAME} kopieren naar /opt/images"
 sudo mkdir -p /mnt/newroot
 sudo mount "\${DEVICE}9" /mnt/newroot 2>/dev/null || sudo mount "\${DEVICE}p9" /mnt/newroot
 sudo mkdir -p /mnt/newroot/opt/images
-sudo cp "\${USB_DIR}/docker-images/"*.tar /mnt/newroot/opt/images/
+if [[ -s "\${NODE_DIR}/images.list" ]]; then
+  while IFS= read -r tarname; do
+    [[ -n "\${tarname}" ]] || continue
+    src="\${BUNDLE_DIR}/docker-images/\${tarname}"
+    if [[ ! -f "\${src}" ]]; then
+      echo "  WARN: ontbrekende image-tar \${tarname}" >&2
+      continue
+    fi
+    echo "  copy \${tarname}"
+    sudo cp "\${src}" /mnt/newroot/opt/images/
+  done < "\${NODE_DIR}/images.list"
+fi
 sudo umount /mnt/newroot
 
 echo "[+] Klaar. Reboot de machine."
 EOF
 
-# --- update-app.sh: alleen docker images + service units, geen OS update ---
-{
-  cat <<'HEADER'
+cat > "${BUILD_DIR}/scripts/update-app.sh" <<EOF
 #!/usr/bin/env bash
-# Update alleen de applicatie laag op een draaiende Flatcar machine:
-#   - laadt nieuwe docker images uit ./docker-images/*.tar
-#   - overschrijft de bijbehorende /etc/systemd/system/<svc>.service units
-#   - daemon-reload + restart per service
-# Raakt de OS partities (USR-A/USR-B) NIET aan. Geen reboot nodig.
+# App-update op een draaiende Flatcar node.
+#
+# Bepaalt de node-naam automatisch via /etc/hostname.
+# Override met:
+#   sudo bash update-app.sh <node-naam>
+#
+# Raakt OS partities (USR-A/USR-B) NIET aan. Geen reboot nodig.
 set -euo pipefail
 
-USB_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
+BUNDLE_DIR="\$( cd -- "\$( dirname -- "\${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
 
-echo "[+] Nieuwe images kopieren naar /opt/images en laden"
+NODE="\${1:-}"
+if [[ -z "\${NODE}" ]]; then
+  NODE="\$(cat /etc/hostname | tr -d ' \\r\\n')"
+fi
+
+NODE_DIR="\${BUNDLE_DIR}/nodes/\${NODE}"
+if [[ ! -d "\${NODE_DIR}" ]]; then
+  echo "Onbekende node: \${NODE}" >&2
+  echo "Beschikbare nodes:" >&2
+  ls -1 "\${BUNDLE_DIR}/nodes" | sed 's/^/  /' >&2
+  exit 1
+fi
+
+echo "[+] App-update voor node \${NODE}"
+
 sudo mkdir -p /opt/images
-sudo cp "${USB_DIR}/docker-images/"*.tar /opt/images/
-for f in "${USB_DIR}/docker-images/"*.tar; do
-  echo "  load $(basename "${f}")"
-  sudo docker load -i "${f}"
-done
+if [[ -s "\${NODE_DIR}/images.list" ]]; then
+  while IFS= read -r tarname; do
+    [[ -n "\${tarname}" ]] || continue
+    src="\${BUNDLE_DIR}/docker-images/\${tarname}"
+    if [[ ! -f "\${src}" ]]; then
+      echo "  ontbrekende image-tar: \${src}" >&2
+      exit 1
+    fi
+    echo "  copy \${tarname}"
+    sudo cp "\${src}" /opt/images/
+    echo "  load \${tarname}"
+    sudo docker load -i "/opt/images/\${tarname}"
+  done < "\${NODE_DIR}/images.list"
+else
+  echo "  geen images geconfigureerd voor node \${NODE}"
+fi
 
-write_unit() {
-  local name="$1"
-  local path="/etc/systemd/system/${name}.service"
-  echo "[+] schrijf ${path}"
-  sudo tee "${path}" > /dev/null
-}
+bash "\${NODE_DIR}/update-services.sh"
 
-HEADER
+echo "[+] App-update klaar voor node \${NODE}."
+EOF
 
-  for svc in "${SERVICES[@]}"; do
-    name="$(printf '%s' "${svc}" | awk -F'|' '{print $1}')"
-    image="$(printf '%s' "${svc}" | awk -F'|' '{print $2}')"
-    args="$(printf '%s' "${svc}" | awk -F'|' '{print $3}')"
-    term="UNIT_$(printf '%s' "${name}" | tr -c 'A-Za-z0-9_' '_')"
-    printf 'write_unit %q <<'"'"'%s'"'"'\n' "${name}" "${term}"
-    emit_service_unit_body "${name}" "${image}" "${args}"
-    printf '%s\n\n' "${term}"
-  done
-
-  cat <<'FOOTER'
-echo "[+] daemon-reload"
-sudo systemctl daemon-reload
-
-FOOTER
-
-  for svc in "${SERVICES[@]}"; do
-    name="$(printf '%s' "${svc}" | awk -F'|' '{print $1}')"
-    printf 'echo "[+] restart %s.service"\nsudo systemctl enable --now %s.service\nsudo systemctl restart %s.service\n' \
-      "${name}" "${name}" "${name}"
-  done
-
-  printf '\necho "[+] App update klaar."\n'
-} > "${BUILD_DIR}/scripts/update-app.sh"
-
-# --- update-os.sh: alleen Flatcar OS update naar inactieve partitie ---
 cat > "${BUILD_DIR}/scripts/update-os.sh" <<EOF
 #!/usr/bin/env bash
-# Schrijft de meegeleverde Flatcar update payload naar de inactieve USR
-# partitie en markeert die als next boot target. Raakt docker images en
-# service units NIET aan.
+# Flatcar OS update naar de inactieve USR partitie.
+# Identiek voor alle nodes (gedeelde OS image).
 #
 # Na succes: handmatig 'sudo reboot' om de nieuwe partitie te activeren.
 # Bij boot- of health-check failure rolt update_engine automatisch terug.
 set -euo pipefail
 
-USB_DIR="\$( cd -- "\$( dirname -- "\${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
+BUNDLE_DIR="\$( cd -- "\$( dirname -- "\${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )"
 
-PAYLOAD="\${USB_DIR}/updates/${FLATCAR_UPDATE_PAYLOAD}"
+PAYLOAD="\${BUNDLE_DIR}/updates/${FLATCAR_UPDATE_PAYLOAD}"
 VERSION="${FLATCAR_VERSION}"
 
 if [[ ! -f "\${PAYLOAD}" ]]; then
@@ -477,6 +675,7 @@ cat > "${BUILD_DIR}/scripts/import-images.sh" <<'EOF'
 # Laadt alle .tar docker images vanuit /opt/images in de lokale docker daemon.
 set -euo pipefail
 for f in /opt/images/*.tar; do
+  [[ -f "${f}" ]] || continue
   echo "[+] docker load ${f}"
   docker load -i "${f}"
 done
@@ -484,7 +683,7 @@ EOF
 
 cat > "${BUILD_DIR}/scripts/health-check.sh" <<'EOF'
 #!/usr/bin/env bash
-# Eenvoudige health check. Pas aan naar de geleverde services.
+# Eenvoudige health-check voor de huidige node.
 set -e
 EXIT=0
 for svc in $(systemctl list-units --type=service --state=running \
@@ -503,7 +702,7 @@ chmod +x "${BUILD_DIR}/scripts/"*.sh
 log "SHA256 checksums genereren"
 (
   cd "${BUILD_DIR}"
-  find flatcar docker-images updates -type f -print0 2>/dev/null \
+  find flatcar docker-images updates nodes -type f -print0 2>/dev/null \
     | xargs -0 sha256sum > checksums/sha256sum.txt
 )
 
@@ -512,42 +711,42 @@ log "SHA256 checksums genereren"
 # ------------------------------------------------------------
 
 cat > "${BUILD_DIR}/README.txt" <<EOF
-Flatcar deployment bundle
-=========================
+Flatcar deployment bundle (multi-node)
+======================================
 
 Gegenereerd door create-flatcar-files.sh op $(date -u +'%Y-%m-%dT%H:%M:%SZ')
-Hostname:        ${HOSTNAME}
-Install device:  ${INSTALL_DEVICE}
 Flatcar channel: ${FLATCAR_CHANNEL}
 Flatcar versie:  ${FLATCAR_VERSION}
 Architectuur:    ${FLATCAR_ARCH}
 
+Nodes in deze bundle:
+$(for n in "${NODES[@]}"; do printf '  - %s\n' "${n}"; done)
+
 Structuur:
-  flatcar/        Flatcar image, installer, butane + ignition config
-  docker-images/  Vooraf gebouwde/gepullde docker images als .tar
+  flatcar/        Gedeeld: Flatcar image + installer
+  docker-images/  Gedeelde pool van alle gebouwde/gepullde image-tars
+  nodes/<naam>/   Per-node: config.bu, config.ign, images.list,
+                  update-services.sh, node.env
+  updates/        Gedeelde OS update payload
   scripts/        install-flatcar.sh, update-app.sh, update-os.sh,
                   import-images.sh, health-check.sh
-  updates/        Flatcar OTA update payload
-  checksums/      SHA256 hashes van alle artifacts
+  checksums/      SHA256 over alle artifacts
 
-Eerste installatie:
-  1. Kopieer deze hele directory naar een USB stick
-  2. Boot de bare-metal machine vanaf een Ubuntu Live USB
-  3. Mount de stick: sudo mount /dev/sdX1 /mnt/usb
-  4. Draai: sudo bash /mnt/usb/scripts/install-flatcar.sh
-  5. Reboot
+Eerste installatie (Ubuntu Live):
+  sudo bash /mnt/usb/scripts/install-flatcar.sh <node-naam> [device]
 
-App update (alleen docker images / services, geen OS reboot):
-  1. scp -r build/ core@host:/tmp/bundle
-  2. ssh core@host
-  3. sudo bash /tmp/bundle/scripts/update-app.sh
+App-update (op draaiende node, auto-detect via /etc/hostname):
+  scp -r build/ core@<host>:/tmp/bundle
+  ssh core@<host>
+  sudo bash /tmp/bundle/scripts/update-app.sh
 
-OS update (Flatcar zelf naar nieuwe versie, A/B partitie):
-  1. scp -r build/ core@host:/tmp/bundle
-  2. ssh core@host
-  3. sudo bash /tmp/bundle/scripts/update-os.sh
-  4. sudo reboot   (rollt automatisch terug bij boot/health failure)
+OS-update (zelfde bundle voor alle nodes):
+  scp -r build/ core@<host>:/tmp/bundle
+  ssh core@<host>
+  sudo bash /tmp/bundle/scripts/update-os.sh
+  sudo reboot
 EOF
 
 log "Klaar."
 log "Build output: ${BUILD_DIR}"
+log "Nodes: ${NODES[*]}"
