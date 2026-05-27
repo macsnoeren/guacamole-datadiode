@@ -14,12 +14,6 @@ struct GuacElement {
     const char *ptr;
 };
 
-// struct GuacInstruction {
-//     GuacElement opcode;
-//     uint32_t argc;
-//     GuacElement argv[MAX_INSTRUCTION_ARGS];
-// };
-
 class GuacParser {
   public:
     GuacParser() = default;
@@ -27,10 +21,6 @@ class GuacParser {
     ParserState GetState() { return state; };
     ParserState Parse(const char *data, size_t len);
     void Reset();
-
-    // bool ParseOne(size_t &offset);
-    //
-    // bool IsOpcodeAllowed(const GuacElement &opcode);
 
   protected:
     virtual bool OnInstructionBegin(const GuacElement &instr);
