@@ -2,7 +2,7 @@ services:
   gcdbroker:
     build:
       context: ../../
-      dockerfile: docker/gcdbroker/Dockerfile
+      dockerfile: docker/htx_proxy/Dockerfile
     stop_grace_period: 1s
     container_name: gcdbroker
     restart: unless-stopped
