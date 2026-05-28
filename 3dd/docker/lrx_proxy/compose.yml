@@ -1,0 +1,15 @@
+services:
+  lrx_proxy:
+    build:
+      context: ../../
+      dockerfile: docker/lrx_proxy/Dockerfile
+    stop_grace_period: 1s
+    container_name: lrx_proxy
+    restart: unless-stopped
+    network_mode: "host"
+    command:
+      [
+        "./build/lrx_proxy",
+        "5502",
+        "10.0.1.2", "5503"
+      ]
