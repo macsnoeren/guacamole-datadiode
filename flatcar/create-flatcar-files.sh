@@ -442,13 +442,14 @@ systemd:
       contents: |
         [Unit]
         Description=Import Offline Docker Images
-        After=docker.service
+        After=docker.service docker.socket
         Requires=docker.service
         ConditionDirectoryNotEmpty=/opt/images
 
         [Service]
         Type=oneshot
         RemainAfterExit=yes
+        ExecStartPre=/bin/sh -c 'until /usr/bin/docker info >/dev/null 2>&1; do echo "wachten op docker daemon..."; sleep 1; done'
         ExecStart=/bin/sh -c 'for f in /opt/images/*.tar; do /usr/bin/docker load -i "\$f"; done'
 
         [Install]
@@ -475,11 +476,13 @@ generate_images_list_for_node() {
     if [[ "${#DOCKER_BUILD_IMAGES[@]}" -gt 0 ]]; then
       for entry in "${DOCKER_BUILD_IMAGES[@]}"; do
         tar_name_for "${entry%%|*}"
+        echo
       done
     fi
     if [[ "${#DOCKER_PULL_IMAGES[@]}" -gt 0 ]]; then
       for image in "${DOCKER_PULL_IMAGES[@]}"; do
         tar_name_for "${image}"
+        echo
       done
     fi
   ) > "${out}"
