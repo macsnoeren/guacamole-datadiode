@@ -54,7 +54,25 @@ def heartbeat_sender(forward_host, forward_port, interval, write):
 def udp_listener(bind_host, bind_port, forward_host, forward_port, write):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind((bind_host, bind_port))
+    # Allow binding even when the address is not (yet) present on a local
+    # interface. Common when the container starts before systemd-networkd has
+    # assigned the IP, or while the carrier on the configured interface is
+    # still DOWN. IP_FREEBIND is Linux-only and may require CAP_NET_ADMIN.
+    try:
+        sock.setsockopt(socket.IPPROTO_IP, socket.IP_FREEBIND, 1)
+    except (AttributeError, OSError):
+        pass
+    # Retry the bind itself as well: if IP_FREEBIND is not available, the
+    # address may genuinely appear a few seconds later when networking comes up.
+    for attempt in range(1, 31):
+        try:
+            sock.bind((bind_host, bind_port))
+            break
+        except OSError as e:
+            if attempt == 30:
+                raise
+            write(f"{now_iso()}\t[proxy]\tbind {bind_host}:{bind_port} failed ({e}), retry {attempt}/30 in 2s")
+            time.sleep(2)
 
     fwd_sock = None
     if forward_host:
