@@ -1,15 +1,16 @@
 services:
-  ltx_proxy:
+  gmlbroker:
     build:
       context: ../../
-      dockerfile: docker/ltx_proxy/Dockerfile
+      dockerfile: docker/gmlbroker/Dockerfile
     stop_grace_period: 1s
-    container_name: ltx_proxy
+    container_name: gmlbroker
     restart: unless-stopped
     network_mode: "host"
     command:
       [
-        "./build/ltx_proxy",
-        "5502",
-        "10.0.1.2", "5503"
+        "./build/gmlbroker",
+        "0.0.0.0", "4822",
+        "0.0.0.0", "5501",
+        "10.0.0.2", "5502"
       ]

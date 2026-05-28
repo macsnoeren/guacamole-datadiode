@@ -6,9 +6,9 @@ RUN apt-get update && apt-get install -y build-essential meson ninja-build
 
 COPY apps/shared/include/ apps/shared/include/
 COPY apps/shared/network/ apps/shared/network/
-COPY apps/ltx_proxy/src apps/ltx_proxy/src
+COPY apps/gmlbroker/src apps/gmlbroker/src
 
-WORKDIR /app/apps/ltx_proxy
+WORKDIR /app/apps/gmlbroker
 
 RUN meson setup build src/
 RUN meson compile -C build
