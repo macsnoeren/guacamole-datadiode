@@ -1,0 +1,18 @@
+services:
+  gcdbroker:
+    build:
+      context: ../../
+      dockerfile: docker/gcdbroker/Dockerfile
+    stop_grace_period: 1s
+    container_name: gcdbroker
+    restart: unless-stopped
+    depends_on:
+      - guacd
+    command:
+      [
+        "./build/gcdbroker",
+        "127.0.0.1", "4822",
+        "0.0.0.0", "5505",
+        "10.0.2.2", "5506"
+      ]
+    network_mode: "host"
