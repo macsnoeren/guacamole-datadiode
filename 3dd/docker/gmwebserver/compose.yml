@@ -34,22 +34,6 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
-  gmlbroker:
-    build:
-      context: ../../
-      dockerfile: docker/gmlbroker/Dockerfile
-    stop_grace_period: 1s
-    container_name: gmlbroker
-    restart: unless-stopped
-    network_mode: "host"
-    command:
-      [
-        "./build/gmlbroker",
-        "0.0.0.0", "4822",
-        "0.0.0.0", "5501",
-        "10.0.0.2", "5502"
-      ]
-
 volumes:
   db-data:
 
