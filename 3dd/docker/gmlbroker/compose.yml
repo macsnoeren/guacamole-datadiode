@@ -20,10 +20,10 @@ services:
       - guac_postgres
     environment:
       # DB config
-      POSTGRES_HOSTNAME: guac_postgres
-      POSTGRES_DATABASE: guacamole_db
-      POSTGRES_USER: guacamole_user
-      POSTGRES_PASSWORD: guacamole_pass
+      POSTGRESQL_HOSTNAME: guac_postgres
+      POSTGRESQL_DATABASE: guacamole_db
+      POSTGRESQL_USER: guacamole_user
+      POSTGRESQL_PASSWORD: guacamole_pass
 
       GUACD_HOSTNAME: host.docker.internal
       GUACD_PORT: 4822
