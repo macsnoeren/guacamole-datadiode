@@ -11,6 +11,7 @@ RUN chmod +x /entrypoint.sh
 
 # Web UI / upload endpoint
 EXPOSE 80/tcp
+
 # UDP diode link (sender out / receiver in)
 EXPOSE 40000/udp
 
