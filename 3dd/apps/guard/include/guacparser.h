@@ -1,0 +1,41 @@
+#pragma once
+
+#include <cstddef>
+#include <cstdint>
+
+#define MAX_ELEMENT_SIZE 8192
+#define CLIPBOARD_MAX_BYTES 14
+
+enum class ParserState { READY, PARSING, INVALID, DENIED_OPCODE };
+
+enum class ParserPhase { READING_LENGTH, READING_DATA, EXPECT_DELIM };
+
+struct GuacElement {
+    uint32_t len;
+    const char *ptr;
+};
+
+class GuacParser {
+  public:
+    GuacParser() = default;
+
+    ParserState GetState() { return state; };
+    ParserState Parse(const char *data, size_t len);
+    void Reset();
+
+  protected:
+    virtual bool OnInstructionBegin(const GuacElement &instr);
+    virtual bool OnArgument(const GuacElement &arg) { return true; }
+    virtual bool OnInstructionEnd() { return true; }
+
+    uint32_t next_args_max_length = 0;
+
+  private:
+    ParserState state = ParserState::READY;
+    ParserPhase phase = ParserPhase::READING_LENGTH;
+
+    int current_length = -1;
+    uint32_t current_read = 0;
+    bool reading_opcode = true;
+    char element_buffer[MAX_ELEMENT_SIZE];
+};
