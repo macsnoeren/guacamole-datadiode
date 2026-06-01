@@ -64,7 +64,7 @@ def load_config(path):
 
 
 def main():
-    if len(sys.argv) != 2:
+    if len(sys.argv) < 2:
         print(f"Usage: sudo {sys.argv[0]} <config.yml>")
         sys.exit(1)
 
@@ -73,22 +73,6 @@ def main():
     if not config_path.exists():
         print(f"Config file not found: {config_path}")
         sys.exit(1)
-
-    # iface_out = config["iface-out"]
-    #
-    # cur_system = config[config["current-node"]]
-    # neigh_system = config[config["next-node"]]
-    #
-    # print(f"Configuring node {config["current-node"]} with next node {config["next-node"]}")
-    #
-    # in_iface = cur_system["in"]["iface"]
-    # in_ip = cur_system["in"]["ip"]
-    # interface = cur_system["out"]["iface"]
-    # ip_address = cur_system["out"]["ip"]
-    # neighbor_ip = neigh_system["in"]["ip"]
-    # neighbor_mac = neigh_system["in"]["mac"]
-    #
-    # print(f"=== Configuring interfaces: {in_iface}, {interface} ===")
 
     config = load_config(config_path)
 
@@ -125,7 +109,7 @@ def main():
     run(["ip", "link", "set", out_name, "up"])
 
     # Remove existing IPv4 addresses
-    print("\n[1/3] Removing existing IPv4 addresses...")
+    print("\n[1/2] Removing existing IPv4 addresses...")
     for addr in get_ipv4_addresses(in_name):
         print(f"Removing address: {addr}")
         run(["ip", "addr", "del", addr, "dev", in_name])
@@ -133,24 +117,17 @@ def main():
         print(f"Removing address: {addr}")
         run(["ip", "addr", "del", addr, "dev", out_name])
 
-    # Add new IPv4 address
-    print("\n[2/3] Adding new IPv4 addresses...")
-    for addr in in_addrs:
-        print(f"Adding address: {addr}")
-        run(["ip", "addr", "add", addr + "/24", "dev", in_name])
+    if (len(sys.argv) <= 2 or sys.argv[2] != "--rm"):
+        # Add new IPv4 address
+        print("\n[2/2] Adding new IPv4 addresses...")
+        for addr in in_addrs:
+            print(f"Adding address: {addr}")
+            run(["ip", "addr", "add", addr + "/24", "dev", in_name])
 
-    for addr in out_addrs:
-        print(f"Adding address: {addr}")
-        run(["ip", "addr", "add", addr + "/24", "dev", out_name])
+        for addr in out_addrs:
+            print(f"Adding address: {addr}")
+            run(["ip", "addr", "add", addr + "/24", "dev", out_name])
 
-    # Remove existing neighbors
-    print("\n[3/3] Removing existing neighbor entries...")
-    for neigh in get_neighbors(out_name):
-        print(f"Removing neighbor: {neigh}")
-        run(
-            ["ip", "neigh", "del", neigh, "dev", out_name],
-            check=False,
-        )
 
     # Show final config
     print("\n=== Final Interface Configuration ===")
