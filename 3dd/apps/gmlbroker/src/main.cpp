@@ -22,11 +22,17 @@ const char *udp_send_ip;
 int udp_send_port;
 std::atomic<bool> running = true;
 
+/*
+ * @brief Signals all threads to stop when an interrupt signal is received
+ */
 void interrupt_handler(int signum) {
     std::cout << "Stopping program..." << std::endl;
     running = false;
 }
 
+/*
+ * @brief Checks the network queue and sends any messages using a TCP server
+ */
 void tcp_send_handler(TCPServer &tcp_server, NetQueue &recv_queue) {
     while (running) {
         std::string msg = recv_queue.Dequeue();
@@ -40,6 +46,10 @@ void tcp_send_handler(TCPServer &tcp_server, NetQueue &recv_queue) {
     }
 }
 
+/*
+ * @brief Checks the TCP server socket for data and queues it in the network
+ * queue
+ */
 void tcp_recv_handler(TCPServer &tcp_server, NetQueue &send_queue) {
     char buffer[65535];
 
@@ -63,6 +73,10 @@ void tcp_recv_handler(TCPServer &tcp_server, NetQueue &send_queue) {
     }
 }
 
+/*
+ * @brief Checks the UDP receive socket for data and queues it in the network
+ * queue
+ */
 void udp_recv_handler(UDPReceiver &udp_receiver, NetQueue &recv_queue) {
     char buffer[65535]; // UDP max packet size
 
@@ -77,6 +91,9 @@ void udp_recv_handler(UDPReceiver &udp_receiver, NetQueue &recv_queue) {
     }
 }
 
+/*
+ * @brief Checks the network queue for data and sends it on the UDP send socket
+ */
 void udp_send_handler(UDPSender &udp_sender, NetQueue &send_queue) {
     while (running) {
         std::string msg = send_queue.Dequeue();
@@ -89,13 +106,30 @@ void udp_send_handler(UDPSender &udp_sender, NetQueue &send_queue) {
     }
 }
 
+/*
+ * @brief Starts the Guacamole broker that imitates the guacd program and
+ * bridges Guacamole traffic.
+ *
+ * Starts a TCP server, UDP sender and UDP receiver for managing bridge traffic.
+ * These handlers run on different threads and synchronize messages using a
+ * thread-safe queue.
+ */
 int main(int argc, char *argv[]) {
     if (argc != 7) {
-        std::cerr << "Usage: " << argv[0]
-                  << " <guac_listen_ip> <guac_listen_port> <udp_recv_ip> "
-                     "<udp_recv_port> <udp_send_ip> <udp_send_port>\n"
-                  << "Example: " << argv[0]
-                  << " 127.0.0.1 4822 0.0.0.0 5501 10.0.0.2 5601\n";
+        std::cerr << "Usage: " << argv[0] << "\n"
+                  << "\t<guac_listen_ip>: Guacamole broker's listening IP "
+                     "address (for the web server)\n"
+                  << "\t<guac_listen_port>: Guacamole broker's listening port\n"
+                  << "\t<udp_recv_ip>: address where the broker receives "
+                     "traffic from (lrx_proxy)\n"
+                  << "\t<udp_recv_port>: port where the broker receives "
+                     "traffic from\n"
+                  << "\t<udp_send_ip>: address where the broker sends guacd "
+                     "traffic to (the guard)\n"
+                  << "\t<udp_send_port>: port where the broker sends guacd "
+                     "traffic to\n"
+                  << "\nExample: " << argv[0]
+                  << " 127.0.0.1 4822 0.0.0.0 5501 10.0.0.2 5601" << std::endl;
         return 1;
     }
 
@@ -141,7 +175,7 @@ int main(int argc, char *argv[]) {
 
     std::optional<std::tuple<sockaddr_in, socklen_t>> client_result;
 
-    // Accept the first client trying to connect (Guacamole)
+    // Accept the first client trying to connect (Guacamole web server)
     if ((client_result = tcp_server.AcceptSender()) != std::nullopt) {
         sockaddr_in client_addr = std::get<0>(client_result.value());
         char ip_str[INET_ADDRSTRLEN];
