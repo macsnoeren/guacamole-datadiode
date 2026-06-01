@@ -6,6 +6,9 @@
 #include <string>
 #include <tuple>
 
+/**
+ * @brief A bare-bones TCP server implementation
+ */
 class TCPServer {
   private:
     std::string recv_ip;
@@ -20,13 +23,32 @@ class TCPServer {
   public:
     TCPServer(std::string recv_ip, int recv_port)
         : recv_ip(recv_ip), recv_port(recv_port) {}
+
+    /**
+     * @brief Closes the client and server connections
+     */
     ~TCPServer();
 
+    /**
+     * @brief Attempts to bind to the server address and listen on it
+     * @return 0 on success, nonzero on failure
+     */
     int Initialize();
 
+    /**
+     * @brief Waits for a client to connect and stores its socket FD
+     * @return The socket FD on success, else std::nullopt
+     */
     std::optional<std::tuple<sockaddr_in, socklen_t>> AcceptSender();
 
+    /**
+     * @brief Receives network traffic in a buffer (blocking)
+     */
     int Receive(char buffer[], size_t len);
 
+    /**
+     * @brief Sends network traffic from a buffer
+     * @return Amount of bytes sent
+     */
     ssize_t Send(const char *buffer, size_t len);
 };

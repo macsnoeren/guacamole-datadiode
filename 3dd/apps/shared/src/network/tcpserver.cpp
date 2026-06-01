@@ -27,6 +27,7 @@ int TCPServer::Initialize() {
         return 1;
     }
 
+    // Reuse address if it is already in use or not properly cleaned up
     int one = 1;
     ::setsockopt(recv_sock_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
 
@@ -37,7 +38,7 @@ int TCPServer::Initialize() {
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port = htons(static_cast<uint16_t>(recv_port));
 
-    // Bind to the given port
+    // Bind and listen to the given port
     if (::bind(recv_sock_fd, reinterpret_cast<sockaddr *>(&addr),
                sizeof(addr)) < 0) {
         perror("bind");
