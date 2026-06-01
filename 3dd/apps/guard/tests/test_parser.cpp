@@ -4,6 +4,9 @@
 #include <stdlib.h>
 #include <string>
 
+/**
+ * @brief Offers string representations of the available states
+ */
 std::string cvt_state(ParserState state) {
     switch (state) {
     case ParserState::READY:
@@ -18,6 +21,12 @@ std::string cvt_state(ParserState state) {
     }
 }
 
+/**
+ * @brief Provides assertion for parser state, and logs to stderr for false assertions
+ * @param input: message to parse
+ * @param expected: expected state
+ * @param parser: *GuacParser, in case the parser needs to be re-used across function calls
+ */
 void test_parsing(std::string input, ParserState expected,
                   GuacParser *parser = nullptr) {
     if (parser == nullptr)
@@ -32,6 +41,9 @@ void test_parsing(std::string input, ParserState expected,
     }
 }
 
+/**
+ * @brief tests if valid traffic is correctly parsed
+ */
 void test_valid_opcodes() {
     test_parsing("6.select,3.ssh;", ParserState::READY);
     test_parsing("4.size,4.1680,3.933,2.96;", ParserState::READY);
@@ -75,6 +87,9 @@ void test_valid_opcodes() {
     }
 }
 
+/**
+ * @brief Tests whether invalid Guacamole is detected
+ */
 void test_invalid_guacamole() {
     test_parsing("nonsense", ParserState::INVALID);
     test_parsing("ncat -l -p 1337", ParserState::INVALID);
@@ -124,6 +139,9 @@ void test_invalid_guacamole() {
     }
 }
 
+/**
+ * @brief Tests whether disallowed opcodes are detected
+ */
 void test_denied_opcodes() {
     // test_parsing("9.clipboard,", ParserState::DENIED_OPCODE);
     test_parsing("5.abcde,", ParserState::DENIED_OPCODE);
@@ -140,6 +158,9 @@ void test_denied_opcodes() {
     test_parsing("10.disconnect;", ParserState::READY);
 }
 
+/**
+ * @brief Tests the boundaries of length-bound opcodes (clipboard payloads)
+ */
 void test_length_bound_opcodes() {
     // Should pass, payload is below maximum
     test_parsing("9.clipboard;", ParserState::READY);
@@ -151,6 +172,9 @@ void test_length_bound_opcodes() {
     test_parsing("9.clipboard,1.0,10.text/plain;4.blob,1.0,20.aGV5IGhldCB3ZXJrdA==;3.end,1.0;", ParserState::INVALID);
 }
 
+/**
+ * @brief Unit tests for the parser
+ */
 int main(int argc, char **argv) {
     test_valid_opcodes();
 

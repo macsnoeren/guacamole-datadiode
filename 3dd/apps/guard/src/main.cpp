@@ -7,10 +7,24 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+/*
+ * @brief Receives UDP traffic, validates Guacamole opcode messages, and sends
+ * only valid opcodes forward.
+ *
+ * Parses the incoming Guacamole traffic using a Finite State Machine.
+ * Disallowed opcodes are blocked. Traffic that is not valid Guacamole is also
+ * blocked.
+ */
 int main(int argc, char *argv[]) {
     if (argc < 4) {
-        std::cerr << "Usage: " << argv[0] << " <src_port> <dst_ip> <dst_port>\n"
-                  << "Example: " << argv[0] << " 5005 10.0.0.2 6006 \n";
+        std::cerr
+            << "Usage: " << argv[0] << "\n"
+            << "\t<src_port>: port where the guard receives traffic (from "
+               "ltx_proxy)\n"
+            << "\t<dst_ip>: IP address where the guard sends validated traffic "
+               "(to hrx_proxy)\n"
+            << "\t<dst_port>: port where the guard sends validated traffic to\n"
+            << "\tExample: " << argv[0] << " 5005 10.0.0.2 6006 \n";
         return 1;
     }
 
