@@ -7,6 +7,9 @@
 #include <queue>
 #include <stdlib.h>
 
+/**
+ * @brief Implements a thread-safe queue intended for queueing network messages
+ */
 class NetQueue {
   private:
     mutable std::mutex mtx;
@@ -16,6 +19,9 @@ class NetQueue {
   public:
     NetQueue() = default;
 
+    /**
+     * @brief Adds a network message to the queue
+     */
     void Enqueue(std::string&& message) {
         {
             std::lock_guard<std::mutex> lock(mtx);
@@ -24,6 +30,10 @@ class NetQueue {
         cv.notify_one();
     }
 
+    /**
+     * @brief Wait until the queue contains elements, and remove its first element
+     * @return The network message from the queue
+     */
     std::string Dequeue() {
         std::unique_lock<std::mutex> lock(mtx);
 
@@ -34,6 +44,10 @@ class NetQueue {
         return value;
     }
 
+    /**
+     * @brief Get the first value inside the queue without removing it
+     * @return The first value when queue is not empty, else std::nullopt
+     */
     std::optional<std::string> Peek() const {
         std::lock_guard<std::mutex> lock(mtx);
         if (queue.empty()) {
@@ -42,11 +56,17 @@ class NetQueue {
         return queue.front();
     }
 
+    /**
+     * @brief Check if the queue is empty
+     */
     bool IsEmpty() const {
         std::lock_guard<std::mutex> lock(mtx);
         return queue.empty();
     }
 
+    /**
+     * @brief Check the queue's size
+     */
     size_t Size() const {
         std::lock_guard<std::mutex> lock(mtx);
         return queue.size();
