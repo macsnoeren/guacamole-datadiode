@@ -6,10 +6,20 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+/**
+ * @brief Relays network traffic between the htx_proxy and ltx_proxy
+ *
+ * Receives UDP packets from one interface and sends them over another UDP interface
+ */
 int main(int argc, char *argv[]) {
     if (argc < 4) {
-        std::cerr << "Usage: " << argv[0] << " <src_port> <dst_ip> <dst_port>\n"
-                  << "Example: " << argv[0] << " 5005 10.0.0.2 6006 \n";
+        std::cerr
+            << "Usage: " << argv[0] << "\n"
+            << "\t<src_port>: port where the proxy receives traffic (from htx_proxy)\n"
+            << "\t<dst_ip>: IP address where the proxy sends traffic (to ltx_proxy)\n"
+            << "\t<dst_port>: port where the proxy sends traffic to\n"
+            << "\tExample: " << argv[0] << " 5005 10.0.0.2 6006"
+            << std::endl;
         return 1;
     }
 
