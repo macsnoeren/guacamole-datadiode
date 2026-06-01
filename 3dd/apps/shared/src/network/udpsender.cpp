@@ -36,6 +36,7 @@ int UDPSender::Initialize() {
 ssize_t UDPSender::Send(const char *buffer, size_t len) {
     size_t total = 0;
 
+    // Keep sending while the buffer is not empty
     while (total < len) {
         ssize_t sent = ::sendto(sock_fd, buffer + total, len - total, 0,
                                 reinterpret_cast<sockaddr *>(&sock_addr),
