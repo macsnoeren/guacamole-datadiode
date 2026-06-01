@@ -1,4 +1,4 @@
-#include "../include/network/udpsender.h"
+#include "../../include/network/udpsender.h"
 #include <arpa/inet.h>
 #include <cstring>
 #include <string>
@@ -37,9 +37,9 @@ ssize_t UDPSender::Send(const char *buffer, size_t len) {
     size_t total = 0;
 
     while (total < len) {
-    ssize_t sent =
-        ::sendto(sock_fd, buffer + total, len - total, 0,
-                 reinterpret_cast<sockaddr *>(&sock_addr), sizeof(sock_addr));
+        ssize_t sent = ::sendto(sock_fd, buffer + total, len - total, 0,
+                                reinterpret_cast<sockaddr *>(&sock_addr),
+                                sizeof(sock_addr));
         if (sent < 0 && errno != EINTR) {
             perror("sendto");
             ::close(sock_fd);

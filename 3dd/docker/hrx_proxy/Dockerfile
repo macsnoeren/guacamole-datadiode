@@ -5,7 +5,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y build-essential meson ninja-build
 
 COPY apps/shared/include/ apps/shared/include/
-COPY apps/shared/network/ apps/shared/network/
+COPY apps/shared/src/ apps/shared/src/
 COPY apps/hrx_proxy/src apps/hrx_proxy/src
 
 WORKDIR /app/apps/hrx_proxy

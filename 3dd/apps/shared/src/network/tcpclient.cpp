@@ -1,19 +1,19 @@
-#include "../include/network/tcpclient.h"
+#include "../../include/network/tcpclient.h"
 #include <arpa/inet.h>
 #include <cstring>
 #include <iostream>
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
+#include <sys/types.h>
 #include <unistd.h>
-#include <netdb.h>
 
 TCPClient::~TCPClient() {
     if (recv_sock_fd >= 0) {
@@ -28,8 +28,8 @@ int TCPClient::Initialize() {
 
     struct addrinfo hints, *res, *p;
     std::memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_INET; //AF_UNSPEC IPv6 not yet
-    hints.ai_socktype = SOCK_STREAM;  // TCP
+    hints.ai_family = AF_INET;       // AF_UNSPEC IPv6 not yet
+    hints.ai_socktype = SOCK_STREAM; // TCP
 
     std::string port_str = std::to_string(server_port);
 

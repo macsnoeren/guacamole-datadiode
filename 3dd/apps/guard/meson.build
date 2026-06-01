@@ -9,7 +9,7 @@ core_sources = files(
   'src/guacparser.cpp',
 )
 
-release_sources = core_sources + files('src/main.cpp', '../shared/network/udpsender.cpp', '../shared/network/udpreceiver.cpp')
+release_sources = core_sources + files('src/main.cpp', '../shared/src/network/udpsender.cpp', '../shared/src/network/udpreceiver.cpp')
 
 incdirs = include_directories(
   'include',

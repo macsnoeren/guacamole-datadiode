@@ -7,9 +7,9 @@ project(
 
 sources = [
   'main.cpp',
-  '../../shared/network/udpsender.cpp',
-  '../../shared/network/udpreceiver.cpp',
-  '../../shared/network/tcpserver.cpp',
+  '../../shared/src/network/udpsender.cpp',
+  '../../shared/src/network/udpreceiver.cpp',
+  '../../shared/src/network/tcpserver.cpp',
   ]
 
 incdir = include_directories('../../shared/include/network')
