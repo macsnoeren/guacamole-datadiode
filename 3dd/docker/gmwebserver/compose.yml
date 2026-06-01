@@ -26,7 +26,7 @@ services:
       POSTGRESQL_PASSWORD: guacamole_pass
 
       GUACD_HOSTNAME: host.docker.internal
-      GUACD_PORT: 4822
+      GUACD_PORT: 4823
     ports:
       - "8080:8080"  # Guacamole web UI
     networks:

@@ -1,7 +1,5 @@
 name: 3dd-single-machine
 include:
-  - ../gmlbroker/compose.yml
-  - ../gcdbroker/compose.yml
   - ../guard/compose.yml
   - ../hrx_proxy/compose.yml
   - ../lrx_proxy/compose.yml

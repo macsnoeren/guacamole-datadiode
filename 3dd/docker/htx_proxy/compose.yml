@@ -1,3 +1,5 @@
+include:
+  - ../guacd/compose.yml
 services:
   gcdbroker:
     build:
@@ -10,7 +12,7 @@ services:
       [
         "./build/gcdbroker",
         "127.0.0.1", "4822",
-        "0.0.0.0", "5505",
-        "10.0.2.2", "5506"
+        "0.0.0.0", "5502",
+        "10.0.3.2", "5503"
       ]
     network_mode: "host"

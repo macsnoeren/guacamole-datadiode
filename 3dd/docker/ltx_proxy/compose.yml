@@ -1,3 +1,5 @@
+include:
+  - ../gmwebserver/compose.yml
 services:
   gmlbroker:
     build:
@@ -10,7 +12,7 @@ services:
     command:
       [
         "./build/gmlbroker",
-        "0.0.0.0", "4822",
-        "0.0.0.0", "5501",
-        "10.0.0.2", "5502"
+        "0.0.0.0", "4823",
+        "10.0.4.2", "5505",
+        "10.0.0.2", "5500"
       ]
