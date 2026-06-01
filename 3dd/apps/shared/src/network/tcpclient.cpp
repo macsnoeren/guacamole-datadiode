@@ -28,17 +28,19 @@ int TCPClient::Initialize() {
 
     struct addrinfo hints, *res, *p;
     std::memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_INET;       // AF_UNSPEC IPv6 not yet
+    hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM; // TCP
 
     std::string port_str = std::to_string(server_port);
 
+    // Get socket for address
     int status = getaddrinfo(server_ip.c_str(), port_str.c_str(), &hints, &res);
     if (status != 0) {
         std::cerr << "getaddrinfo error: " << gai_strerror(status) << std::endl;
         return -1;
     }
 
+    // Loop through address infos until a valid one is found
     int ret = -1;
     for (p = res; p != nullptr; p = p->ai_next) {
         recv_sock_fd = ::socket(p->ai_family, p->ai_socktype, p->ai_protocol);
@@ -82,6 +84,7 @@ ssize_t TCPClient::Send(const char *buffer, size_t len) {
         std::cerr << "Error: cannot send if no client is connected\n";
     }
 
+    // Keep sending until no data is left in the buffer
     size_t total = 0;
     while (total < len) {
         ssize_t sent = ::send(recv_sock_fd, buffer + total, len - total, 0);

@@ -6,6 +6,9 @@
 #include <string>
 #include <tuple>
 
+/**
+ * @brief A bare-bones TCP client implementation
+ */
 class TCPClient {
   private:
     std::string server_ip;
@@ -17,11 +20,26 @@ class TCPClient {
   public:
     TCPClient(std::string recv_ip, int recv_port)
         : server_ip(recv_ip), server_port(recv_port) {}
+
+    /**
+     * @brief Closes the connection
+     */
     ~TCPClient();
 
+    /**
+     * @brief Attempts to connect to the address
+     * @return 0 on success, nonzero on failure
+     */
     int Initialize();
 
+    /**
+     * @brief Receives network traffic in a buffer (blocking)
+     */
     int Receive(char buffer[], size_t len);
 
+    /**
+     * @brief Sends network traffic from a buffer
+     * @return Amount of bytes sent
+     */
     ssize_t Send(const char *buffer, size_t len);
 };
