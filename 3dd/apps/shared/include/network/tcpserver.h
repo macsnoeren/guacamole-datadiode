@@ -1,31 +1,29 @@
 #pragma once
 
 #include <netinet/in.h>
-#include <optional>
 #include <stdlib.h>
 #include <string>
-#include <tuple>
 
 /**
- * @brief A bare-bones TCP server implementation
+ * @brief A TCP server that accepts and serves multiple simultaneous clients
+ *
+ * Owns only the listening socket. Accepted client sockets are handed back to the
+ * caller as raw fds; the caller (via a ChannelTable) decides their lifetime.
+ * Receive/Send/Shutdown/Close all operate on a caller-supplied fd, so the same
+ * server instance can be used from multiple threads, one per client.
  */
 class TCPServer {
   private:
     std::string recv_ip;
     int recv_port;
-    sockaddr_in recv_sock_addr;
-    int recv_sock_fd = -1;
-
-    int client_sock_fd = -1;
-    sockaddr_in client_sock_addr;
-    socklen_t client_sock_addr_len = sizeof(client_sock_addr);
+    int listen_fd = -1;
 
   public:
     TCPServer(std::string recv_ip, int recv_port)
         : recv_ip(recv_ip), recv_port(recv_port) {}
 
     /**
-     * @brief Closes the client and server connections
+     * @brief Closes the listening socket
      */
     ~TCPServer();
 
@@ -36,19 +34,30 @@ class TCPServer {
     int Initialize();
 
     /**
-     * @brief Waits for a client to connect and stores its socket FD
-     * @return The socket FD on success, else std::nullopt
+     * @brief Waits for a client to connect (blocking)
+     * @return The accepted client fd, or -1 on failure
      */
-    std::optional<std::tuple<sockaddr_in, socklen_t>> AcceptSender();
+    int Accept();
 
     /**
-     * @brief Receives network traffic in a buffer (blocking)
+     * @brief Receives traffic from a client fd into buffer (blocking)
+     * @return Bytes received, 0 if the client closed, -1 on error
      */
-    int Receive(char buffer[], size_t len);
+    int Receive(int fd, char buffer[], size_t len);
 
     /**
-     * @brief Sends network traffic from a buffer
-     * @return Amount of bytes sent
+     * @brief Sends all bytes in buffer to a client fd
+     * @return Amount of bytes sent, or -1 on error
      */
-    ssize_t Send(const char *buffer, size_t len);
+    ssize_t Send(int fd, const char *buffer, size_t len);
+
+    /**
+     * @brief Half-closes a client fd, waking any blocking Receive on it
+     */
+    void Shutdown(int fd);
+
+    /**
+     * @brief Closes a client fd
+     */
+    void Close(int fd);
 };

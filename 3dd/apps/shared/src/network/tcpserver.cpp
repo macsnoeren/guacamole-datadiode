@@ -1,52 +1,44 @@
 #include "../../include/network/tcpserver.h"
 #include <arpa/inet.h>
+#include <cerrno>
 #include <cstring>
 #include <iostream>
-#include <optional>
 #include <sys/socket.h>
-#include <tuple>
 #include <unistd.h>
 
 TCPServer::~TCPServer() {
-    if (client_sock_fd >= 0) {
-        ::shutdown(client_sock_fd, SHUT_RDWR);
-        ::close(client_sock_fd);
-    }
-
-    if (recv_sock_fd >= 0) {
-        ::shutdown(recv_sock_fd, SHUT_RDWR);
-        ::close(recv_sock_fd);
+    if (listen_fd >= 0) {
+        ::shutdown(listen_fd, SHUT_RDWR);
+        ::close(listen_fd);
     }
 }
 
 int TCPServer::Initialize() {
-    // Initialize receiver
-    recv_sock_fd = ::socket(AF_INET, SOCK_STREAM, 0);
-    if (recv_sock_fd < 0) {
+    listen_fd = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (listen_fd < 0) {
         perror("socket");
         return 1;
     }
 
     // Reuse address if it is already in use or not properly cleaned up
     int one = 1;
-    ::setsockopt(recv_sock_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+    ::setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
 
     sockaddr_in addr;
     std::memset(&addr, 0, sizeof(addr));
-    std::memset(&client_sock_addr, 0, sizeof(client_sock_addr));
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port = htons(static_cast<uint16_t>(recv_port));
 
     // Bind and listen to the given port
-    if (::bind(recv_sock_fd, reinterpret_cast<sockaddr *>(&addr),
-               sizeof(addr)) < 0) {
+    if (::bind(listen_fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) <
+        0) {
         perror("bind");
-        ::close(recv_sock_fd);
+        ::close(listen_fd);
         return 1;
     }
 
-    if (::listen(recv_sock_fd, 1) < 0) {
+    if (::listen(listen_fd, 16) < 0) {
         perror("listen");
         return 1;
     }
@@ -54,20 +46,29 @@ int TCPServer::Initialize() {
     return 0;
 }
 
-std::optional<std::tuple<sockaddr_in, socklen_t>> TCPServer::AcceptSender() {
-    client_sock_fd =
-        ::accept(recv_sock_fd, reinterpret_cast<sockaddr *>(&client_sock_addr),
-                 &client_sock_addr_len);
-    if (client_sock_fd < 0) {
-        perror("accept");
-        return std::nullopt;
+int TCPServer::Accept() {
+    sockaddr_in client_addr;
+    socklen_t client_len = sizeof(client_addr);
+
+    int fd = ::accept(listen_fd, reinterpret_cast<sockaddr *>(&client_addr),
+                      &client_len);
+    if (fd < 0) {
+        if (errno != EINVAL) // EINVAL: listen socket was shut down
+            perror("accept");
+        return -1;
     }
 
-    return std::make_tuple(client_sock_addr, client_sock_addr_len);
+    char ip_str[INET_ADDRSTRLEN];
+    ::inet_ntop(AF_INET, &client_addr.sin_addr, ip_str, sizeof(ip_str));
+    std::cout << "Client connected from " << ip_str << ":"
+              << ntohs(client_addr.sin_port) << " (fd " << fd << ")"
+              << std::endl;
+
+    return fd;
 }
 
-int TCPServer::Receive(char *buffer, size_t len) {
-    ssize_t received = ::recv(client_sock_fd, buffer, len - 1, 0);
+int TCPServer::Receive(int fd, char *buffer, size_t len) {
+    ssize_t received = ::recv(fd, buffer, len - 1, 0);
 
     if (received < 0) {
         switch (errno) {
@@ -85,16 +86,19 @@ int TCPServer::Receive(char *buffer, size_t len) {
     return received;
 }
 
-ssize_t TCPServer::Send(const char *buffer, size_t len) {
-    if (client_sock_fd < 0) {
-        std::cerr << "Error: cannot send if no client is connected\n";
+ssize_t TCPServer::Send(int fd, const char *buffer, size_t len) {
+    if (fd < 0) {
+        std::cerr << "Error: cannot send to an invalid fd\n";
+        return -1;
     }
 
     size_t total = 0;
     while (total < len) {
-        ssize_t sent = ::send(client_sock_fd, buffer + total, len - total, 0);
-        if (sent < 0 && errno != EINTR) {
-            perror("sendto");
+        ssize_t sent = ::send(fd, buffer + total, len - total, 0);
+        if (sent < 0) {
+            if (errno == EINTR)
+                continue;
+            perror("send");
             return -1;
         }
 
@@ -102,4 +106,14 @@ ssize_t TCPServer::Send(const char *buffer, size_t len) {
     }
 
     return total;
+}
+
+void TCPServer::Shutdown(int fd) {
+    if (fd >= 0)
+        ::shutdown(fd, SHUT_RDWR);
+}
+
+void TCPServer::Close(int fd) {
+    if (fd >= 0)
+        ::close(fd);
 }
