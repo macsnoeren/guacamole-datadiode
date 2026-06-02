@@ -10,6 +10,7 @@ sources = [
   '../../shared/src/network/udpsender.cpp',
   '../../shared/src/network/udpreceiver.cpp',
   '../../shared/src/network/tcpclient.cpp',
+  '../../shared/src/network/multiplexer.cpp',
   ]
 
 incdir = include_directories('../../shared/include/network')
