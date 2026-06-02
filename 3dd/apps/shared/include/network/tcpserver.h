@@ -40,6 +40,12 @@ class TCPServer {
     int Accept();
 
     /**
+     * @brief Waits up to timeout_ms for a client fd to become readable
+     * @return 1 if readable (data or EOF), 0 on timeout, -1 on error
+     */
+    int WaitReadable(int fd, int timeout_ms);
+
+    /**
      * @brief Receives traffic from a client fd into buffer (blocking)
      * @return Bytes received, 0 if the client closed, -1 on error
      */

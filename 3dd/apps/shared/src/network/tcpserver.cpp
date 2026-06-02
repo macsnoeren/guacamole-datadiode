@@ -3,6 +3,7 @@
 #include <cerrno>
 #include <cstring>
 #include <iostream>
+#include <poll.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -65,6 +66,21 @@ int TCPServer::Accept() {
               << std::endl;
 
     return fd;
+}
+
+int TCPServer::WaitReadable(int fd, int timeout_ms) {
+    struct pollfd pfd{};
+    pfd.fd = fd;
+    pfd.events = POLLIN;
+
+    int r = ::poll(&pfd, 1, timeout_ms);
+    if (r < 0) {
+        if (errno == EINTR)
+            return 0;
+        perror("poll");
+        return -1;
+    }
+    return r > 0 ? 1 : 0;
 }
 
 int TCPServer::Receive(int fd, char *buffer, size_t len) {
