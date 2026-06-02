@@ -1,28 +1,28 @@
 #pragma once
 
+#include "multiplexer.h"
 #include <condition_variable>
-#include <iostream>
 #include <mutex>
 #include <optional>
 #include <queue>
 #include <stdlib.h>
 
 /**
- * @brief Implements a thread-safe queue intended for queueing network messages
+ * @brief Implements a thread-safe queue intended for queueing bridge messages
  */
 class NetQueue {
   private:
     mutable std::mutex mtx;
     std::condition_variable cv;
-    std::queue<std::string> queue;
+    std::queue<BridgeMessage> queue;
 
   public:
     NetQueue() = default;
 
     /**
-     * @brief Adds a network message to the queue
+     * @brief Adds a bridge message to the queue
      */
-    void Enqueue(std::string&& message) {
+    void Enqueue(BridgeMessage&& message) {
         {
             std::lock_guard<std::mutex> lock(mtx);
             queue.push(std::move(message));
@@ -32,14 +32,14 @@ class NetQueue {
 
     /**
      * @brief Wait until the queue contains elements, and remove its first element
-     * @return The network message from the queue
+     * @return The bridge message from the queue
      */
-    std::string Dequeue() {
+    BridgeMessage Dequeue() {
         std::unique_lock<std::mutex> lock(mtx);
 
         // Wait until a message arrives if queue is empty
         cv.wait(lock, [this] { return !queue.empty(); });
-        std::string value = std::move(queue.front());
+        BridgeMessage value = std::move(queue.front());
         queue.pop();
         return value;
     }
@@ -48,7 +48,7 @@ class NetQueue {
      * @brief Get the first value inside the queue without removing it
      * @return The first value when queue is not empty, else std::nullopt
      */
-    std::optional<std::string> Peek() const {
+    std::optional<BridgeMessage> Peek() const {
         std::lock_guard<std::mutex> lock(mtx);
         if (queue.empty()) {
             return std::nullopt;
