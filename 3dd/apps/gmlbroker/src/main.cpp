@@ -1,18 +1,15 @@
+#include "../../shared/include/network/channeltable.h"
+#include "../../shared/include/network/multiplexer.h"
 #include "../../shared/include/network/netqueue.h"
 #include "../../shared/include/network/tcpserver.h"
 #include "../../shared/include/network/udpreceiver.h"
 #include "../../shared/include/network/udpsender.h"
-#include <arpa/inet.h>
 #include <atomic>
 #include <iostream>
-#include <optional>
 #include <signal.h>
 #include <sstream>
 #include <string>
-#include <sys/socket.h>
 #include <thread>
-#include <tuple>
-#include <unistd.h>
 
 const char *guac_listen_ip;
 int guac_listen_port;
@@ -31,78 +28,159 @@ void interrupt_handler(int signum) {
 }
 
 /*
- * @brief Checks the network queue and sends any messages using a TCP server
+ * @brief Reads one client's TCP stream and wraps each read as a NONE message
+ *
+ * Runs once per accepted client. On close it removes the channel; if it was the
+ * first to remove it (local-initiated close), it announces SHUTDOWN to the peer.
+ * The reader is the sole owner of close() for its fd.
  */
-void tcp_send_handler(TCPServer &tcp_server, NetQueue &recv_queue) {
-    while (running) {
-        std::string msg = recv_queue.Dequeue();
+void tcp_reader(TCPServer &tcp_server, ChannelTable &table,
+                NetQueue &send_queue, uint8_t channel, int fd) {
+    char buffer[Multiplexer::MAX_PAYLOAD_SIZE + 1];
 
-        if (tcp_server.Send(msg.data(), msg.size()) < 0)
-            break;
+    while (running) {
+        int received = tcp_server.Receive(fd, buffer, sizeof(buffer));
+        if (received <= 0)
+            break; // 0: client closed, <0: error
+
+        BridgeMessage msg;
+        msg.channel = channel;
+        msg.action = ChannelAction::NONE;
+        msg.payload.assign(buffer, received);
+        send_queue.Enqueue(std::move(msg));
 
         std::stringstream info;
-        info << "tcp_send_handler: Sent message '" << msg.c_str() << std::endl;
-        std::cout << info.str() << std::endl;
+        info << "tcp_reader: queued " << received << " bytes on channel "
+             << (int)channel << std::endl;
+        std::cout << info.str();
+    }
+
+    // Only the side that initiates the close announces SHUTDOWN to the peer
+    if (table.Remove(channel).has_value()) {
+        BridgeMessage shutdown;
+        shutdown.channel = channel;
+        shutdown.action = ChannelAction::SHUTDOWN_CHANNEL;
+        send_queue.Enqueue(std::move(shutdown));
+        std::cout << "tcp_reader: channel " << (int)channel
+                  << " closed locally, sent SHUTDOWN" << std::endl;
+    }
+    tcp_server.Close(fd);
+}
+
+/*
+ * @brief Accepts Guacamole connections, allocating a channel for each
+ */
+void accept_handler(TCPServer &tcp_server, ChannelTable &table,
+                    NetQueue &send_queue) {
+    while (running) {
+        int fd = tcp_server.Accept();
+        if (fd < 0) {
+            if (running)
+                continue;
+            break;
+        }
+
+        // Try to allocate a channel
+        std::optional<uint8_t> channel = table.Allocate(fd);
+        if (!channel) {
+            std::cerr << "accept_handler: channel table full, rejecting client"
+                      << std::endl;
+            tcp_server.Close(fd);
+            continue;
+        }
+
+        // Announce the new channel to the bridge before any of its data
+        BridgeMessage create;
+        create.channel = *channel;
+        create.action = ChannelAction::CREATE_CHANNEL;
+        send_queue.Enqueue(std::move(create));
+        std::cout << "accept_handler: new channel " << (int)*channel << " (fd "
+                  << fd << "), sent CREATE" << std::endl;
+
+        std::thread(tcp_reader, std::ref(tcp_server), std::ref(table),
+                    std::ref(send_queue), *channel, fd)
+            .detach();
     }
 }
 
 /*
- * @brief Checks the TCP server socket for data and queues it in the network
- * queue
+ * @brief Routes bridge messages to the right client socket by channel
  */
-void tcp_recv_handler(TCPServer &tcp_server, NetQueue &send_queue) {
-    char buffer[65535];
-
+void tcp_send_handler(TCPServer &tcp_server, ChannelTable &table,
+                      NetQueue &recv_queue) {
     while (running) {
-        int received;
+        BridgeMessage msg = recv_queue.Dequeue();
 
-        if ((received = tcp_server.Receive(buffer, sizeof(buffer))) > 0) {
-            std::stringstream info;
-            info << "tcp_recv_handler: Received message '" << buffer
-                 << std::endl;
-            std::cout << info.str() << std::endl;
-
-            send_queue.Enqueue(std::string(buffer, received));
-        } else if (received == 0) {
-            std::cout << "Client disconnected" << std::endl;
-            running = false;
-        } else {
-            running = false;
+        switch (msg.action) {
+        case ChannelAction::SHUTDOWN_CHANNEL: {
+            // Remove reference to channel
+            std::optional<int> fd = table.Remove(msg.channel);
+            if (fd) {
+                tcp_server.Shutdown(*fd); // wakes the reader, which closes it
+                std::cout << "tcp_send_handler: channel " << (int)msg.channel
+                          << " SHUTDOWN from peer" << std::endl;
+            }
             break;
+        }
+        case ChannelAction::CREATE_CHANNEL:
+            // gmlbroker is the allocator; it never receives CREATE
+            break;
+        case ChannelAction::NONE:
+        default: {
+            std::optional<int> fd = table.Get(msg.channel);
+            if (!fd) {
+                std::cerr << "tcp_send_handler: no socket for channel "
+                          << (int)msg.channel << ", dropping "
+                          << msg.payload.size() << " bytes" << std::endl;
+                break;
+            }
+            if (tcp_server.Send(*fd, msg.payload.data(), msg.payload.size()) <
+                0) {
+                std::optional<int> dead = table.Remove(msg.channel);
+                if (dead)
+                    tcp_server.Shutdown(*dead);
+            }
+            break;
+        }
         }
     }
 }
 
 /*
- * @brief Checks the UDP receive socket for data and queues it in the network
- * queue
+ * @brief Receives datagrams from the bridge and queues the parsed messages
  */
 void udp_recv_handler(UDPReceiver &udp_receiver, NetQueue &recv_queue) {
-    char buffer[65535]; // UDP max packet size
+    char buffer[Multiplexer::MAX_DATAGRAM_SIZE + 1];
 
     while (running) {
         int received = udp_receiver.Receive(buffer, sizeof(buffer));
-        recv_queue.Enqueue(std::string(buffer, received));
+        if (received <= 0)
+            continue;
 
-        std::stringstream info;
-        info << "udp_recv_handler: Queued " << received << " bytes"
-             << std::endl;
-        std::cout << info.str() << std::endl;
+        BridgeMessage msg;
+        if (!Multiplexer::TryCast(buffer, received, msg)) {
+            std::cerr << "udp_recv_handler: dropped malformed datagram ("
+                      << received << " bytes)" << std::endl;
+            continue;
+        }
+
+        recv_queue.Enqueue(std::move(msg));
     }
 }
 
 /*
- * @brief Checks the network queue for data and sends it on the UDP send socket
+ * @brief Serializes queued messages and sends them on the bridge
  */
 void udp_send_handler(UDPSender &udp_sender, NetQueue &send_queue) {
     while (running) {
-        std::string msg = send_queue.Dequeue();
-        udp_sender.Send(msg.data(), msg.size());
+        BridgeMessage msg = send_queue.Dequeue();
+        std::string wire = Multiplexer::Serialize(msg);
+        udp_sender.Send(wire.data(), wire.size());
 
         std::stringstream info;
-        info << "udp_send_handler: Sent " << msg.size() << " bytes"
-             << std::endl;
-        std::cout << info.str() << std::endl;
+        info << "udp_send_handler: sent " << wire.size() << " bytes on channel "
+             << (int)msg.channel << std::endl;
+        std::cout << info.str();
     }
 }
 
@@ -110,9 +188,9 @@ void udp_send_handler(UDPSender &udp_sender, NetQueue &send_queue) {
  * @brief Starts the Guacamole broker that imitates the guacd program and
  * bridges Guacamole traffic.
  *
- * Starts a TCP server, UDP sender and UDP receiver for managing bridge traffic.
- * These handlers run on different threads and synchronize messages using a
- * thread-safe queue.
+ * Accepts multiple Guacamole connections, multiplexing each onto its own
+ * channel over a single UDP bridge. Handlers run on separate threads and
+ * synchronize messages using thread-safe queues.
  */
 int main(int argc, char *argv[]) {
     if (argc != 7) {
@@ -170,37 +248,22 @@ int main(int argc, char *argv[]) {
     std::cout << "Initialized UDP sender for " << udp_send_ip << ":"
               << udp_send_port << std::endl;
 
+    ChannelTable table;
     auto recv_queue = NetQueue();
     auto send_queue = NetQueue();
 
-    std::optional<std::tuple<sockaddr_in, socklen_t>> client_result;
-
-    // Accept the first client trying to connect (Guacamole web server)
-    if ((client_result = tcp_server.AcceptSender()) != std::nullopt) {
-        sockaddr_in client_addr = std::get<0>(client_result.value());
-        char ip_str[INET_ADDRSTRLEN];
-
-        ::inet_ntop(AF_INET, &client_addr.sin_addr, ip_str, sizeof(ip_str));
-        uint16_t port = ntohs(client_addr.sin_port);
-
-        std::cout << "Client connected from " << ip_str << ":" << port
-                  << std::endl;
-    } else {
-        return 1;
-    }
-
     // Start threads
+    std::thread t_accept(accept_handler, std::ref(tcp_server), std::ref(table),
+                         std::ref(send_queue));
     std::thread t_tcp_send(tcp_send_handler, std::ref(tcp_server),
-                           std::ref(recv_queue));
-    std::thread t_tcp_recv(tcp_recv_handler, std::ref(tcp_server),
-                           std::ref(send_queue));
+                           std::ref(table), std::ref(recv_queue));
     std::thread t_udp_send(udp_send_handler, std::ref(udp_sender),
                            std::ref(send_queue));
     std::thread t_udp_recv(udp_recv_handler, std::ref(udp_receiver),
                            std::ref(recv_queue));
 
+    t_accept.join();
     t_tcp_send.join();
-    t_tcp_recv.join();
     t_udp_recv.join();
     t_udp_send.join();
 }
