@@ -7,10 +7,12 @@ project(
 
 sources = [
   'main.cpp',
+  'handshake_forger.cpp',
   '../../shared/src/network/udpsender.cpp',
   '../../shared/src/network/udpreceiver.cpp',
   '../../shared/src/network/tcpserver.cpp',
   '../../shared/src/network/multiplexer.cpp',
+  '../../shared/src/parser/opcode_parser.cpp',
   ]
 
 incdir = include_directories('../../shared/include/network')
@@ -20,3 +22,5 @@ executable(
   sources: sources,
   include_directories: incdir,
   )
+
+subdir('tests')

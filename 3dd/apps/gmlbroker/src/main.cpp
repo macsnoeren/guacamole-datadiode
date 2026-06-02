@@ -4,7 +4,9 @@
 #include "../../shared/include/network/tcpserver.h"
 #include "../../shared/include/network/udpreceiver.h"
 #include "../../shared/include/network/udpsender.h"
+#include "../include/handshake_forger.h"
 #include <atomic>
+#include <chrono>
 #include <iostream>
 #include <signal.h>
 #include <sstream>
@@ -27,32 +29,65 @@ void interrupt_handler(int signum) {
     running = false;
 }
 
+// Heartbeat interval that keeps a forged session alive; the Guacamole session
+// times out without a periodic sync.
+constexpr int SYNC_INTERVAL_MS = 1000;
+
 /*
- * @brief Reads one client's TCP stream and wraps each read as a NONE message
+ * @brief Builds a `sync` instruction with a millisecond timestamp
+ */
+std::string sync_instruction() {
+    long ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                  std::chrono::steady_clock::now().time_since_epoch())
+                  .count();
+    std::string ts = std::to_string(ms);
+    return "4.sync," + std::to_string(ts.size()) + "." + ts + ";";
+}
+
+/*
+ * @brief Serves one accepted web-server connection
  *
- * Runs once per accepted client. On close it removes the channel; if it was the
- * first to remove it (local-initiated close), it announces SHUTDOWN to the peer.
- * The reader is the sole owner of close() for its fd.
+ * Forges the guacd handshake locally (canned args, ready, waiting screen) and
+ * does not forward handshake bytes across the bridge. Post-handshake piping is a
+ * later slice, so for now browser input is dropped once ESTABLISHED, while a
+ * periodic sync keeps the session alive. On close it removes the channel; if it
+ * was first to remove it (local-initiated close), it announces SHUTDOWN to the
+ * peer. The reader is the sole owner of close().
  */
 void tcp_reader(TCPServer &tcp_server, ChannelTable &table,
                 NetQueue &send_queue, uint8_t channel, int fd) {
     char buffer[Multiplexer::MAX_PAYLOAD_SIZE + 1];
+    HandshakeForger forger; // forges the guacd handshake toward the web server
 
     while (running) {
+        // Poll so we can emit a heartbeat even when the web server is idle.
+        int ready = tcp_server.WaitReadable(fd, SYNC_INTERVAL_MS);
+        if (ready < 0)
+            break;
+        if (ready == 0) {
+            if (forger.GetHandshakeState() == HandshakeState::ESTABLISHED) {
+                std::string s = sync_instruction();
+                tcp_server.Send(fd, s.data(), s.size());
+            }
+            continue;
+        }
+
         int received = tcp_server.Receive(fd, buffer, sizeof(buffer));
         if (received <= 0)
             break; // 0: client closed, <0: error
 
-        BridgeMessage msg;
-        msg.channel = channel;
-        msg.action = ChannelAction::NONE;
-        msg.payload.assign(buffer, received);
-        send_queue.Enqueue(std::move(msg));
+        // Until the forged handshake is established, gmlbroker answers the web
+        // server itself and forwards nothing across the bridge.
+        if (forger.GetHandshakeState() != HandshakeState::ESTABLISHED) {
+            std::string reply = forger.Feed(buffer, received);
+            if (!reply.empty())
+                tcp_server.Send(fd, reply.data(), reply.size());
+            continue;
+        }
 
-        std::stringstream info;
-        info << "tcp_reader: queued " << received << " bytes on channel "
-             << (int)channel << std::endl;
-        std::cout << info.str();
+        // TODO (post-handshake piping): once approved, forward NONE traffic
+        // across the bridge. For now the waiting screen stands and input is
+        // dropped.
     }
 
     // Only the side that initiates the close announces SHUTDOWN to the peer
