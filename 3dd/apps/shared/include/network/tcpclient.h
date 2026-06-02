@@ -1,45 +1,53 @@
 #pragma once
 
 #include <netinet/in.h>
-#include <optional>
 #include <stdlib.h>
 #include <string>
-#include <tuple>
 
 /**
- * @brief A bare-bones TCP client implementation
+ * @brief A TCP client that can open multiple simultaneous connections
+ *
+ * Each Connect() dials the configured server and returns a fresh fd, so one
+ * client instance can hold many concurrent connections (one per channel).
+ * Receive/Send/Shutdown/Close all operate on a caller-supplied fd, so the same
+ * instance can be used from multiple threads, one per connection.
  */
 class TCPClient {
   private:
     std::string server_ip;
     int server_port;
-    int recv_sock_fd = -1;
-    sockaddr_in recv_sock_addr;
-    socklen_t recv_sock_addr_len = sizeof(recv_sock_addr);
 
   public:
-    TCPClient(std::string recv_ip, int recv_port)
-        : server_ip(recv_ip), server_port(recv_port) {}
+    TCPClient(std::string server_ip, int server_port)
+        : server_ip(server_ip), server_port(server_port) {}
+
+    ~TCPClient() = default;
 
     /**
-     * @brief Closes the connection
+     * @brief Opens a new connection to the configured server
+     * @return The connected fd, or -1 on failure
      */
-    ~TCPClient();
+    int Connect();
 
     /**
-     * @brief Attempts to connect to the address
-     * @return 0 on success, nonzero on failure
+     * @brief Receives traffic from a connection fd into buffer (blocking)
+     * @return Bytes received, 0 if the server closed, -1 on error
      */
-    int Initialize();
+    int Receive(int fd, char buffer[], size_t len);
 
     /**
-     * @brief Receives network traffic in a buffer (blocking)
+     * @brief Sends all bytes in buffer to a connection fd
+     * @return Amount of bytes sent, or -1 on error
      */
-    int Receive(char buffer[], size_t len);
+    ssize_t Send(int fd, const char *buffer, size_t len);
 
     /**
-     * @brief Sends network traffic from a buffer
-     * @return Amount of bytes sent
+     * @brief Half-closes a connection fd, waking any blocking Receive on it
      */
-    ssize_t Send(const char *buffer, size_t len);
+    void Shutdown(int fd);
+
+    /**
+     * @brief Closes a connection fd
+     */
+    void Close(int fd);
 };
