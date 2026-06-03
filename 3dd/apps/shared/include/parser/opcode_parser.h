@@ -57,9 +57,19 @@ class OpcodeParser {
     // Variable maximum length of the next argument, for limiting clipboard payloads
     uint32_t next_args_max_length = 0;
 
+    /*
+     * @brief Index, within the current Parse() buffer, of the byte being
+     * processed. Valid inside the OnInstructionBegin/End and OnArgument hooks,
+     * e.g. to find where the terminating delimiter of an instruction sits.
+     */
+    size_t CurrentIndex() const { return current_index; }
+
   private:
     ParserState state = ParserState::READY;
     ParserPhase phase = ParserPhase::READING_LENGTH;
+
+    // Index of the byte currently being processed in Parse()
+    size_t current_index = 0;
 
     // Current length of the value being parsed
     int current_length = -1;

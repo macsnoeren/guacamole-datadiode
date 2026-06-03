@@ -5,6 +5,7 @@
 // TODO: parse connection requests
 ParserState OpcodeParser::Parse(const char *data, size_t len) {
     for (size_t i = 0; i < len; ++i) {
+        current_index = i;
         char c = data[i];
 
         switch (phase) {
