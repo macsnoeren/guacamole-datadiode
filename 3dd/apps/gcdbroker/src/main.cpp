@@ -4,6 +4,7 @@
 #include "../../shared/include/network/tcpclient.h"
 #include "../../shared/include/network/udpreceiver.h"
 #include "../../shared/include/network/udpsender.h"
+#include "../include/approver.h"
 #include <atomic>
 #include <iostream>
 #include <optional>
@@ -69,42 +70,72 @@ void tcp_reader(TCPClient &tcp_client, ChannelTable &table,
 }
 
 /*
- * @brief Routes bridge messages to guacd connections by channel
+ * @brief Sends an APPROVAL verdict for a channel back on the return path
  *
- * Opens a new guacd connection on CREATE, forwards NONE payloads to the right
- * connection, and tears a connection down on SHUTDOWN.
+ * Payload byte 0 is the printable verdict ('A'/'D'); the inert request id
+ * follows, so gmlbroker can match the verdict to its outstanding request. This
+ * rides the return path (bypassing the guard) straight back to gmlbroker.
+ */
+void send_verdict(NetQueue &send_queue, uint8_t channel, char verdict,
+                  const std::string &request_id) {
+    BridgeMessage msg;
+    msg.channel = channel;
+    msg.action = ChannelAction::APPROVAL;
+    msg.payload.push_back(verdict);
+    msg.payload.append(request_id);
+    send_queue.Enqueue(std::move(msg));
+}
+
+/*
+ * @brief Routes bridge messages to guacd connections by channel, gating on
+ * approval.
+ *
+ * The approval request is the inert CREATE payload (a unique id), never
+ * Guacamole traffic — so no attacker-influenced bytes are parsed before a human
+ * authorizes the connection. guacd is dialed only on approval. Any NONE traffic
+ * for a channel that is not approved is dropped without inspection, so no
+ * Guacamole reaches guacd before the verdict. Once approved, NONE traffic is
+ * forwarded to guacd untouched (the guard validated it en route).
  */
 void tcp_send_handler(TCPClient &tcp_client, ChannelTable &table,
                       NetQueue &recv_queue, NetQueue &send_queue) {
+    Approver approver;
+
     while (running) {
         BridgeMessage msg = recv_queue.Dequeue();
 
         switch (msg.action) {
         case ChannelAction::CREATE_CHANNEL: {
-            int fd = tcp_client.Connect();
-            if (fd < 0) {
-                std::cerr << "tcp_send_handler: failed to connect to guacd for "
-                             "channel "
-                          << (int)msg.channel << std::endl;
-                BridgeMessage shutdown;
-                shutdown.channel = msg.channel;
-                shutdown.action = ChannelAction::SHUTDOWN_CHANNEL;
-                send_queue.Enqueue(std::move(shutdown));
+            // The CREATE payload is the inert approval request id; decide on it.
+            const std::string &request_id = msg.payload;
+            ApprovalResult verdict = approver.HandleRequest(request_id);
+            if (!verdict.approved) {
+                send_verdict(send_queue, msg.channel, APPROVAL_DENY, request_id);
+                std::cout << "tcp_send_handler: channel " << (int)msg.channel
+                          << " DENIED (" << verdict.reason << ")" << std::endl;
                 break;
             }
-            if (!table.Insert(msg.channel, fd)) {
+
+            // Approved: dial guacd now, ready to receive the handshake replay.
+            int fd = tcp_client.Connect();
+            if (fd < 0 || !table.Insert(msg.channel, fd)) {
+                if (fd >= 0)
+                    tcp_client.Close(fd);
                 std::cerr << "tcp_send_handler: channel " << (int)msg.channel
-                          << " already exists" << std::endl;
-                tcp_client.Close(fd);
+                          << " approved but guacd dial failed" << std::endl;
+                send_verdict(send_queue, msg.channel, APPROVAL_DENY, request_id);
                 break;
             }
             std::thread(tcp_reader, std::ref(tcp_client), std::ref(table),
                         std::ref(send_queue), msg.channel, fd)
                 .detach();
+            send_verdict(send_queue, msg.channel, APPROVAL_APPROVE, request_id);
             std::cout << "tcp_send_handler: channel " << (int)msg.channel
-                      << " connected to guacd (fd " << fd << ")" << std::endl;
+                      << " APPROVED, dialed guacd (fd " << fd << ")"
+                      << std::endl;
             break;
         }
+
         case ChannelAction::SHUTDOWN_CHANNEL: {
             std::optional<int> fd = table.Remove(msg.channel);
             if (fd) {
@@ -114,13 +145,16 @@ void tcp_send_handler(TCPClient &tcp_client, ChannelTable &table,
             }
             break;
         }
+
         case ChannelAction::NONE:
         default: {
+            // Forward only to approved (dialed) channels. Anything else is
+            // dropped uninspected — no Guacamole reaches guacd before approval.
             std::optional<int> fd = table.Get(msg.channel);
             if (!fd) {
-                std::cerr << "tcp_send_handler: no connection for channel "
-                          << (int)msg.channel << ", dropping "
-                          << msg.payload.size() << " bytes" << std::endl;
+                std::cerr << "tcp_send_handler: channel " << (int)msg.channel
+                          << " not approved, dropping " << msg.payload.size()
+                          << " bytes" << std::endl;
                 break;
             }
             if (tcp_client.Send(*fd, msg.payload.data(), msg.payload.size()) <
@@ -146,7 +180,6 @@ void udp_recv_handler(UDPReceiver &udp_receiver, NetQueue &recv_queue) {
         if (received <= 0)
             continue;
 
-        // TODO: check request in Approver and send reply
         BridgeMessage msg;
         if (!Multiplexer::TryCast(buffer, received, msg)) {
             std::cerr << "udp_recv_handler: dropped malformed datagram ("

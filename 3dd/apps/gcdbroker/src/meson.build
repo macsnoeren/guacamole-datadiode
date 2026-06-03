@@ -7,6 +7,7 @@ project(
 
 sources = [
   'main.cpp',
+  'approver.cpp',
   '../../shared/src/network/udpsender.cpp',
   '../../shared/src/network/udpreceiver.cpp',
   '../../shared/src/network/tcpclient.cpp',
