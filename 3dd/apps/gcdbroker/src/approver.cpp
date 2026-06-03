@@ -3,17 +3,14 @@
 #include <cstring>
 #include <iostream>
 
-ApprovalResult Approver::HandleRequest(const std::string &protocol,
-                                       const std::string &connect) {
-    (void)connect; // reserved for a richer operator prompt later
-
+ApprovalResult Approver::HandleRequest(const std::string &request_id) {
     // PoC operator stand-in: deny everything when asked to, otherwise approve.
     const char *policy = std::getenv("GCD_APPROVE");
     if (policy && std::strcmp(policy, "deny") == 0) {
-        std::cout << "Approver: DENY " << protocol << " request" << std::endl;
+        std::cout << "Approver: DENY request " << request_id << std::endl;
         return {false, "operator denied the request"};
     }
 
-    std::cout << "Approver: APPROVE " << protocol << " request" << std::endl;
+    std::cout << "Approver: APPROVE request " << request_id << std::endl;
     return {true, ""};
 }

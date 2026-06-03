@@ -11,21 +11,21 @@ struct ApprovalResult {
 };
 
 /**
- * @brief Decides whether a forged Guacamole connection may reach guacd.
+ * @brief Decides whether a connection request may reach guacd.
  *
- * The forwarded `connect` instruction doubles as the approval request. This is
- * the OT-side gate: a PoC stand-in for a human operator at htx_proxy. It
- * approves by default; setting the GCD_APPROVE environment variable to "deny"
- * makes it deny every request (used to exercise the denied path end-to-end).
+ * The request is an inert, unique identifier minted by gmlbroker — deliberately
+ * NOT Guacamole traffic, so the gate never parses attacker-influenced bytes
+ * before a human authorizes the connection. This is the OT-side gate: a PoC
+ * stand-in for a human operator at htx_proxy. It approves by default; setting
+ * the GCD_APPROVE environment variable to "deny" makes it deny every request
+ * (used to exercise the denied path end-to-end).
  */
 class Approver {
   public:
     /**
      * @brief Decides on a connection request.
-     * @param protocol: the protocol named in `select` (e.g. "ssh")
-     * @param connect: the captured handshake (for context / future prompting)
+     * @param request_id: the inert unique request identifier
      * @return The approval result
      */
-    ApprovalResult HandleRequest(const std::string &protocol,
-                                 const std::string &connect);
+    ApprovalResult HandleRequest(const std::string &request_id);
 };
