@@ -48,6 +48,21 @@ class HandshakeForger : public OpcodeParser {
     /** @brief Forged connection id sent in `ready`. */
     const std::string &FakeId() const { return fake_id; }
 
+    /**
+     * @brief The raw handshake bytes received from the web server, captured
+     * verbatim up to and including `connect`. Replayed to the real guacd once a
+     * connection is approved.
+     */
+    const std::string &Handshake() const { return handshake_raw; }
+
+    /**
+     * @brief A solid-red "approval denied" overlay followed by a disconnect.
+     *
+     * Static (no handshake state needed) so the bridge-recv thread can paint it
+     * straight onto the web-server socket when a deny verdict arrives.
+     */
+    static std::string DeniedScreen();
+
   protected:
     bool OnInstructionBegin(const GuacElement &instr) override;
     bool OnArgument(const GuacElement &arg) override;
@@ -60,6 +75,7 @@ class HandshakeForger : public OpcodeParser {
     std::vector<std::string> connect_values; // from connect
     std::vector<std::string> size_args;  // client display size (w, h, dpi)
     std::string fake_id;                 // sent in ready
+    std::string handshake_raw;           // verbatim client handshake (for replay)
     std::string out;                     // response accumulator for one Feed
 
     std::string CannedArgs() const;      // per-protocol args reply

@@ -51,6 +51,9 @@ const char *SSH_ARGS_1_6_0 =
 
 std::string HandshakeForger::Feed(const char *data, size_t len) {
     out.clear();
+    // Keep a verbatim copy of the handshake so it can be replayed to the real
+    // guacd once approved. (Feed is only called before ESTABLISHED.)
+    handshake_raw.append(data, len);
     Parse(data, len);
     if (GetState() == ParserState::INVALID)
         hs_state = HandshakeState::INVALID_HANDSHAKE;
@@ -108,5 +111,17 @@ std::string HandshakeForger::WaitingScreen() const {
     s += instr({"rect", "0", "0", "0", w, h});        // full-layer rectangle
     s += instr({"cfill", "14", "0", "40", "40", "40", "255"}); // OVER, dark grey
     s += instr({"sync", "0"});                         // close the frame
+    return s;
+}
+
+std::string HandshakeForger::DeniedScreen() {
+    // Generous default dimensions: exact size is unimportant for an error
+    // overlay. Paint the default layer solid red, then ask the client to leave.
+    std::string s;
+    s += instr({"size", "0", "1024", "768"});
+    s += instr({"rect", "0", "0", "0", "1024", "768"});
+    s += instr({"cfill", "14", "0", "180", "30", "30", "255"}); // OVER, red
+    s += instr({"sync", "0"});
+    s += instr({"disconnect"});
     return s;
 }
