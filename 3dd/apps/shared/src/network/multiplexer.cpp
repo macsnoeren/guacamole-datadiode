@@ -22,7 +22,7 @@ bool Multiplexer::TryCast(const char *buffer, size_t len, BridgeMessage &message
     if (flags & RESERVED_MASK)
         return false;
 
-    // Set the channel aaction
+    // Set the channel action
     ChannelAction action;
     switch (flags & ACTION_MASK) {
     case static_cast<uint8_t>(ChannelAction::NONE):
@@ -34,8 +34,10 @@ bool Multiplexer::TryCast(const char *buffer, size_t len, BridgeMessage &message
     case static_cast<uint8_t>(ChannelAction::SHUTDOWN_CHANNEL):
         action = ChannelAction::SHUTDOWN_CHANNEL;
         break;
+    case static_cast<uint8_t>(ChannelAction::APPROVAL):
+        action = ChannelAction::APPROVAL;
+        break;
     default:
-        // 1100'0000 is unused
         return false;
     }
 

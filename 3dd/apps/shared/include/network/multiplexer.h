@@ -15,8 +15,18 @@ enum class ChannelAction : uint8_t {
     // Create a new channel (didn't exist yet)
     CREATE_CHANNEL = 64,   // 0100'0000 in binary
     // Remove the reference to this channel (forget it)
-    SHUTDOWN_CHANNEL = 128 // 1000'0000 in binary
+    SHUTDOWN_CHANNEL = 128, // 1000'0000 in binary
+    // Approval verdict for a channel, sent on the return path. Payload byte 0 is
+    // a printable verdict char ('A' = approve, 'D' = deny); the rest is an
+    // optional reason string. Kept NUL-free so it prints cleanly in logs.
+    APPROVAL = 192         // 1100'0000 in binary
 };
+
+/**
+ * @brief Printable verdict characters carried in an APPROVAL payload's first byte
+ */
+constexpr char APPROVAL_APPROVE = 'A';
+constexpr char APPROVAL_DENY = 'D';
 
 /**
  * @brief Each 'message' or 'packet' sent over the 3DD is wrapped in a BridgeMessage

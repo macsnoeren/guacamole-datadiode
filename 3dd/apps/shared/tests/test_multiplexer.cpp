@@ -85,6 +85,8 @@ void test_valid_frames() {
     test_accepts(frame(255, 0x00, "data"), 255, ChannelAction::NONE, "data");
     test_accepts(frame(1, 0x40, ""), 1, ChannelAction::CREATE_CHANNEL, "");
     test_accepts(frame(1, 0x80, ""), 1, ChannelAction::SHUTDOWN_CHANNEL, "");
+    test_accepts(frame(1, 0xC0, "A"), 1, ChannelAction::APPROVAL, "A");
+    test_accepts(frame(1, 0xC0, "Dno"), 1, ChannelAction::APPROVAL, "Dno");
 
     // A payload of exactly MAX_PAYLOAD_SIZE is allowed
     std::string max_payload(Multiplexer::MAX_PAYLOAD_SIZE, 'x');
@@ -104,9 +106,7 @@ void test_invalid_frames() {
     test_rejects(frame(0, 0x01, ""), "reserved bit 0 set");
     test_rejects(frame(0, 0x3F, ""), "all reserved bits set");
     test_rejects(frame(0, 0x41, "x"), "create with reserved bit set");
-
-    // Unused action 1100'0000
-    test_rejects(frame(0, 0xC0, ""), "unused action bits");
+    test_rejects(frame(0, 0xC1, "A"), "approval with reserved bit set");
 
     // Payload one byte over the maximum
     std::string too_big(Multiplexer::MAX_PAYLOAD_SIZE + 1, 'x');
