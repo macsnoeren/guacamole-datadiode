@@ -60,10 +60,12 @@ void tcp_reader(TCPServer &tcp_server, ChannelTable &table,
     HandshakeForger forger; // forges the guacd handshake toward the web server
 
     while (running) {
-        // Poll so we can emit a heartbeat even when the web server is idle.
+        // Poll so we can emit a heartbeat (4.sync,...;) even when the web server is idle.
         int ready = tcp_server.WaitReadable(fd, SYNC_INTERVAL_MS);
         if (ready < 0)
+            // TODO: error handling
             break;
+        // If timeout occurred
         if (ready == 0) {
             if (forger.GetHandshakeState() == HandshakeState::ESTABLISHED) {
                 std::string s = sync_instruction();
@@ -72,6 +74,7 @@ void tcp_reader(TCPServer &tcp_server, ChannelTable &table,
             continue;
         }
 
+        // If no timeout occurred, then there is data waiting
         int received = tcp_server.Receive(fd, buffer, sizeof(buffer));
         if (received <= 0)
             break; // 0: client closed, <0: error
@@ -115,7 +118,7 @@ void accept_handler(TCPServer &tcp_server, ChannelTable &table,
             break;
         }
 
-        // Try to allocate a channel
+        // Try to allocate the lowest channel not yet taken
         std::optional<uint8_t> channel = table.Allocate(fd);
         if (!channel) {
             std::cerr << "accept_handler: channel table full, rejecting client"
@@ -132,6 +135,8 @@ void accept_handler(TCPServer &tcp_server, ChannelTable &table,
         std::cout << "accept_handler: new channel " << (int)*channel << " (fd "
                   << fd << "), sent CREATE" << std::endl;
 
+        // Create a thread for reading one specific channel.
+        // Detach it, so the accept_handler thread can keep accepting connections.
         std::thread(tcp_reader, std::ref(tcp_server), std::ref(table),
                     std::ref(send_queue), *channel, fd)
             .detach();
@@ -185,6 +190,7 @@ void tcp_send_handler(TCPServer &tcp_server, ChannelTable &table,
  * @brief Receives datagrams from the bridge and queues the parsed messages
  */
 void udp_recv_handler(UDPReceiver &udp_receiver, NetQueue &recv_queue) {
+    // + 1 for null byte - c-style strings
     char buffer[Multiplexer::MAX_DATAGRAM_SIZE + 1];
 
     while (running) {
@@ -283,7 +289,7 @@ int main(int argc, char *argv[]) {
     std::cout << "Initialized UDP sender for " << udp_send_ip << ":"
               << udp_send_port << std::endl;
 
-    ChannelTable table;
+    ChannelTable table; // Shared by accept thread and tcp_send thread to keep track of connections
     auto recv_queue = NetQueue();
     auto send_queue = NetQueue();
 

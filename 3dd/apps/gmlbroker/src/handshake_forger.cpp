@@ -59,7 +59,6 @@ std::string HandshakeForger::Feed(const char *data, size_t len) {
 
 bool HandshakeForger::OnInstructionBegin(const GuacElement &instr) {
     current_opcode.assign(instr.ptr, instr.len);
-    std::cout << "Received opcode " << current_opcode << std::endl;
     // The forger is not a security gate; accept every handshake opcode.
     return true;
 }
@@ -75,10 +74,12 @@ bool HandshakeForger::OnArgument(const GuacElement &arg) {
 }
 
 bool HandshakeForger::OnInstructionEnd() {
+    // After select was sent, send fake connection parameters
     if (current_opcode == "select") {
         out += CannedArgs();
         hs_state = HandshakeState::EXCHANGING_PARAMETERS;
     } else if (current_opcode == "connect") {
+        // When connect is received send a ready instruction with a fake ID
         fake_id = make_fake_id();
         out += instr({"ready", fake_id});
         out += WaitingScreen();
