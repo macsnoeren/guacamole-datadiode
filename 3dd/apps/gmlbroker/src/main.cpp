@@ -11,6 +11,7 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <random>
 #include <signal.h>
 #include <sstream>
 #include <string>
@@ -38,32 +39,74 @@ void interrupt_handler(int signum) {
 constexpr int SYNC_INTERVAL_MS = 1000;
 
 /*
- * @brief Per-channel approval flags, shared between the bridge-recv thread and
+ * @brief A unique, inert connection-request identifier (12 hex chars).
+ *
+ * Sent as the CREATE payload to request approval. Deliberately not derived from
+ * Guacamole traffic, and NUL-free so it logs cleanly.
+ */
+std::string make_request_id() {
+    static thread_local std::mt19937_64 rng{std::random_device{}()};
+    std::uniform_int_distribution<int> hex(0, 15);
+    const char *digits = "0123456789abcdef";
+    std::string id;
+    for (int i = 0; i < 12; ++i)
+        id += digits[hex(rng)];
+    return id;
+}
+
+/*
+ * @brief Per-channel approval state, shared between the bridge-recv thread and
  * the per-connection reader threads.
  *
- * The APPROVAL verdict arrives on the bridge-recv thread, but the browser input
- * is forwarded by the per-connection reader thread. This lets the former signal
- * the latter to start piping once a channel is approved.
+ * The reader mints a request id and waits; the APPROVAL verdict arrives on the
+ * bridge-recv thread, which matches it against that id before flipping the
+ * channel's approved flag. The reader polls the flag to start replaying the
+ * handshake and piping browser input.
  */
 class ApprovalRegistry {
   public:
     void Create(uint8_t channel) {
         std::lock_guard<std::mutex> lock(mutex);
-        flags[channel] = std::make_shared<std::atomic<bool>>(false);
+        entries[channel] = Entry{std::make_shared<std::atomic<bool>>(false), ""};
     }
-    std::shared_ptr<std::atomic<bool>> Get(uint8_t channel) {
+    std::shared_ptr<std::atomic<bool>> Flag(uint8_t channel) {
         std::lock_guard<std::mutex> lock(mutex);
-        auto it = flags.find(channel);
-        return it == flags.end() ? nullptr : it->second;
+        auto it = entries.find(channel);
+        return it == entries.end() ? nullptr : it->second.approved;
+    }
+    void SetRequestId(uint8_t channel, const std::string &id) {
+        std::lock_guard<std::mutex> lock(mutex);
+        auto it = entries.find(channel);
+        if (it != entries.end())
+            it->second.request_id = id;
+    }
+    // Marks the channel approved iff the verdict's id matches its request.
+    bool Approve(uint8_t channel, const std::string &id) {
+        std::lock_guard<std::mutex> lock(mutex);
+        auto it = entries.find(channel);
+        if (it == entries.end() || it->second.request_id != id)
+            return false;
+        it->second.approved->store(true);
+        return true;
+    }
+    // Whether a verdict's id matches the channel's outstanding request.
+    bool Matches(uint8_t channel, const std::string &id) {
+        std::lock_guard<std::mutex> lock(mutex);
+        auto it = entries.find(channel);
+        return it != entries.end() && it->second.request_id == id;
     }
     void Remove(uint8_t channel) {
         std::lock_guard<std::mutex> lock(mutex);
-        flags.erase(channel);
+        entries.erase(channel);
     }
 
   private:
+    struct Entry {
+        std::shared_ptr<std::atomic<bool>> approved;
+        std::string request_id;
+    };
     std::mutex mutex;
-    std::unordered_map<uint8_t, std::shared_ptr<std::atomic<bool>>> flags;
+    std::unordered_map<uint8_t, Entry> entries;
 };
 
 /*
@@ -104,19 +147,33 @@ void replay_handshake(NetQueue &send_queue, uint8_t channel,
  * @brief Serves one accepted web-server connection
  *
  * Forges the guacd handshake locally (canned args, ready, waiting screen) and
- * does not forward handshake bytes across the bridge. While the session waits
- * for an approval verdict, browser input is dropped and a periodic sync keeps
- * the waiting screen alive; once the channel is approved, browser input is piped
- * across the bridge (and guacd's own sync drives the keepalive). On close it
- * removes the channel; if it was first to remove it (local-initiated close), it
- * announces SHUTDOWN to the peer. The reader is the sole owner of close().
+ * forwards no Guacamole bytes across the bridge until the connection is
+ * approved. Once the forged handshake is established it sends an inert CREATE
+ * (carrying a unique request id) as the approval request, and keeps the waiting
+ * screen alive with a periodic sync. Only after the matching APPROVAL verdict
+ * does it replay the captured handshake and pipe browser input across the bridge
+ * (guacd's own sync then drives the keepalive). On close it removes the channel;
+ * if it was first to remove it, it announces SHUTDOWN. The reader is the sole
+ * owner of close().
  */
 void tcp_reader(TCPServer &tcp_server, ChannelTable &table,
                 NetQueue &send_queue, ApprovalRegistry &approvals,
                 uint8_t channel, int fd) {
     char buffer[Multiplexer::MAX_PAYLOAD_SIZE + 1];
     HandshakeForger forger; // forges the guacd handshake toward the web server
-    std::shared_ptr<std::atomic<bool>> approved = approvals.Get(channel);
+    std::shared_ptr<std::atomic<bool>> approved = approvals.Flag(channel);
+    bool replayed = false;
+
+    // Once approved, replay the captured handshake across the bridge exactly
+    // once. The guard validates it en route; gcdbroker forwards it to guacd.
+    auto maybe_replay = [&]() {
+        if (!replayed &&
+            forger.GetHandshakeState() == HandshakeState::ESTABLISHED &&
+            approved && approved->load()) {
+            replay_handshake(send_queue, channel, forger.Handshake());
+            replayed = true;
+        }
+    };
 
     while (running) {
         // Poll so we can emit a heartbeat (4.sync,...;) even when the web server is idle.
@@ -133,6 +190,7 @@ void tcp_reader(TCPServer &tcp_server, ChannelTable &table,
                 std::string s = sync_instruction();
                 tcp_server.Send(fd, s.data(), s.size());
             }
+            maybe_replay();
             continue;
         }
 
@@ -148,16 +206,27 @@ void tcp_reader(TCPServer &tcp_server, ChannelTable &table,
             if (!reply.empty())
                 tcp_server.Send(fd, reply.data(), reply.size());
 
-            // On the transition to ESTABLISHED, replay the captured handshake
-            // across the bridge so gcdbroker can request operator approval.
-            if (forger.GetHandshakeState() == HandshakeState::ESTABLISHED)
-                replay_handshake(send_queue, channel, forger.Handshake());
+            // On the transition to ESTABLISHED, request approval with an inert
+            // CREATE carrying a unique id — no Guacamole traffic crosses yet.
+            if (forger.GetHandshakeState() == HandshakeState::ESTABLISHED) {
+                std::string req_id = make_request_id();
+                approvals.SetRequestId(channel, req_id);
+                BridgeMessage create;
+                create.channel = channel;
+                create.action = ChannelAction::CREATE_CHANNEL;
+                create.payload = req_id;
+                send_queue.Enqueue(std::move(create));
+                std::cout << "tcp_reader: channel " << (int)channel
+                          << " requesting approval (id " << req_id << ")"
+                          << std::endl;
+            }
             continue;
         }
 
-        // Established: once approved, pipe browser input across the bridge.
-        // Before approval the waiting screen stands and input is dropped.
-        if (approved && approved->load()) {
+        // Established: replay once approved, then pipe browser input across the
+        // bridge. Before approval the waiting screen stands and input is dropped.
+        maybe_replay();
+        if (replayed) {
             BridgeMessage msg;
             msg.channel = channel;
             msg.action = ChannelAction::NONE;
@@ -202,16 +271,12 @@ void accept_handler(TCPServer &tcp_server, ChannelTable &table,
             continue;
         }
 
-        // Register the channel's approval flag before its reader can run.
+        // Register the channel's approval state before its reader can run. The
+        // CREATE (approval request) is sent later, once the forged handshake is
+        // done — nothing crosses the bridge for an incomplete handshake.
         approvals.Create(*channel);
-
-        // Announce the new channel to the bridge before any of its data
-        BridgeMessage create;
-        create.channel = *channel;
-        create.action = ChannelAction::CREATE_CHANNEL;
-        send_queue.Enqueue(std::move(create));
         std::cout << "accept_handler: new channel " << (int)*channel << " (fd "
-                  << fd << "), sent CREATE" << std::endl;
+                  << fd << ")" << std::endl;
 
         // Create a thread for reading one specific channel.
         // Detach it, so the accept_handler thread can keep accepting connections.
@@ -249,20 +314,29 @@ void tcp_send_handler(TCPServer &tcp_server, ChannelTable &table,
             break;
         case ChannelAction::APPROVAL: {
             char verdict = msg.payload.empty() ? APPROVAL_DENY : msg.payload[0];
+            std::string id =
+                msg.payload.size() > 1 ? msg.payload.substr(1) : std::string();
             if (verdict == APPROVAL_APPROVE) {
-                // Let the reader start piping browser input across the bridge,
-                // and arm the return filter to swallow guacd's real args/ready.
-                if (auto flag = approvals.Get(msg.channel))
-                    flag->store(true);
+                // Match the verdict to the outstanding request before acting, so
+                // a stale verdict can't approve a reused channel.
+                if (!approvals.Approve(msg.channel, id)) {
+                    std::cerr << "tcp_send_handler: channel " << (int)msg.channel
+                              << " ignoring unmatched approval" << std::endl;
+                    break;
+                }
+                // The reader will replay the handshake and pipe input; arm the
+                // return filter to swallow guacd's real args/ready.
                 filters[msg.channel] = ReturnFilter{};
                 std::cout << "tcp_send_handler: channel " << (int)msg.channel
                           << " APPROVED" << std::endl;
             } else {
-                std::string reason = msg.payload.size() > 1
-                                         ? msg.payload.substr(1)
-                                         : std::string();
+                if (!approvals.Matches(msg.channel, id)) {
+                    std::cerr << "tcp_send_handler: channel " << (int)msg.channel
+                              << " ignoring unmatched denial" << std::endl;
+                    break;
+                }
                 std::cout << "tcp_send_handler: channel " << (int)msg.channel
-                          << " DENIED (" << reason << ")" << std::endl;
+                          << " DENIED" << std::endl;
                 // Paint the denied screen, then wake the reader to tear down.
                 if (auto fd = table.Get(msg.channel)) {
                     std::string screen = HandshakeForger::DeniedScreen();
