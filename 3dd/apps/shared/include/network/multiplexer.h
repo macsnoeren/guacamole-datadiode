@@ -32,8 +32,9 @@ constexpr char APPROVAL_DENY = 'D';
  * @brief Each 'message' or 'packet' sent over the 3DD is wrapped in a BridgeMessage
  *
  * Owns its payload bytes so it can safely be moved across threads through a
- * NetQueue. CREATE_CHANNEL and SHUTDOWN_CHANNEL are control signals and carry
- * an empty payload by convention.
+ * NetQueue. SHUTDOWN_CHANNEL carries an empty payload by convention;
+ * CREATE_CHANNEL carries the inert approval-request id; APPROVAL carries a
+ * verdict char followed by that id.
  */
 struct BridgeMessage {
     uint8_t channel = 0;                       // Identifier for multiplexing Guacamole connections
