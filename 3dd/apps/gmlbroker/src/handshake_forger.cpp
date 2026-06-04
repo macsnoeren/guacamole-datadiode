@@ -33,16 +33,21 @@ std::string make_fake_id() {
     return id;
 }
 
-// Canned `args` reply for ssh, captured verbatim from guacd 1.6.0. The ordering
-// matters: the client's `connect` values are positional against this list.
+// Canned `args` reply for ssh, captured verbatim from guacd 1.6.0 (43 elements:
+// the VERSION token plus 42 parameter names). The count and ordering must match
+// guacd exactly: the browser builds `connect` with one value per arg in this
+// list, and the real guacd validates that count when the handshake is replayed.
+// guacd 1.6.0 adds `timeout`, `public-key`, `typescript-write-existing`, and
+// `recording-write-existing` over the 1.5.0 list.
 const char *SSH_ARGS_1_6_0 =
-    "4.args,13.VERSION_1_5_0,8.hostname,8.host-key,4.port,8.username,8.password,"
-    "9.font-name,9.font-size,11.enable-sftp,19.sftp-root-directory,"
+    "4.args,13.VERSION_1_5_0,8.hostname,8.host-key,4.port,7.timeout,8.username,"
+    "8.password,9.font-name,9.font-size,11.enable-sftp,19.sftp-root-directory,"
     "21.sftp-disable-download,19.sftp-disable-upload,11.private-key,"
-    "10.passphrase,12.color-scheme,7.command,15.typescript-path,"
-    "15.typescript-name,22.create-typescript-path,14.recording-path,"
-    "14.recording-name,24.recording-exclude-output,23.recording-exclude-mouse,"
-    "22.recording-include-keys,21.create-recording-path,9.read-only,"
+    "10.passphrase,10.public-key,12.color-scheme,7.command,15.typescript-path,"
+    "15.typescript-name,22.create-typescript-path,25.typescript-write-existing,"
+    "14.recording-path,14.recording-name,24.recording-exclude-output,"
+    "23.recording-exclude-mouse,22.recording-include-keys,"
+    "21.create-recording-path,24.recording-write-existing,9.read-only,"
     "21.server-alive-interval,9.backspace,13.terminal-type,10.scrollback,"
     "6.locale,8.timezone,12.disable-copy,13.disable-paste,15.wol-send-packet,"
     "12.wol-mac-addr,18.wol-broadcast-addr,12.wol-udp-port,13.wol-wait-time;";
