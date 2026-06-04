@@ -52,6 +52,40 @@ const char *SSH_ARGS_1_6_0 =
     "6.locale,8.timezone,12.disable-copy,13.disable-paste,15.wol-send-packet,"
     "12.wol-mac-addr,18.wol-broadcast-addr,12.wol-udp-port,13.wol-wait-time;";
 
+// Canned `args` reply for rdp, captured verbatim from guacd 1.6.0 (89 elements:
+// the VERSION token plus 88 parameter names). Same rule as ssh: the count and
+// ordering must match guacd exactly, since the browser's `connect` is positional
+// against this list and the real guacd validates the count on replay.
+const char *RDP_ARGS_1_6_0 =
+    "4.args,13.VERSION_1_5_0,8.hostname,4.port,7.timeout,6.domain,"
+    "8.username,8.password,5.width,6.height,3.dpi,15.initial-program,"
+    "11.color-depth,13.disable-audio,15.enable-printing,12.printer-name,"
+    "12.enable-drive,10.drive-name,10.drive-path,17.create-drive-path,"
+    "16.disable-download,14.disable-upload,7.console,13.console-audio,"
+    "13.server-layout,8.security,11.ignore-cert,9.cert-tofu,"
+    "17.cert-fingerprints,12.disable-auth,10.remote-app,"
+    "14.remote-app-dir,15.remote-app-args,15.static-channels,"
+    "11.client-name,16.enable-wallpaper,14.enable-theming,"
+    "21.enable-font-smoothing,23.enable-full-window-drag,"
+    "26.enable-desktop-composition,22.enable-menu-animations,"
+    "22.disable-bitmap-caching,25.disable-offscreen-caching,"
+    "21.disable-glyph-caching,11.disable-gfx,16.preconnection-id,"
+    "18.preconnection-blob,8.timezone,11.enable-sftp,13.sftp-hostname,"
+    "13.sftp-host-key,9.sftp-port,12.sftp-timeout,13.sftp-username,"
+    "13.sftp-password,16.sftp-private-key,15.sftp-passphrase,"
+    "15.sftp-public-key,14.sftp-directory,19.sftp-root-directory,"
+    "26.sftp-server-alive-interval,21.sftp-disable-download,"
+    "19.sftp-disable-upload,14.recording-path,14.recording-name,"
+    "24.recording-exclude-output,23.recording-exclude-mouse,"
+    "23.recording-exclude-touch,22.recording-include-keys,"
+    "21.create-recording-path,24.recording-write-existing,"
+    "13.resize-method,18.enable-audio-input,12.enable-touch,9.read-only,"
+    "16.gateway-hostname,12.gateway-port,14.gateway-domain,"
+    "16.gateway-username,16.gateway-password,17.load-balance-info,"
+    "12.disable-copy,13.disable-paste,15.wol-send-packet,12.wol-mac-addr,"
+    "18.wol-broadcast-addr,12.wol-udp-port,13.wol-wait-time,"
+    "14.force-lossless,19.normalize-clipboard;";
+
 } // namespace
 
 std::string HandshakeForger::Feed(const char *data, size_t len) {
@@ -97,7 +131,10 @@ bool HandshakeForger::OnInstructionEnd() {
 }
 
 std::string HandshakeForger::CannedArgs() const {
-    // Only ssh is wired up for the PoC; extend per protocol as needed.
+    // Per-protocol canned args, pinned to guacd 1.6.0. Extend as more protocols
+    // are wired up; the forged list must match guacd's real args exactly.
+    if (protocol == "rdp")
+        return RDP_ARGS_1_6_0;
     if (protocol == "ssh")
         return SSH_ARGS_1_6_0;
     return SSH_ARGS_1_6_0; // PoC fallback
