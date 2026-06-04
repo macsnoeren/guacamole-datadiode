@@ -64,8 +64,19 @@ class HandshakeForger : public OpcodeParser {
     static std::string DeniedScreen();
 
   protected:
+    /**
+     * @brief Stores the opcode currently being parsed
+     */
     bool OnInstructionBegin(const GuacElement &instr) override;
+
+    /**
+     * Stores the arguments sent from the client, to replay them to guacd later
+     */
     bool OnArgument(const GuacElement &arg) override;
+
+    /**
+     * @brief Sets handshake state based on the opcode that was received
+     */
     bool OnInstructionEnd() override;
 
   private:
