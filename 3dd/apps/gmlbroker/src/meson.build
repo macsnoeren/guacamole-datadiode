@@ -8,6 +8,13 @@ project(
 sources = [
   'main.cpp',
   'handshake_forger.cpp',
+  'return_filter.cpp',
+  'approval_registry.cpp',
+  'nethandlers/tcp_accept_handler.cpp',
+  'nethandlers/tcp_read_handler.cpp',
+  'nethandlers/tcp_send_handler.cpp',
+  'nethandlers/udp_recv_handler.cpp',
+  'nethandlers/udp_send_handler.cpp',
   '../../shared/src/network/udpsender.cpp',
   '../../shared/src/network/udpreceiver.cpp',
   '../../shared/src/network/tcpserver.cpp',
