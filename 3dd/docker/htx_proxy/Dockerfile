@@ -9,6 +9,7 @@ COPY apps/shared/src/ apps/shared/src/
 COPY apps/shared/tests/ apps/shared/tests/
 
 COPY apps/gcdbroker/src apps/gcdbroker/src
+COPY apps/gcdbroker/include apps/gcdbroker/include
 
 WORKDIR /app/apps/gcdbroker/
 
