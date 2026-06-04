@@ -13,12 +13,6 @@
 #include <string>
 #include <thread>
 
-const char *guacd_ip;
-int guacd_port;
-const char *udp_recv_ip;
-int udp_recv_port;
-const char *udp_send_ip;
-int udp_send_port;
 std::atomic<bool> running = true;
 
 /*
@@ -51,12 +45,11 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    guacd_ip = argv[1];
-    guacd_port = std::stoi(argv[2]);
-    udp_recv_ip = argv[3];
-    udp_recv_port = std::stoi(argv[4]);
-    udp_send_ip = argv[5];
-    udp_send_port = std::stoi(argv[6]);
+    const char *guacd_ip = argv[1];
+    int guacd_port = std::stoi(argv[2]);
+    int udp_recv_port = std::stoi(argv[4]);
+    const char *udp_send_ip = argv[5];
+    int udp_send_port = std::stoi(argv[6]);
 
     // Set interrupt handler
     struct sigaction sa{};
