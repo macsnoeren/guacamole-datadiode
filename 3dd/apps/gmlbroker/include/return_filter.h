@@ -22,30 +22,12 @@ class ReturnFilter : public OpcodeParser {
      * @brief Feed guacd return bytes; returns the bytes to forward to the web
      * server (empty while still swallowing the handshake).
      */
-    std::string Feed(const char *data, size_t len) {
-        if (piping)
-            return std::string(data, len);
-
-        ready_end = 0;
-        Parse(data, len); // may flip `piping` via OnInstructionEnd
-        if (piping)
-            return std::string(data + ready_end, data + len);
-        return std::string();
-    }
+    std::string Feed(const char *data, size_t len);
 
   protected:
-    bool OnInstructionBegin(const GuacElement &instr) override {
-        current_opcode.assign(instr.ptr, instr.len);
-        return true; // not a gate; accept every opcode on the return path
-    }
+    bool OnInstructionBegin(const GuacElement &instr) override;
 
-    bool OnInstructionEnd() override {
-        if (!piping && current_opcode == "ready") {
-            piping = true;
-            ready_end = CurrentIndex() + 1; // first byte after ready's ';'
-        }
-        return true;
-    }
+    bool OnInstructionEnd() override;
 
   private:
     std::string current_opcode;
