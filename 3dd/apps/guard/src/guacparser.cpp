@@ -1,6 +1,8 @@
 #include "../include/guacparser.h"
 #include <cstring>
+#include <iostream>
 #include <string.h>
+#include <string>
 
 ParserState GuacParser::Parse(const char *data, size_t len) {
     for (size_t i = 0; i < len; ++i) {
@@ -72,6 +74,9 @@ ParserState GuacParser::Parse(const char *data, size_t len) {
                     // If this was an opcode, check if it is allowed
                     // Also sets next_args_max_length if needed
                     if (!OnInstructionBegin(elem)) {
+                        std::cout << "Denied opcode "
+                                  << std::string(elem.ptr, elem.len)
+                                  << std::endl;
                         state = ParserState::DENIED_OPCODE;
                         return state;
                     }
@@ -139,7 +144,9 @@ bool GuacParser::OnInstructionBegin(const GuacElement &opcode) {
      */
     switch (opcode.len) {
     case 3:
-        return !memcmp(opcode.ptr, "key", 3) || !memcmp(opcode.ptr, "ack", 3) ||
+        return !memcmp(opcode.ptr, "key", 3) ||
+               !memcmp(opcode.ptr, "ack", 3) ||
+               !memcmp(opcode.ptr, "nop", 3) ||
                !memcmp(opcode.ptr, "end", 3);
     case 4:
         if (!memcmp(opcode.ptr, "blob", 4)) {
