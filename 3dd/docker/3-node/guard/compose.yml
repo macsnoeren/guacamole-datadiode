@@ -2,7 +2,7 @@ services:
   guard:
     build:
       context: ../../../
-      dockerfile: docker/guard/Dockerfile
+      dockerfile: docker/3-node/guard/Dockerfile
     stop_grace_period: 1s
     container_name: guard
     restart: unless-stopped
