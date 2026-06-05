@@ -3,7 +3,7 @@ include:
 services:
   gmlbroker:
     build:
-      context: ../../
+      context: ../../../
       dockerfile: docker/ltx_proxy/Dockerfile
     stop_grace_period: 1s
     container_name: gmlbroker

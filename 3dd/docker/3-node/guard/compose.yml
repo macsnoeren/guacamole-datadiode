@@ -1,7 +1,7 @@
 services:
   guard:
     build:
-      context: ../../
+      context: ../../../
       dockerfile: docker/guard/Dockerfile
     stop_grace_period: 1s
     container_name: guard
