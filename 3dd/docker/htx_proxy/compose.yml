@@ -1,0 +1,18 @@
+include:
+  - ../guacd/compose.yml
+services:
+  gcdbroker:
+    build:
+      context: ../../
+      dockerfile: docker/htx_proxy/Dockerfile
+    stop_grace_period: 1s
+    container_name: gcdbroker
+    restart: unless-stopped
+    command:
+      [
+        "./build/gcdbroker",
+        "127.0.0.1", "4822",
+        "0.0.0.0", "5502",
+        "10.0.3.2", "5503"
+      ]
+    network_mode: "host"

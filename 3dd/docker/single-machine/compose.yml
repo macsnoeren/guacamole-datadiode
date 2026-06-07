@@ -1,0 +1,129 @@
+name: 3dd-single-machine
+services:
+  guac_postgres:
+    image: postgres:15
+    container_name: guac_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: guacamole_db
+      POSTGRES_USER: guacamole_user
+      POSTGRES_PASSWORD: guacamole_pass
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - guac_internal
+
+  guacamole:
+    image: guacamole/guacamole:1.6.0
+    container_name: guacamole
+    restart: unless-stopped
+    depends_on:
+      - guac_postgres
+    environment:
+      # DB config
+      POSTGRESQL_HOSTNAME: guac_postgres
+      POSTGRESQL_DATABASE: guacamole_db
+      POSTGRESQL_USER: guacamole_user
+      POSTGRESQL_PASSWORD: guacamole_pass
+
+      GUACD_HOSTNAME: host.docker.internal
+      GUACD_PORT: 4823
+    ports:
+      - "8080:8080"  # Guacamole web UI
+    networks:
+      - guac_internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+  guacd:
+    image: guacamole/guacd:1.6.0
+    container_name: guacd
+    restart: unless-stopped
+    # guacd listens on 4822 TCP by default
+    ports:
+      - "4822:4822"
+    networks:
+      - guacd_internal
+
+  gmlbroker:
+    build:
+      context: ../../
+      dockerfile: docker/ltx_proxy/Dockerfile
+    stop_grace_period: 1s
+    container_name: gmlbroker
+    restart: unless-stopped
+    network_mode: "host"
+    command:
+      [
+        "./build/gmlbroker",
+        "127.0.0.1", "4823",
+        "127.0.0.1", "5504",
+        "127.0.0.1", "5500"
+      ]
+
+  guard:
+    build:
+      context: ../../
+      dockerfile: docker/guard/Dockerfile
+    stop_grace_period: 1s
+    container_name: guard
+    restart: unless-stopped
+    network_mode: "host"
+    command:
+      [
+        "./build/guard",
+        "5500",
+        "127.0.0.1", "5501"
+      ]
+
+  hrx_proxy:
+    build:
+      context: ../../
+      dockerfile: docker/hrx_proxy/Dockerfile
+    stop_grace_period: 1s
+    container_name: hrx_proxy
+    restart: unless-stopped
+    network_mode: "host"
+    command:
+      [
+        "./build/hrx_proxy",
+        "5501",
+        "127.0.0.1", "5502"
+      ]
+
+  gcdbroker:
+    build:
+      context: ../../
+      dockerfile: docker/htx_proxy/Dockerfile
+    stop_grace_period: 1s
+    container_name: gcdbroker
+    restart: unless-stopped
+    command:
+      [
+        "./build/gcdbroker",
+        "127.0.0.1", "4822",
+        "127.0.0.1", "5502",
+        "127.0.0.1", "5503"
+      ]
+    network_mode: "host"
+
+  lrx_proxy:
+    build:
+      context: ../../
+      dockerfile: docker/lrx_proxy/Dockerfile
+    stop_grace_period: 1s
+    container_name: lrx_proxy
+    restart: unless-stopped
+    network_mode: "host"
+    command:
+      [
+        "./build/lrx_proxy",
+        "5503",
+        "127.0.0.1", "5504"
+      ]
+
+volumes:
+  db-data:
+
+networks:
+  guac_internal:
+  guacd_internal:
