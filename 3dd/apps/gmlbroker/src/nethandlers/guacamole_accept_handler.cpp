@@ -1,5 +1,5 @@
 #include "../../include/nethandlers/guacamole_accept_handler.h"
-#include "../../include/nethandlers/tcp_read_handler.h"
+#include "../../include/nethandlers/guacamole_read_handler.h"
 #include "../../include/running.h"
 #include <iostream>
 #include <optional>
@@ -41,7 +41,7 @@ std::thread GuacamoleAcceptHandler::Run(NetQueue &queue, GuacamoleServer &guacam
             // accept loop can keep accepting connections. The reader's thread
             // body captures only the shared refs (not the handler), so the
             // temporary handler going out of scope here is safe.
-            TCPReadHandler reader;
+            GuacamoleReadHandler reader;
             reader.Run(queue, guacamole_server, table, approvals, channel.value(), fd)
                 .detach();
         }

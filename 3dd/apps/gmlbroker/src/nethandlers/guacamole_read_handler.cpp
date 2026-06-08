@@ -1,4 +1,4 @@
-#include "../../include/nethandlers/tcp_read_handler.h"
+#include "../../include/nethandlers/guacamole_read_handler.h"
 #include "../../../shared/include/network/multiplexer.h"
 #include "../../include/handshake_forger.h"
 #include "../../include/running.h"
@@ -60,7 +60,7 @@ void replay_handshake(NetQueue &send_queue, uint8_t channel,
         msg.payload = handshake.substr(off, CHUNK);
         send_queue.Enqueue(std::move(msg));
     }
-    std::cout << "tcp_reader: channel " << (int)channel << " replayed "
+    std::cout << "guacamole_reader: channel " << (int)channel << " replayed "
               << handshake.size() << " handshake bytes to the bridge"
               << std::endl;
 }
@@ -80,7 +80,7 @@ void replay_handshake(NetQueue &send_queue, uint8_t channel,
  * if it was first to remove it, it announces SHUTDOWN. The reader is the sole
  * owner of close().
  */
-std::thread TCPReadHandler::Run(NetQueue &queue, GuacamoleServer &guacamole_server,
+std::thread GuacamoleReadHandler::Run(NetQueue &queue, GuacamoleServer &guacamole_server,
                                 ChannelTable &table, ApprovalRegistry &approvals,
                                 uint8_t channel, int fd) {
     return std::thread([&queue, &guacamole_server, &table, &approvals, channel, fd]() {
@@ -136,7 +136,7 @@ std::thread TCPReadHandler::Run(NetQueue &queue, GuacamoleServer &guacamole_serv
                 // reader. The teardown below announces SHUTDOWN and closes fd.
                 if (forger.GetHandshakeState() ==
                     HandshakeState::INVALID_HANDSHAKE) {
-                    std::cerr << "tcp_reader: channel " << (int)channel
+                    std::cerr << "guacamole_reader: channel " << (int)channel
                               << " handshake corrupted, closing" << std::endl;
                     break;
                 }
@@ -152,7 +152,7 @@ std::thread TCPReadHandler::Run(NetQueue &queue, GuacamoleServer &guacamole_serv
                     create.action = ChannelAction::CREATE_CHANNEL;
                     create.payload = req_id;
                     queue.Enqueue(std::move(create));
-                    std::cout << "tcp_reader: channel " << (int)channel
+                    std::cout << "guacamole_reader: channel " << (int)channel
                               << " requesting approval (id " << req_id << ")"
                               << std::endl;
                 }
@@ -180,7 +180,7 @@ std::thread TCPReadHandler::Run(NetQueue &queue, GuacamoleServer &guacamole_serv
             shutdown.channel = channel;
             shutdown.action = ChannelAction::SHUTDOWN_CHANNEL;
             queue.Enqueue(std::move(shutdown));
-            std::cout << "tcp_reader: channel " << (int)channel
+            std::cout << "guacamole_reader: channel " << (int)channel
                       << " closed locally, sent SHUTDOWN" << std::endl;
         }
         guacamole_server.Close(fd);
