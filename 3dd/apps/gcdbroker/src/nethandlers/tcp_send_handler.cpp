@@ -92,6 +92,15 @@ std::thread TCPSendHandler::Run(NetQueue &recv_queue, NetQueue &send_queue,
                     std::cout << "tcp_send_handler: channel " << (int)msg.channel
                               << " SHUTDOWN from peer" << std::endl;
                 }
+                // Echo the teardown back on the return path so gmlbroker tears
+                // down the browser. The guard can originate a SHUTDOWN (corrupt
+                // stream) that gmlbroker never initiated, and the return path
+                // bypasses the guard. gmlbroker's SHUTDOWN handler is idempotent,
+                // so a redundant echo for a browser-initiated close is a no-op,
+                // and the "Remove decides who announces" rule stops any loop.
+                BridgeMessage echo{msg.channel, ChannelAction::SHUTDOWN_CHANNEL,
+                                   ""};
+                send_queue.Enqueue(std::move(echo));
                 break;
             }
 

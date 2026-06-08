@@ -132,6 +132,15 @@ std::thread TCPReadHandler::Run(NetQueue &queue, TCPServer &tcp_server,
                 if (!reply.empty())
                     tcp_server.Send(fd, reply.data(), reply.size());
 
+                // A corrupted handshake can no longer be parsed: stop this
+                // reader. The teardown below announces SHUTDOWN and closes fd.
+                if (forger.GetHandshakeState() ==
+                    HandshakeState::INVALID_HANDSHAKE) {
+                    std::cerr << "tcp_reader: channel " << (int)channel
+                              << " handshake corrupted, closing" << std::endl;
+                    break;
+                }
+
                 // On the transition to ESTABLISHED, request approval with an
                 // inert CREATE carrying a unique id — no Guacamole traffic
                 // crosses yet.
