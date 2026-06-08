@@ -12,15 +12,17 @@
  */
 const char *state_name(ParserState state) {
     switch (state) {
-    case ParserState::READY:
-        return "READY";
-    case ParserState::PARSING:
-        return "PARSING";
-    case ParserState::DENIED_OPCODE:
-        return "DENIED_OPCODE";
-    case ParserState::INVALID:
+    case ParserState::READING_LENGTH:
+        return "READING_LENGTH";
+    case ParserState::READING_DATA:
+        return "READING_DATA";
+    case ParserState::EXPECT_DELIM:
+        return "EXPECT_DELIM";
+    case ParserState::DENIED_DATA:
+        return "DENIED_DATA";
+    case ParserState::STREAM_CORRUPTED:
     default:
-        return "INVALID";
+        return "STREAM_CORRUPTED";
     }
 }
 
@@ -108,25 +110,47 @@ int main(int argc, char *argv[]) {
                 break;
             }
 
+            OpcodeParser &parser = parsers[msg.channel];
             ParserState state =
-                parsers[msg.channel].Parse(msg.payload.data(),
-                                           msg.payload.size());
+                parser.Parse(msg.payload.data(), msg.payload.size());
 
-            // Invalid traffic, channel is now poisoned and cannot continue
-            if (state == ParserState::INVALID ||
-                state == ParserState::DENIED_OPCODE) {
-                std::cout << "Could not parse payload "
-                          << msg.payload
-                          << std::endl;
+            // The stream can no longer be trusted. Tell the OT side to tear the
+            // channel down, forget its parser, and drop everything further on
+            // it (a fresh CREATE for a reused id will clear the poison).
+            if (state == ParserState::STREAM_CORRUPTED) {
+                BridgeMessage shutdown{msg.channel,
+                                       ChannelAction::SHUTDOWN_CHANNEL, ""};
+                std::string wire = Multiplexer::Serialize(shutdown);
+                sender.Send(wire.data(), wire.size());
+
+                parsers.erase(msg.channel);
                 poisoned.insert(msg.channel);
                 std::cerr << "guard: channel " << (int)msg.channel
-                          << " dropped " << msg.payload.size() << " bytes ("
-                          << state_name(state) << "), channel poisoned"
-                          << std::endl;
+                          << " STREAM_CORRUPTED, sent SHUTDOWN and dropped "
+                          << msg.payload.size() << " bytes" << std::endl;
                 break;
             }
 
-            sender.Send(buffer, received);
+            // Disallowed opcode(s): excise them from the send buffer and forward
+            // the trimmed remainder so the rest of the allowed traffic flows.
+            if (state == ParserState::DENIED_DATA) {
+                size_t orig = msg.payload.size();
+                size_t plen = orig;
+                parser.Excise(msg.payload.data(), plen);
+                msg.payload.resize(plen);
+                std::cerr << "guard: channel " << (int)msg.channel << " excised "
+                          << (orig - plen) << " bytes of denied content"
+                          << std::endl;
+
+                if (msg.payload.empty())
+                    break; // nothing left to forward
+
+                std::string wire = Multiplexer::Serialize(msg);
+                sender.Send(wire.data(), wire.size());
+            } else {
+                // Clean: forward the datagram verbatim.
+                sender.Send(buffer, received);
+            }
             std::cout << "guard: channel " << (int)msg.channel << " forwarded "
                       << msg.payload.size() << " bytes (" << state_name(state)
                       << ")" << std::endl;
