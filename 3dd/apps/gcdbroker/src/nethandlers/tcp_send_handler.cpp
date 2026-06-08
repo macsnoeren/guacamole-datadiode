@@ -1,87 +1,63 @@
 #include "../../include/nethandlers/tcp_send_handler.h"
 #include "../../../shared/include/network/multiplexer.h"
-#include "../../include/approver.h"
 #include "../../include/nethandlers/tcp_read_handler.h"
 #include "../../include/running.h"
 #include <iostream>
 #include <optional>
 #include <string>
 
-namespace {
-
 /*
- * @brief Sends an APPROVAL verdict for a channel back on the return path
+ * @brief Routes bridge messages to guacd connections by channel.
  *
- * Payload byte 0 is the printable verdict ('A'/'D'); the inert request id
- * follows, so gmlbroker can match the verdict to its outstanding request. This
- * rides the return path (bypassing the guard) straight back to gmlbroker.
- */
-void send_verdict(NetQueue &send_queue, uint8_t channel, char verdict,
-                  const std::string &request_id) {
-    BridgeMessage msg;
-    msg.channel = channel;
-    msg.action = ChannelAction::APPROVAL;
-    msg.payload.push_back(verdict);
-    msg.payload.append(request_id);
-    send_queue.Enqueue(std::move(msg));
-}
-
-} // namespace
-
-/*
- * @brief Routes bridge messages to guacd connections by channel, gating on
- * approval.
- *
- * The approval request is the inert CREATE payload (a unique id), never
- * Guacamole traffic — so no attacker-influenced bytes are parsed before a human
- * authorizes the connection. guacd is dialed only on approval. Any NONE traffic
- * for a channel that is not approved is dropped without inspection, so no
- * Guacamole reaches guacd before the verdict. Once approved, NONE traffic is
- * forwarded to guacd untouched (the guard validated it en route).
+ * The approval decision now lives at the guard: gcdbroker no longer parses the
+ * request or verdicts anything. It dials guacd only when the guard's
+ * APPROVAL('A') verdict arrives, relays every verdict onto the return path back
+ * to gmlbroker, and drops any NONE for a channel it has not dialed. So no
+ * Guacamole reaches guacd before the operator approves. Once dialed, NONE
+ * traffic is forwarded to guacd untouched (the guard validated it en route).
  */
 std::thread TCPSendHandler::Run(NetQueue &recv_queue, NetQueue &send_queue,
                                 TCPClient &tcp_client, ChannelTable &table) {
     return std::thread([&recv_queue, &send_queue, &tcp_client, &table]() {
-        Approver approver;
-
         while (running) {
             BridgeMessage msg = recv_queue.Dequeue();
 
             switch (msg.action) {
-            case ChannelAction::CREATE_CHANNEL: {
-                // The CREATE payload is the inert approval request id; decide on
-                // it.
-                const std::string &request_id = msg.payload;
-                ApprovalResult verdict = approver.HandleRequest(request_id);
-                if (!verdict.approved) {
-                    send_verdict(send_queue, msg.channel, APPROVAL_DENY,
-                                 request_id);
-                    std::cout << "tcp_send_handler: channel " << (int)msg.channel
-                              << " DENIED (" << verdict.reason << ")"
-                              << std::endl;
-                    break;
-                }
-
-                // Approved: dial guacd now, ready to receive the handshake
-                // replay.
-                int fd = tcp_client.Connect();
-                if (fd < 0 || !table.Insert(msg.channel, fd)) {
-                    if (fd >= 0)
-                        tcp_client.Close(fd);
-                    std::cerr << "tcp_send_handler: channel " << (int)msg.channel
-                              << " approved but guacd dial failed" << std::endl;
-                    send_verdict(send_queue, msg.channel, APPROVAL_DENY,
-                                 request_id);
-                    break;
-                }
-                TCPReadHandler reader;
-                reader.Run(send_queue, tcp_client, table, msg.channel, fd)
-                    .detach();
-                send_verdict(send_queue, msg.channel, APPROVAL_APPROVE,
-                             request_id);
+            case ChannelAction::CREATE_CHANNEL:
+                // The guard owns the decision; gcdbroker waits for the verdict
+                // and dials guacd only on APPROVAL('A').
                 std::cout << "tcp_send_handler: channel " << (int)msg.channel
-                          << " APPROVED, dialed guacd (fd " << fd << ")"
-                          << std::endl;
+                          << " CREATE seen (awaiting verdict)" << std::endl;
+                break;
+
+            case ChannelAction::APPROVAL: {
+                // The guard's verdict, arriving on the forward path. On approval
+                // dial guacd; either way relay it onto the return path so
+                // gmlbroker can act on it.
+                char verdict =
+                    msg.payload.empty() ? APPROVAL_DENY : msg.payload[0];
+                if (verdict == APPROVAL_APPROVE) {
+                    int fd = tcp_client.Connect();
+                    if (fd >= 0 && table.Insert(msg.channel, fd)) {
+                        TCPReadHandler reader;
+                        reader.Run(send_queue, tcp_client, table, msg.channel, fd)
+                            .detach();
+                        std::cout << "tcp_send_handler: channel "
+                                  << (int)msg.channel << " APPROVED, dialed guacd"
+                                  << " (fd " << fd << ")" << std::endl;
+                    } else {
+                        if (fd >= 0)
+                            tcp_client.Close(fd);
+                        // Dial failed: downgrade the relayed verdict so gmlbroker
+                        // tears down instead of waiting forever.
+                        msg.payload[0] = APPROVAL_DENY;
+                        std::cerr << "tcp_send_handler: channel "
+                                  << (int)msg.channel
+                                  << " approved but guacd dial failed; relaying"
+                                  << " DENY" << std::endl;
+                    }
+                }
+                send_queue.Enqueue(std::move(msg));
                 break;
             }
 

@@ -2,6 +2,7 @@
 #include "../../shared/include/network/udpreceiver.h"
 #include "../../shared/include/network/udpsender.h"
 #include "../../shared/include/parser/opcode_parser.h"
+#include "../include/approver.h"
 #include <iostream>
 #include <string>
 #include <unordered_map>
@@ -65,6 +66,11 @@ int main(int argc, char *argv[]) {
     std::unordered_map<uint8_t, OpcodeParser> parsers;
     std::unordered_set<uint8_t> poisoned;
 
+    // The guard is the approval gate: the operator decides on each inert CREATE
+    // request here. `approved` holds the channels cleared to carry Guacamole.
+    Approver approver;
+    std::unordered_set<uint8_t> approved;
+
     char buffer[Multiplexer::MAX_DATAGRAM_SIZE + 1];
 
     while (true) {
@@ -81,20 +87,52 @@ int main(int argc, char *argv[]) {
         }
 
         switch (msg.action) {
-        // Create a new parser
-        case ChannelAction::CREATE_CHANNEL:
-            // Fresh parser for a (possibly reused) channel id
+        // CREATE is the inert approval request: the operator decides here.
+        case ChannelAction::CREATE_CHANNEL: {
+            // Fresh state for a (possibly reused) channel id
             parsers[msg.channel] = OpcodeParser{};
             poisoned.erase(msg.channel);
+            approved.erase(msg.channel);
+
+            // The CREATE payload is the inert request id (never Guacamole).
+            const std::string &request_id = msg.payload;
+            ApprovalResult verdict = approver.HandleRequest(request_id);
+
+            // Forward the CREATE downstream (gcdbroker dials guacd only when it
+            // sees the APPROVAL verdict, never on CREATE alone).
             sender.Send(buffer, received);
-            std::cout << "guard: channel " << (int)msg.channel
-                      << " CREATE, forwarded" << std::endl;
+
+            // Emit the verdict forward; gcdbroker flips it onto the return path
+            // back to gmlbroker (the guard is forward-only). Payload byte 0 is
+            // the printable verdict char, the rest is the request id.
+            char v = verdict.approved ? APPROVAL_APPROVE : APPROVAL_DENY;
+            BridgeMessage approval{msg.channel, ChannelAction::APPROVAL,
+                                   std::string(1, v) + request_id};
+            std::string wire = Multiplexer::Serialize(approval);
+            sender.Send(wire.data(), wire.size());
+
+            if (verdict.approved) {
+                approved.insert(msg.channel);
+                std::cout << "guard: channel " << (int)msg.channel
+                          << " APPROVED (id " << request_id << ")" << std::endl;
+            } else {
+                // Denied: no Guacamole will ever cross; tear the channel down.
+                BridgeMessage shutdown{msg.channel,
+                                       ChannelAction::SHUTDOWN_CHANNEL, ""};
+                std::string sd = Multiplexer::Serialize(shutdown);
+                sender.Send(sd.data(), sd.size());
+                parsers.erase(msg.channel);
+                std::cout << "guard: channel " << (int)msg.channel
+                          << " DENIED (id " << request_id << ")" << std::endl;
+            }
             break;
+        }
 
         // Remove channel reference
         case ChannelAction::SHUTDOWN_CHANNEL:
             parsers.erase(msg.channel);
             poisoned.erase(msg.channel);
+            approved.erase(msg.channel);
             sender.Send(buffer, received);
             std::cout << "guard: channel " << (int)msg.channel
                       << " SHUTDOWN, forwarded" << std::endl;
@@ -106,6 +144,14 @@ int main(int argc, char *argv[]) {
             if (poisoned.count(msg.channel)) {
                 std::cerr << "guard: channel " << (int)msg.channel
                           << " poisoned, dropped " << msg.payload.size()
+                          << " bytes" << std::endl;
+                break;
+            }
+
+            // No Guacamole crosses the bridge until the channel is approved.
+            if (!approved.count(msg.channel)) {
+                std::cerr << "guard: channel " << (int)msg.channel
+                          << " not approved, dropped " << msg.payload.size()
                           << " bytes" << std::endl;
                 break;
             }
@@ -124,6 +170,7 @@ int main(int argc, char *argv[]) {
                 sender.Send(wire.data(), wire.size());
 
                 parsers.erase(msg.channel);
+                approved.erase(msg.channel);
                 poisoned.insert(msg.channel);
                 std::cerr << "guard: channel " << (int)msg.channel
                           << " STREAM_CORRUPTED, sent SHUTDOWN and dropped "
