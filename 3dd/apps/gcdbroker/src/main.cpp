@@ -3,7 +3,7 @@
 #include "../../shared/include/network/guacd_client.h"
 #include "../../shared/include/network/udpreceiver.h"
 #include "../../shared/include/network/udpsender.h"
-#include "../include/nethandlers/tcp_send_handler.h"
+#include "../include/nethandlers/guacd_send_handler.h"
 #include "../include/nethandlers/udp_recv_handler.h"
 #include "../include/nethandlers/udp_send_handler.h"
 #include "../include/running.h"
@@ -81,16 +81,16 @@ int main(int argc, char *argv[]) {
 
     // Start the handler threads. The processor gates each channel on approval
     // and dials guacd; the UDP handlers ferry between the bridge and the queues.
-    TCPSendHandler tcp_send_handler;
+    GuacdSendHandler guacd_send_handler;
     UDPSendHandler udp_send_handler;
     UDPRecvHandler udp_recv_handler;
 
-    std::thread t_tcp_send =
-        tcp_send_handler.Run(recv_queue, send_queue, guacd_client, table);
+    std::thread t_guacd_send =
+        guacd_send_handler.Run(recv_queue, send_queue, guacd_client, table);
     std::thread t_udp_send = udp_send_handler.Run(send_queue, udp_sender);
     std::thread t_udp_recv = udp_recv_handler.Run(recv_queue, udp_receiver);
 
-    t_tcp_send.join();
+    t_guacd_send.join();
     t_udp_recv.join();
     t_udp_send.join();
 }

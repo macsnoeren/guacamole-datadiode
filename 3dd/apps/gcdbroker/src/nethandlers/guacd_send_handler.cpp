@@ -1,4 +1,4 @@
-#include "../../include/nethandlers/tcp_send_handler.h"
+#include "../../include/nethandlers/guacd_send_handler.h"
 #include "../../../shared/include/network/multiplexer.h"
 #include "../../include/nethandlers/guacd_read_handler.h"
 #include "../../include/running.h"
@@ -16,7 +16,7 @@
  * Guacamole reaches guacd before the operator approves. Once dialed, NONE
  * traffic is forwarded to guacd untouched (the guard validated it en route).
  */
-std::thread TCPSendHandler::Run(NetQueue &recv_queue, NetQueue &send_queue,
+std::thread GuacdSendHandler::Run(NetQueue &recv_queue, NetQueue &send_queue,
                                 GuacdClient &guacd_client, ChannelTable &table) {
     return std::thread([&recv_queue, &send_queue, &guacd_client, &table]() {
         while (running) {
@@ -26,7 +26,7 @@ std::thread TCPSendHandler::Run(NetQueue &recv_queue, NetQueue &send_queue,
             case ChannelAction::CREATE_CHANNEL:
                 // The guard owns the decision; gcdbroker waits for the verdict
                 // and dials guacd only on APPROVAL('A').
-                std::cout << "tcp_send_handler: channel " << (int)msg.channel
+                std::cout << "guacd_send_handler: channel " << (int)msg.channel
                           << " CREATE seen (awaiting verdict)" << std::endl;
                 break;
 
@@ -42,7 +42,7 @@ std::thread TCPSendHandler::Run(NetQueue &recv_queue, NetQueue &send_queue,
                         GuacdReadHandler reader;
                         reader.Run(send_queue, guacd_client, table, msg.channel, fd)
                             .detach();
-                        std::cout << "tcp_send_handler: channel "
+                        std::cout << "guacd_send_handler: channel "
                                   << (int)msg.channel << " APPROVED, dialed guacd"
                                   << " (fd " << fd << ")" << std::endl;
                     } else {
@@ -51,7 +51,7 @@ std::thread TCPSendHandler::Run(NetQueue &recv_queue, NetQueue &send_queue,
                         // Dial failed: downgrade the relayed verdict so gmlbroker
                         // tears down instead of waiting forever.
                         msg.payload[0] = APPROVAL_DENY;
-                        std::cerr << "tcp_send_handler: channel "
+                        std::cerr << "guacd_send_handler: channel "
                                   << (int)msg.channel
                                   << " approved but guacd dial failed; relaying"
                                   << " DENY" << std::endl;
@@ -65,7 +65,7 @@ std::thread TCPSendHandler::Run(NetQueue &recv_queue, NetQueue &send_queue,
                 std::optional<int> fd = table.Remove(msg.channel);
                 if (fd) {
                     guacd_client.Shutdown(*fd); // wakes the reader, which closes it
-                    std::cout << "tcp_send_handler: channel " << (int)msg.channel
+                    std::cout << "guacd_send_handler: channel " << (int)msg.channel
                               << " SHUTDOWN from peer" << std::endl;
                 }
                 // Echo the teardown back on the return path so gmlbroker tears
@@ -87,7 +87,7 @@ std::thread TCPSendHandler::Run(NetQueue &recv_queue, NetQueue &send_queue,
                 // approval.
                 std::optional<int> fd = table.Get(msg.channel);
                 if (!fd) {
-                    std::cerr << "tcp_send_handler: channel " << (int)msg.channel
+                    std::cerr << "guacd_send_handler: channel " << (int)msg.channel
                               << " not approved, dropping " << msg.payload.size()
                               << " bytes" << std::endl;
                     break;
