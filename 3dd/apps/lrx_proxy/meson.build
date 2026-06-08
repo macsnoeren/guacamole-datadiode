@@ -6,12 +6,12 @@ project(
   )
 
 sources = [
-  'main.cpp',
-  '../../shared/src/network/udpsender.cpp',
-  '../../shared/src/network/udpreceiver.cpp',
+  'src/main.cpp',
+  '../shared/src/network/udpsender.cpp',
+  '../shared/src/network/udpreceiver.cpp',
   ]
 
-incdir = include_directories('../../shared/include/network')
+incdir = include_directories('../shared/include/network')
 
 executable(
   'lrx_proxy',
