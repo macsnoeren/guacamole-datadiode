@@ -80,10 +80,10 @@ void replay_handshake(NetQueue &send_queue, uint8_t channel,
  * if it was first to remove it, it announces SHUTDOWN. The reader is the sole
  * owner of close().
  */
-std::thread TCPReadHandler::Run(NetQueue &queue, TCPServer &tcp_server,
+std::thread TCPReadHandler::Run(NetQueue &queue, GuacamoleServer &guacamole_server,
                                 ChannelTable &table, ApprovalRegistry &approvals,
                                 uint8_t channel, int fd) {
-    return std::thread([&queue, &tcp_server, &table, &approvals, channel, fd]() {
+    return std::thread([&queue, &guacamole_server, &table, &approvals, channel, fd]() {
         char buffer[Multiplexer::MAX_PAYLOAD_SIZE + 1];
         HandshakeForger forger; // forges the guacd handshake toward the web server
         std::shared_ptr<std::atomic<bool>> approved = approvals.Flag(channel);
@@ -103,7 +103,7 @@ std::thread TCPReadHandler::Run(NetQueue &queue, TCPServer &tcp_server,
         while (running) {
             // Poll so we can emit a heartbeat (4.sync,...;) even when the web
             // server is idle.
-            int ready = tcp_server.WaitReadable(fd, SYNC_INTERVAL_MS);
+            int ready = guacamole_server.WaitReadable(fd, SYNC_INTERVAL_MS);
             if (ready < 0)
                 // TODO: error handling
                 break;
@@ -114,14 +114,14 @@ std::thread TCPReadHandler::Run(NetQueue &queue, TCPServer &tcp_server,
                 if (forger.GetHandshakeState() == HandshakeState::ESTABLISHED &&
                     !(approved && approved->load())) {
                     std::string s = sync_instruction();
-                    tcp_server.Send(fd, s.data(), s.size());
+                    guacamole_server.Send(fd, s.data(), s.size());
                 }
                 maybe_replay();
                 continue;
             }
 
             // If no timeout occurred, then there is data waiting
-            int received = tcp_server.Receive(fd, buffer, sizeof(buffer));
+            int received = guacamole_server.Receive(fd, buffer, sizeof(buffer));
             if (received <= 0)
                 break; // 0: client closed, <0: error
 
@@ -130,7 +130,7 @@ std::thread TCPReadHandler::Run(NetQueue &queue, TCPServer &tcp_server,
             if (forger.GetHandshakeState() != HandshakeState::ESTABLISHED) {
                 std::string reply = forger.Feed(buffer, received);
                 if (!reply.empty())
-                    tcp_server.Send(fd, reply.data(), reply.size());
+                    guacamole_server.Send(fd, reply.data(), reply.size());
 
                 // A corrupted handshake can no longer be parsed: stop this
                 // reader. The teardown below announces SHUTDOWN and closes fd.
@@ -183,6 +183,6 @@ std::thread TCPReadHandler::Run(NetQueue &queue, TCPServer &tcp_server,
             std::cout << "tcp_reader: channel " << (int)channel
                       << " closed locally, sent SHUTDOWN" << std::endl;
         }
-        tcp_server.Close(fd);
+        guacamole_server.Close(fd);
     });
 }

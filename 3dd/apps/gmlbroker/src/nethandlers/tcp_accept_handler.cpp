@@ -7,12 +7,12 @@
 /*
  * @brief Accepts Guacamole connections, allocating a channel for each
  */
-std::thread TCPAcceptHandler::Run(NetQueue &queue, TCPServer &tcp_server,
+std::thread TCPAcceptHandler::Run(NetQueue &queue, GuacamoleServer &guacamole_server,
                                   ChannelTable &table,
                                   ApprovalRegistry &approvals) {
-    return std::thread([&queue, &tcp_server, &table, &approvals]() {
+    return std::thread([&queue, &guacamole_server, &table, &approvals]() {
         while (running) {
-            int fd = tcp_server.Accept();
+            int fd = guacamole_server.Accept();
             if (fd < 0) {
                 if (running)
                     continue;
@@ -25,7 +25,7 @@ std::thread TCPAcceptHandler::Run(NetQueue &queue, TCPServer &tcp_server,
                 std::cerr
                     << "accept_handler: channel table full, rejecting client"
                     << std::endl;
-                tcp_server.Close(fd);
+                guacamole_server.Close(fd);
                 continue;
             }
 
@@ -42,7 +42,7 @@ std::thread TCPAcceptHandler::Run(NetQueue &queue, TCPServer &tcp_server,
             // body captures only the shared refs (not the handler), so the
             // temporary handler going out of scope here is safe.
             TCPReadHandler reader;
-            reader.Run(queue, tcp_server, table, approvals, channel.value(), fd)
+            reader.Run(queue, guacamole_server, table, approvals, channel.value(), fd)
                 .detach();
         }
     });

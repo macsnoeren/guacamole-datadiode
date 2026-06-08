@@ -1,6 +1,6 @@
 #include "../../shared/include/network/channeltable.h"
 #include "../../shared/include/network/netqueue.h"
-#include "../../shared/include/network/tcpserver.h"
+#include "../../shared/include/network/guacamole_server.h"
 #include "../../shared/include/network/udpreceiver.h"
 #include "../../shared/include/network/udpsender.h"
 #include "../include/nethandlers/tcp_accept_handler.h"
@@ -55,6 +55,7 @@ int main(int argc, char *argv[]) {
     int udp_send_port = std::stoi(argv[6]);
 
     // Set interrupt handler
+    // TODO: better signal handling
     struct sigaction sa{};
     sa.sa_handler = interrupt_handler;
     sigemptyset(&sa.sa_mask);
@@ -63,8 +64,8 @@ int main(int argc, char *argv[]) {
 
     // Initialize UDP and TCP infrastructure
     int exit;
-    auto tcp_server = TCPServer(guac_listen_ip, guac_listen_port);
-    if ((exit = tcp_server.Initialize()) != 0)
+    auto gml_server = GuacamoleServer(guac_listen_ip, guac_listen_port);
+    if ((exit = gml_server.Initialize()) != 0)
         return exit;
 
     std::cout << "Listening on TCP port " << guac_listen_port << "..."
@@ -98,9 +99,9 @@ int main(int argc, char *argv[]) {
     UDPRecvHandler udp_recv_handler;
 
     std::thread t_accept =
-        accept_handler.Run(send_queue, tcp_server, table, approvals);
+        accept_handler.Run(send_queue, gml_server, table, approvals);
     std::thread t_tcp_send =
-        tcp_send_handler.Run(recv_queue, tcp_server, table, approvals);
+        tcp_send_handler.Run(recv_queue, gml_server, table, approvals);
     std::thread t_udp_send = udp_send_handler.Run(send_queue, udp_sender);
     std::thread t_udp_recv = udp_recv_handler.Run(recv_queue, udp_receiver);
 

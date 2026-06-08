@@ -12,20 +12,20 @@
  * Receive/Send/Shutdown/Close all operate on a caller-supplied fd, so the same
  * server instance can be used from multiple threads, one per client.
  */
-class TCPServer {
+class GuacamoleServer {
   private:
     std::string recv_ip;
     int recv_port;
     int listen_fd = -1;
 
   public:
-    TCPServer(std::string recv_ip, int recv_port)
+    GuacamoleServer(std::string recv_ip, int recv_port)
         : recv_ip(recv_ip), recv_port(recv_port) {}
 
     /**
      * @brief Closes the listening socket
      */
-    ~TCPServer();
+    ~GuacamoleServer();
 
     /**
      * @brief Attempts to bind to the server address and listen on it

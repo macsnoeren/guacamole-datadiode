@@ -1,4 +1,4 @@
-#include "../../include/network/tcpserver.h"
+#include "../../include/network/guacamole_server.h"
 #include <arpa/inet.h>
 #include <cerrno>
 #include <cstring>
@@ -7,14 +7,14 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-TCPServer::~TCPServer() {
+GuacamoleServer::~GuacamoleServer() {
     if (listen_fd >= 0) {
         ::shutdown(listen_fd, SHUT_RDWR);
         ::close(listen_fd);
     }
 }
 
-int TCPServer::Initialize() {
+int GuacamoleServer::Initialize() {
     listen_fd = ::socket(AF_INET, SOCK_STREAM, 0);
     if (listen_fd < 0) {
         perror("socket");
@@ -47,7 +47,7 @@ int TCPServer::Initialize() {
     return 0;
 }
 
-int TCPServer::Accept() {
+int GuacamoleServer::Accept() {
     sockaddr_in client_addr;
     socklen_t client_len = sizeof(client_addr);
 
@@ -68,7 +68,7 @@ int TCPServer::Accept() {
     return fd;
 }
 
-int TCPServer::WaitReadable(int fd, int timeout_ms) {
+int GuacamoleServer::WaitReadable(int fd, int timeout_ms) {
     struct pollfd pfd{};
     pfd.fd = fd;
     pfd.events = POLLIN;
@@ -83,7 +83,7 @@ int TCPServer::WaitReadable(int fd, int timeout_ms) {
     return r > 0 ? 1 : 0;
 }
 
-int TCPServer::Receive(int fd, char *buffer, size_t len) {
+int GuacamoleServer::Receive(int fd, char *buffer, size_t len) {
     ssize_t received = ::recv(fd, buffer, len - 1, 0);
 
     if (received < 0) {
@@ -102,7 +102,7 @@ int TCPServer::Receive(int fd, char *buffer, size_t len) {
     return received;
 }
 
-ssize_t TCPServer::Send(int fd, const char *buffer, size_t len) {
+ssize_t GuacamoleServer::Send(int fd, const char *buffer, size_t len) {
     if (fd < 0) {
         std::cerr << "Error: cannot send to an invalid fd\n";
         return -1;
@@ -124,12 +124,12 @@ ssize_t TCPServer::Send(int fd, const char *buffer, size_t len) {
     return total;
 }
 
-void TCPServer::Shutdown(int fd) {
+void GuacamoleServer::Shutdown(int fd) {
     if (fd >= 0)
         ::shutdown(fd, SHUT_RDWR);
 }
 
-void TCPServer::Close(int fd) {
+void GuacamoleServer::Close(int fd) {
     if (fd >= 0)
         ::close(fd);
 }

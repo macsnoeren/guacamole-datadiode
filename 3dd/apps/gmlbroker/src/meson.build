@@ -17,7 +17,7 @@ sources = [
   'nethandlers/udp_send_handler.cpp',
   '../../shared/src/network/udpsender.cpp',
   '../../shared/src/network/udpreceiver.cpp',
-  '../../shared/src/network/tcpserver.cpp',
+  '../../shared/src/network/guacamole_server.cpp',
   '../../shared/src/network/multiplexer.cpp',
   '../../shared/src/parser/opcode_parser.cpp',
   ]

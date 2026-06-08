@@ -11,10 +11,10 @@
 /*
  * @brief Routes bridge messages to the right client socket by channel
  */
-std::thread TCPSendHandler::Run(NetQueue &queue, TCPServer &tcp_server,
+std::thread TCPSendHandler::Run(NetQueue &queue, GuacamoleServer &guacamole_server,
                                 ChannelTable &table,
                                 ApprovalRegistry &approvals) {
-    return std::thread([&queue, &tcp_server, &table, &approvals]() {
+    return std::thread([&queue, &guacamole_server, &table, &approvals]() {
         // Per-channel return-path filter that swallows guacd's real args/ready.
         std::unordered_map<uint8_t, ReturnFilter> filters;
 
@@ -27,7 +27,7 @@ std::thread TCPSendHandler::Run(NetQueue &queue, TCPServer &tcp_server,
                 // Remove reference to channel
                 std::optional<int> fd = table.Remove(msg.channel);
                 if (fd) {
-                    tcp_server.Shutdown(*fd); // wakes the reader, which closes it
+                    guacamole_server.Shutdown(*fd); // wakes the reader, which closes it
                     std::cout << "tcp_send_handler: channel " << (int)msg.channel
                               << " SHUTDOWN from peer" << std::endl;
                 }
@@ -67,8 +67,8 @@ std::thread TCPSendHandler::Run(NetQueue &queue, TCPServer &tcp_server,
                     // Paint the denied screen, then wake the reader to tear down.
                     if (auto fd = table.Get(msg.channel)) {
                         std::string screen = HandshakeForger::DeniedScreen();
-                        tcp_server.Send(*fd, screen.data(), screen.size());
-                        tcp_server.Shutdown(*fd);
+                        guacamole_server.Send(*fd, screen.data(), screen.size());
+                        guacamole_server.Shutdown(*fd);
                     }
                 }
                 break;
@@ -96,10 +96,10 @@ std::thread TCPSendHandler::Run(NetQueue &queue, TCPServer &tcp_server,
                 }
                 if (out->empty())
                     break; // fully swallowed (handshake reply)
-                if (tcp_server.Send(*fd, out->data(), out->size()) < 0) {
+                if (guacamole_server.Send(*fd, out->data(), out->size()) < 0) {
                     std::optional<int> dead = table.Remove(msg.channel);
                     if (dead)
-                        tcp_server.Shutdown(*dead);
+                        guacamole_server.Shutdown(*dead);
                 }
                 break;
             }
