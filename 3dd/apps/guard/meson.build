@@ -6,7 +6,7 @@ project(
 )
 
 core_sources = files(
-  'src/guacparser.cpp',
+  '../shared/src/parser/opcode_parser.cpp',
 )
 
 release_sources = core_sources + files(
@@ -18,6 +18,7 @@ release_sources = core_sources + files(
 incdirs = include_directories(
   'include',
   '../shared/include/network',
+  '../shared/include/parser',
 )
 
 executable(

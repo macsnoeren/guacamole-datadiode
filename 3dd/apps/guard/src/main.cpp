@@ -1,7 +1,7 @@
 #include "../../shared/include/network/multiplexer.h"
 #include "../../shared/include/network/udpreceiver.h"
 #include "../../shared/include/network/udpsender.h"
-#include "../include/guacparser.h"
+#include "../../shared/include/parser/opcode_parser.h"
 #include <iostream>
 #include <string>
 #include <unordered_map>
@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
     sender.Initialize();
 
     // One parser per channel; channels that violate policy are poisoned
-    std::unordered_map<uint8_t, GuacParser> parsers;
+    std::unordered_map<uint8_t, OpcodeParser> parsers;
     std::unordered_set<uint8_t> poisoned;
 
     char buffer[Multiplexer::MAX_DATAGRAM_SIZE + 1];
@@ -82,7 +82,7 @@ int main(int argc, char *argv[]) {
         // Create a new parser
         case ChannelAction::CREATE_CHANNEL:
             // Fresh parser for a (possibly reused) channel id
-            parsers[msg.channel] = GuacParser{};
+            parsers[msg.channel] = OpcodeParser{};
             poisoned.erase(msg.channel);
             sender.Send(buffer, received);
             std::cout << "guard: channel " << (int)msg.channel
@@ -115,6 +115,9 @@ int main(int argc, char *argv[]) {
             // Invalid traffic, channel is now poisoned and cannot continue
             if (state == ParserState::INVALID ||
                 state == ParserState::DENIED_OPCODE) {
+                std::cout << "Could not parse payload "
+                          << msg.payload
+                          << std::endl;
                 poisoned.insert(msg.channel);
                 std::cerr << "guard: channel " << (int)msg.channel
                           << " dropped " << msg.payload.size() << " bytes ("
