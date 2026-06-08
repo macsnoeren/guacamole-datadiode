@@ -4,7 +4,7 @@
 #include "../../shared/include/network/udpreceiver.h"
 #include "../../shared/include/network/udpsender.h"
 #include "../include/nethandlers/guacamole_accept_handler.h"
-#include "../include/nethandlers/tcp_send_handler.h"
+#include "../include/nethandlers/guacamole_send_handler.h"
 #include "../include/nethandlers/udp_recv_handler.h"
 #include "../include/nethandlers/udp_send_handler.h"
 #include "../include/running.h"
@@ -94,19 +94,19 @@ int main(int argc, char *argv[]) {
     // channel via the shared ChannelTable and ApprovalRegistry; the UDP
     // handlers ferry between the bridge and the queues.
     GuacamoleAcceptHandler accept_handler;
-    TCPSendHandler tcp_send_handler;
+    GuacamoleSendHandler guacamole_send_handler;
     UDPSendHandler udp_send_handler;
     UDPRecvHandler udp_recv_handler;
 
     std::thread t_accept =
         accept_handler.Run(send_queue, gml_server, table, approvals);
-    std::thread t_tcp_send =
-        tcp_send_handler.Run(recv_queue, gml_server, table, approvals);
+    std::thread t_guacamole_send =
+        guacamole_send_handler.Run(recv_queue, gml_server, table, approvals);
     std::thread t_udp_send = udp_send_handler.Run(send_queue, udp_sender);
     std::thread t_udp_recv = udp_recv_handler.Run(recv_queue, udp_receiver);
 
     t_accept.join();
-    t_tcp_send.join();
+    t_guacamole_send.join();
     t_udp_recv.join();
     t_udp_send.join();
 }

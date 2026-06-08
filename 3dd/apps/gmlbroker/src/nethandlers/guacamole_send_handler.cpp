@@ -1,4 +1,4 @@
-#include "../../include/nethandlers/tcp_send_handler.h"
+#include "../../include/nethandlers/guacamole_send_handler.h"
 #include "../../../shared/include/network/multiplexer.h"
 #include "../../include/handshake_forger.h"
 #include "../../include/return_filter.h"
@@ -11,7 +11,7 @@
 /*
  * @brief Routes bridge messages to the right client socket by channel
  */
-std::thread TCPSendHandler::Run(NetQueue &queue, GuacamoleServer &guacamole_server,
+std::thread GuacamoleSendHandler::Run(NetQueue &queue, GuacamoleServer &guacamole_server,
                                 ChannelTable &table,
                                 ApprovalRegistry &approvals) {
     return std::thread([&queue, &guacamole_server, &table, &approvals]() {
@@ -28,7 +28,7 @@ std::thread TCPSendHandler::Run(NetQueue &queue, GuacamoleServer &guacamole_serv
                 std::optional<int> fd = table.Remove(msg.channel);
                 if (fd) {
                     guacamole_server.Shutdown(*fd); // wakes the reader, which closes it
-                    std::cout << "tcp_send_handler: channel " << (int)msg.channel
+                    std::cout << "guacamole_send_handler: channel " << (int)msg.channel
                               << " SHUTDOWN from peer" << std::endl;
                 }
                 break;
@@ -45,7 +45,7 @@ std::thread TCPSendHandler::Run(NetQueue &queue, GuacamoleServer &guacamole_serv
                     // Match the verdict to the outstanding request before acting,
                     // so a stale verdict can't approve a reused channel.
                     if (!approvals.Approve(msg.channel, id)) {
-                        std::cerr << "tcp_send_handler: channel "
+                        std::cerr << "guacamole_send_handler: channel "
                                   << (int)msg.channel
                                   << " ignoring unmatched approval" << std::endl;
                         break;
@@ -53,16 +53,16 @@ std::thread TCPSendHandler::Run(NetQueue &queue, GuacamoleServer &guacamole_serv
                     // The reader will replay the handshake and pipe input; arm
                     // the return filter to swallow guacd's real args/ready.
                     filters[msg.channel] = ReturnFilter{};
-                    std::cout << "tcp_send_handler: channel " << (int)msg.channel
+                    std::cout << "guacamole_send_handler: channel " << (int)msg.channel
                               << " APPROVED" << std::endl;
                 } else {
                     if (!approvals.Matches(msg.channel, id)) {
-                        std::cerr << "tcp_send_handler: channel "
+                        std::cerr << "guacamole_send_handler: channel "
                                   << (int)msg.channel
                                   << " ignoring unmatched denial" << std::endl;
                         break;
                     }
-                    std::cout << "tcp_send_handler: channel " << (int)msg.channel
+                    std::cout << "guacamole_send_handler: channel " << (int)msg.channel
                               << " DENIED" << std::endl;
                     // Paint the denied screen, then wake the reader to tear down.
                     if (auto fd = table.Get(msg.channel)) {
@@ -77,7 +77,7 @@ std::thread TCPSendHandler::Run(NetQueue &queue, GuacamoleServer &guacamole_serv
             default: {
                 std::optional<int> fd = table.Get(msg.channel);
                 if (!fd) {
-                    std::cerr << "tcp_send_handler: no socket for channel "
+                    std::cerr << "guacamole_send_handler: no socket for channel "
                               << (int)msg.channel << ", dropping "
                               << msg.payload.size() << " bytes" << std::endl;
                     break;

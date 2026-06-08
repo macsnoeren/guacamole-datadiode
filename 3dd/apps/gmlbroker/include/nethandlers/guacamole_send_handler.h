@@ -6,7 +6,7 @@
 #include "../approval_registry.h"
 #include <thread>
 
-class TCPSendHandler {
+class GuacamoleSendHandler {
     public:
         std::thread Run(NetQueue &queue, GuacamoleServer &guacamole_server, ChannelTable &table, ApprovalRegistry &approvals);
 };
