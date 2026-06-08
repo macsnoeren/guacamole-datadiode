@@ -1,6 +1,6 @@
 #include "../../shared/include/network/channeltable.h"
 #include "../../shared/include/network/netqueue.h"
-#include "../../shared/include/network/tcpclient.h"
+#include "../../shared/include/network/guacd_client.h"
 #include "../../shared/include/network/udpreceiver.h"
 #include "../../shared/include/network/udpsender.h"
 #include "../include/nethandlers/tcp_send_handler.h"
@@ -74,7 +74,7 @@ int main(int argc, char *argv[]) {
     std::cout << "Initialized UDP sender for " << udp_send_ip << ":"
               << udp_send_port << std::endl;
 
-    auto tcp_client = TCPClient(guacd_ip, guacd_port);
+    auto guacd_client = GuacdClient(guacd_ip, guacd_port);
     ChannelTable table;
     NetQueue recv_queue;
     NetQueue send_queue;
@@ -86,7 +86,7 @@ int main(int argc, char *argv[]) {
     UDPRecvHandler udp_recv_handler;
 
     std::thread t_tcp_send =
-        tcp_send_handler.Run(recv_queue, send_queue, tcp_client, table);
+        tcp_send_handler.Run(recv_queue, send_queue, guacd_client, table);
     std::thread t_udp_send = udp_send_handler.Run(send_queue, udp_sender);
     std::thread t_udp_recv = udp_recv_handler.Run(recv_queue, udp_receiver);
 

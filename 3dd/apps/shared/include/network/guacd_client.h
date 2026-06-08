@@ -12,16 +12,16 @@
  * Receive/Send/Shutdown/Close all operate on a caller-supplied fd, so the same
  * instance can be used from multiple threads, one per connection.
  */
-class TCPClient {
+class GuacdClient {
   private:
     std::string server_ip;
     int server_port;
 
   public:
-    TCPClient(std::string server_ip, int server_port)
+    GuacdClient(std::string server_ip, int server_port)
         : server_ip(server_ip), server_port(server_port) {}
 
-    ~TCPClient() = default;
+    ~GuacdClient() = default;
 
     /**
      * @brief Opens a new connection to the configured server

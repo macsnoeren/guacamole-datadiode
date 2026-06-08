@@ -1,4 +1,4 @@
-#include "../../include/network/tcpclient.h"
+#include "../../include/network/guacd_client.h"
 #include <arpa/inet.h>
 #include <cerrno>
 #include <cstring>
@@ -9,7 +9,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-int TCPClient::Connect() {
+int GuacdClient::Connect() {
     struct addrinfo hints, *res, *p;
     std::memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
@@ -44,7 +44,7 @@ int TCPClient::Connect() {
     return fd;
 }
 
-int TCPClient::Receive(int fd, char *buffer, size_t len) {
+int GuacdClient::Receive(int fd, char *buffer, size_t len) {
     ssize_t received = ::recv(fd, buffer, len - 1, 0);
 
     if (received < 0) {
@@ -63,7 +63,7 @@ int TCPClient::Receive(int fd, char *buffer, size_t len) {
     return received;
 }
 
-ssize_t TCPClient::Send(int fd, const char *buffer, size_t len) {
+ssize_t GuacdClient::Send(int fd, const char *buffer, size_t len) {
     if (fd < 0) {
         std::cerr << "Error: cannot send to an invalid fd\n";
         return -1;
@@ -86,12 +86,12 @@ ssize_t TCPClient::Send(int fd, const char *buffer, size_t len) {
     return total;
 }
 
-void TCPClient::Shutdown(int fd) {
+void GuacdClient::Shutdown(int fd) {
     if (fd >= 0)
         ::shutdown(fd, SHUT_RDWR);
 }
 
-void TCPClient::Close(int fd) {
+void GuacdClient::Close(int fd) {
     if (fd >= 0)
         ::close(fd);
 }

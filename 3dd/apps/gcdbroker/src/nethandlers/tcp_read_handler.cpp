@@ -12,13 +12,13 @@
  * to remove it (guacd-initiated close), it announces SHUTDOWN to the peer. The
  * reader is the sole owner of close() for its fd.
  */
-std::thread TCPReadHandler::Run(NetQueue &send_queue, TCPClient &tcp_client,
+std::thread TCPReadHandler::Run(NetQueue &send_queue, GuacdClient &guacd_client,
                                 ChannelTable &table, uint8_t channel, int fd) {
-    return std::thread([&send_queue, &tcp_client, &table, channel, fd]() {
+    return std::thread([&send_queue, &guacd_client, &table, channel, fd]() {
         char buffer[Multiplexer::MAX_PAYLOAD_SIZE + 1];
 
         while (running) {
-            int received = tcp_client.Receive(fd, buffer, sizeof(buffer));
+            int received = guacd_client.Receive(fd, buffer, sizeof(buffer));
             if (received <= 0)
                 break; // 0: guacd closed, <0: error
 
@@ -43,6 +43,6 @@ std::thread TCPReadHandler::Run(NetQueue &send_queue, TCPClient &tcp_client,
             std::cout << "tcp_reader: channel " << (int)channel
                       << " closed by guacd, sent SHUTDOWN" << std::endl;
         }
-        tcp_client.Close(fd);
+        guacd_client.Close(fd);
     });
 }

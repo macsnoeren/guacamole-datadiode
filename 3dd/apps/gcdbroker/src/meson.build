@@ -13,7 +13,7 @@ sources = [
   'nethandlers/udp_send_handler.cpp',
   '../../shared/src/network/udpsender.cpp',
   '../../shared/src/network/udpreceiver.cpp',
-  '../../shared/src/network/tcpclient.cpp',
+  '../../shared/src/network/guacd_client.cpp',
   '../../shared/src/network/multiplexer.cpp',
   ]
 

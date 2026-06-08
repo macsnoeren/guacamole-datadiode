@@ -17,8 +17,8 @@
  * traffic is forwarded to guacd untouched (the guard validated it en route).
  */
 std::thread TCPSendHandler::Run(NetQueue &recv_queue, NetQueue &send_queue,
-                                TCPClient &tcp_client, ChannelTable &table) {
-    return std::thread([&recv_queue, &send_queue, &tcp_client, &table]() {
+                                GuacdClient &guacd_client, ChannelTable &table) {
+    return std::thread([&recv_queue, &send_queue, &guacd_client, &table]() {
         while (running) {
             BridgeMessage msg = recv_queue.Dequeue();
 
@@ -37,17 +37,17 @@ std::thread TCPSendHandler::Run(NetQueue &recv_queue, NetQueue &send_queue,
                 char verdict =
                     msg.payload.empty() ? APPROVAL_DENY : msg.payload[0];
                 if (verdict == APPROVAL_APPROVE) {
-                    int fd = tcp_client.Connect();
+                    int fd = guacd_client.Connect();
                     if (fd >= 0 && table.Insert(msg.channel, fd)) {
                         TCPReadHandler reader;
-                        reader.Run(send_queue, tcp_client, table, msg.channel, fd)
+                        reader.Run(send_queue, guacd_client, table, msg.channel, fd)
                             .detach();
                         std::cout << "tcp_send_handler: channel "
                                   << (int)msg.channel << " APPROVED, dialed guacd"
                                   << " (fd " << fd << ")" << std::endl;
                     } else {
                         if (fd >= 0)
-                            tcp_client.Close(fd);
+                            guacd_client.Close(fd);
                         // Dial failed: downgrade the relayed verdict so gmlbroker
                         // tears down instead of waiting forever.
                         msg.payload[0] = APPROVAL_DENY;
@@ -64,7 +64,7 @@ std::thread TCPSendHandler::Run(NetQueue &recv_queue, NetQueue &send_queue,
             case ChannelAction::SHUTDOWN_CHANNEL: {
                 std::optional<int> fd = table.Remove(msg.channel);
                 if (fd) {
-                    tcp_client.Shutdown(*fd); // wakes the reader, which closes it
+                    guacd_client.Shutdown(*fd); // wakes the reader, which closes it
                     std::cout << "tcp_send_handler: channel " << (int)msg.channel
                               << " SHUTDOWN from peer" << std::endl;
                 }
@@ -92,11 +92,11 @@ std::thread TCPSendHandler::Run(NetQueue &recv_queue, NetQueue &send_queue,
                               << " bytes" << std::endl;
                     break;
                 }
-                if (tcp_client.Send(*fd, msg.payload.data(),
+                if (guacd_client.Send(*fd, msg.payload.data(),
                                     msg.payload.size()) < 0) {
                     std::optional<int> dead = table.Remove(msg.channel);
                     if (dead)
-                        tcp_client.Shutdown(*dead);
+                        guacd_client.Shutdown(*dead);
                 }
                 break;
             }
