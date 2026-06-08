@@ -142,7 +142,7 @@ bool OpcodeParser::OnInstructionBegin(const GuacElement &opcode) {
     switch (opcode.len) {
     case 3:
         return !memcmp(opcode.ptr, "key", 3) || !memcmp(opcode.ptr, "ack", 3) ||
-               !memcmp(opcode.ptr, "end", 3);
+               !memcmp(opcode.ptr, "nop", 3) || !memcmp(opcode.ptr, "end", 3);
     case 4:
         if (!memcmp(opcode.ptr, "blob", 4)) {
             next_args_max_length = CLIPBOARD_MAX_BYTES;
