@@ -1,4 +1,4 @@
-#include "../include/guacparser.h"
+#include "../../shared/include/parser/opcode_parser.h"
 #include <cassert>
 #include <iostream>
 #include <stdlib.h>
@@ -25,12 +25,12 @@ std::string cvt_state(ParserState state) {
  * @brief Provides assertion for parser state, and logs to stderr for false assertions
  * @param input: message to parse
  * @param expected: expected state
- * @param parser: *GuacParser, in case the parser needs to be re-used across function calls
+ * @param parser: *OpcodeParser, in case the parser needs to be re-used across function calls
  */
 void test_parsing(std::string input, ParserState expected,
-                  GuacParser *parser = nullptr) {
+                  OpcodeParser *parser = nullptr) {
     if (parser == nullptr)
-        parser = new GuacParser();
+        parser = new OpcodeParser();
     parser->Parse(input.data(), input.size());
 
     if (parser->GetState() != expected) {
@@ -61,19 +61,19 @@ void test_valid_opcodes() {
 
     // Valid opcode, with partials
     {
-        auto parser = GuacParser();
+        auto parser = OpcodeParser();
         test_parsing("5.mouse,3.988", ParserState::PARSING, &parser);
         test_parsing(",3.369,1.0;", ParserState::READY, &parser);
     }
 
     {
-        auto parser = GuacParser();
+        auto parser = OpcodeParser();
         test_parsing("4.size,4.168", ParserState::PARSING, &parser);
         test_parsing("0,3.933,2.96;", ParserState::READY, &parser);
     }
 
     {
-        auto parser = GuacParser();
+        auto parser = OpcodeParser();
         test_parsing(
             "5.audio,8.audio/L8,9.audio/L16;5.video;5.image,10.image/"
             "jpeg,9.image/"
@@ -125,7 +125,7 @@ void test_invalid_guacamole() {
 
     // Invalid guacamole, with partials
     {
-        auto parser = GuacParser();
+        auto parser = OpcodeParser();
         test_parsing("5.audio,8.audio/L8,9.au", ParserState::PARSING, &parser);
         test_parsing(
             "dio/L16;5.video;5.image,10.image/jpeg,9.image/png,10.image/"
