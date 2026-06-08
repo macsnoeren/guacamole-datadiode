@@ -10,7 +10,7 @@ sources = [
   'handshake_forger.cpp',
   'return_filter.cpp',
   'approval_registry.cpp',
-  'nethandlers/tcp_accept_handler.cpp',
+  'nethandlers/guacamole_accept_handler.cpp',
   'nethandlers/tcp_read_handler.cpp',
   'nethandlers/tcp_send_handler.cpp',
   'nethandlers/udp_recv_handler.cpp',

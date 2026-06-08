@@ -3,7 +3,7 @@
 #include "../../shared/include/network/guacamole_server.h"
 #include "../../shared/include/network/udpreceiver.h"
 #include "../../shared/include/network/udpsender.h"
-#include "../include/nethandlers/tcp_accept_handler.h"
+#include "../include/nethandlers/guacamole_accept_handler.h"
 #include "../include/nethandlers/tcp_send_handler.h"
 #include "../include/nethandlers/udp_recv_handler.h"
 #include "../include/nethandlers/udp_send_handler.h"
@@ -85,15 +85,15 @@ int main(int argc, char *argv[]) {
     std::cout << "Initialized UDP sender for " << udp_send_ip << ":"
               << udp_send_port << std::endl;
 
-    ChannelTable table; // Shared by accept thread and tcp_send thread to keep track of connections
+    ChannelTable table; // Shared by accept thread and guacamole_send thread to keep track of connections
     ApprovalRegistry approvals; // Per-channel approval flags
     NetQueue recv_queue;
     NetQueue send_queue;
 
-    // Start the handler threads. The accept and tcp_send handlers route by
+    // Start the handler threads. The accept and guacamole_send handlers route by
     // channel via the shared ChannelTable and ApprovalRegistry; the UDP
     // handlers ferry between the bridge and the queues.
-    TCPAcceptHandler accept_handler;
+    GuacamoleAcceptHandler accept_handler;
     TCPSendHandler tcp_send_handler;
     UDPSendHandler udp_send_handler;
     UDPRecvHandler udp_recv_handler;

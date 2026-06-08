@@ -1,4 +1,4 @@
-#include "../../include/nethandlers/tcp_accept_handler.h"
+#include "../../include/nethandlers/guacamole_accept_handler.h"
 #include "../../include/nethandlers/tcp_read_handler.h"
 #include "../../include/running.h"
 #include <iostream>
@@ -7,7 +7,7 @@
 /*
  * @brief Accepts Guacamole connections, allocating a channel for each
  */
-std::thread TCPAcceptHandler::Run(NetQueue &queue, GuacamoleServer &guacamole_server,
+std::thread GuacamoleAcceptHandler::Run(NetQueue &queue, GuacamoleServer &guacamole_server,
                                   ChannelTable &table,
                                   ApprovalRegistry &approvals) {
     return std::thread([&queue, &guacamole_server, &table, &approvals]() {
