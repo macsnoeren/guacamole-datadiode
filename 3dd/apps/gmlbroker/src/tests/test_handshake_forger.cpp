@@ -17,7 +17,7 @@ struct AnyOpcodeParser : OpcodeParser {
 static bool well_formed(const std::string &s) {
     AnyOpcodeParser p;
     p.Parse(s.data(), s.size());
-    return p.GetState() == ParserState::READY;
+    return p.GetState() == ParserState::READING_LENGTH;
 }
 
 static bool contains(const std::string &hay, const std::string &needle) {
