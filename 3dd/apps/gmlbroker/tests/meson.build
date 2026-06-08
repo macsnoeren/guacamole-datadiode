@@ -1,7 +1,7 @@
 test_sources = files(
   'test_handshake_forger.cpp',
-  '../handshake_forger.cpp',
-  '../../../shared/src/parser/opcode_parser.cpp'
+  '../src/handshake_forger.cpp',
+  '../../shared/src/parser/opcode_parser.cpp'
 )
 
 test_exe = executable(
