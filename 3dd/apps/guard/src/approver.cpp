@@ -5,7 +5,7 @@
 
 ApprovalResult Approver::HandleRequest(const std::string &request_id) {
     // PoC operator stand-in: deny everything when asked to, otherwise approve.
-    const char *policy = std::getenv("GCD_APPROVE");
+    const char *policy = std::getenv("GUARD_APPROVE");
     if (policy && std::strcmp(policy, "deny") == 0) {
         std::cout << "Approver: DENY request " << request_id << std::endl;
         return {false, "operator denied the request"};

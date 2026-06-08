@@ -11,6 +11,7 @@ core_sources = files(
 
 release_sources = core_sources + files(
   'src/main.cpp',
+  'src/approver.cpp',
   '../shared/src/network/udpsender.cpp',
   '../shared/src/network/udpreceiver.cpp',
   '../shared/src/network/multiplexer.cpp')
