@@ -1,6 +1,6 @@
 #include "../../include/nethandlers/tcp_send_handler.h"
 #include "../../../shared/include/network/multiplexer.h"
-#include "../../include/nethandlers/tcp_read_handler.h"
+#include "../../include/nethandlers/guacd_read_handler.h"
 #include "../../include/running.h"
 #include <iostream>
 #include <optional>
@@ -39,7 +39,7 @@ std::thread TCPSendHandler::Run(NetQueue &recv_queue, NetQueue &send_queue,
                 if (verdict == APPROVAL_APPROVE) {
                     int fd = guacd_client.Connect();
                     if (fd >= 0 && table.Insert(msg.channel, fd)) {
-                        TCPReadHandler reader;
+                        GuacdReadHandler reader;
                         reader.Run(send_queue, guacd_client, table, msg.channel, fd)
                             .detach();
                         std::cout << "tcp_send_handler: channel "

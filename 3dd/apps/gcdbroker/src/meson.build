@@ -8,7 +8,7 @@ project(
 sources = [
   'main.cpp',
   'nethandlers/tcp_send_handler.cpp',
-  'nethandlers/tcp_read_handler.cpp',
+  'nethandlers/guacd_read_handler.cpp',
   'nethandlers/udp_recv_handler.cpp',
   'nethandlers/udp_send_handler.cpp',
   '../../shared/src/network/udpsender.cpp',

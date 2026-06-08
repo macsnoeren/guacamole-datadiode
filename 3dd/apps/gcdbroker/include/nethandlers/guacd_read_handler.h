@@ -5,7 +5,7 @@
 #include "../../../shared/include/network/guacd_client.h"
 #include <thread>
 
-class TCPReadHandler {
+class GuacdReadHandler {
     public:
         std::thread Run(NetQueue &send_queue, GuacdClient &guacd_client, ChannelTable &table, uint8_t channel, int fd);
 };

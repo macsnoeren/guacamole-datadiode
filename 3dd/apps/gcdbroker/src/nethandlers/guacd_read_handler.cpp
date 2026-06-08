@@ -1,4 +1,4 @@
-#include "../../include/nethandlers/tcp_read_handler.h"
+#include "../../include/nethandlers/guacd_read_handler.h"
 #include "../../../shared/include/network/multiplexer.h"
 #include "../../include/running.h"
 #include <iostream>
@@ -12,7 +12,7 @@
  * to remove it (guacd-initiated close), it announces SHUTDOWN to the peer. The
  * reader is the sole owner of close() for its fd.
  */
-std::thread TCPReadHandler::Run(NetQueue &send_queue, GuacdClient &guacd_client,
+std::thread GuacdReadHandler::Run(NetQueue &send_queue, GuacdClient &guacd_client,
                                 ChannelTable &table, uint8_t channel, int fd) {
     return std::thread([&send_queue, &guacd_client, &table, channel, fd]() {
         char buffer[Multiplexer::MAX_PAYLOAD_SIZE + 1];
@@ -29,7 +29,7 @@ std::thread TCPReadHandler::Run(NetQueue &send_queue, GuacdClient &guacd_client,
             send_queue.Enqueue(std::move(msg));
 
             std::stringstream info;
-            info << "tcp_reader: queued " << received << " bytes on channel "
+            info << "guacd_reader: queued " << received << " bytes on channel "
                  << (int)channel << std::endl;
             std::cout << info.str();
         }
@@ -40,7 +40,7 @@ std::thread TCPReadHandler::Run(NetQueue &send_queue, GuacdClient &guacd_client,
             shutdown.channel = channel;
             shutdown.action = ChannelAction::SHUTDOWN_CHANNEL;
             send_queue.Enqueue(std::move(shutdown));
-            std::cout << "tcp_reader: channel " << (int)channel
+            std::cout << "guacd_reader: channel " << (int)channel
                       << " closed by guacd, sent SHUTDOWN" << std::endl;
         }
         guacd_client.Close(fd);
