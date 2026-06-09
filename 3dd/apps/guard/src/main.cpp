@@ -2,11 +2,28 @@
 #include "../../shared/include/network/udpreceiver.h"
 #include "../../shared/include/network/udpsender.h"
 #include "../../shared/include/parser/opcode_parser.h"
+#include "../../shared/include/util/netargs.h"
 #include "../include/approver.h"
+#include <atomic>
+#include <csignal>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+
+// Cleared by the SIGINT handler; the receive loop polls it to stop. The guard's
+// UDPReceiver has a recv timeout, so the loop wakes to observe this even when no
+// traffic is arriving.
+std::atomic<bool> running = true;
+
+/*
+ * @brief Clears the run flag on SIGINT.
+ *
+ * Deliberately does no I/O: it must stay async-signal-safe. (Logging on
+ * shutdown is left to the future logging facility.)
+ */
+void interrupt_handler(int) { running = false; }
 
 /*
  * @brief Human-readable name for a parser state, for logging
@@ -50,17 +67,33 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    int src_port = std::stoi(argv[1]);
+    std::optional<int> src_port = ParsePort(argv[1]);
     const char *dst_ip = argv[2];
-    int dst_port = std::stoi(argv[3]);
+    std::optional<int> dst_port = ParsePort(argv[3]);
+    if (!src_port || !dst_port) {
+        std::cerr << "Error: <src_port> and <dst_port> must be integers in "
+                     "[1, 65535]"
+                  << std::endl;
+        return 1;
+    }
 
-    UDPReceiver receiver = UDPReceiver(src_port);
-    receiver.Initialize();
+    // Stop the receive loop cleanly on SIGINT.
+    struct sigaction sa{};
+    sa.sa_handler = interrupt_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sigaction(SIGINT, &sa, nullptr);
 
-    std::cout << "Listening on UDP port " << src_port << std::endl;
+    int rc;
+    UDPReceiver receiver = UDPReceiver(src_port.value());
+    if ((rc = receiver.Initialize()) != 0)
+        return rc;
 
-    UDPSender sender = UDPSender(dst_ip, dst_port);
-    sender.Initialize();
+    std::cout << "Listening on UDP port " << src_port.value() << std::endl;
+
+    UDPSender sender = UDPSender(dst_ip, dst_port.value());
+    if ((rc = sender.Initialize()) != 0)
+        return rc;
 
     // One parser per channel; channels that violate policy are poisoned
     std::unordered_map<uint8_t, OpcodeParser> parsers;
@@ -73,7 +106,7 @@ int main(int argc, char *argv[]) {
 
     char buffer[Multiplexer::MAX_DATAGRAM_SIZE + 1];
 
-    while (true) {
+    while (running) {
         int received = receiver.Receive(buffer, sizeof(buffer));
         if (received <= 0)
             continue;
