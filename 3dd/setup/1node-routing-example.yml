@@ -1,0 +1,33 @@
+# Which node to configure this machine as
+current-node: lownode
+
+# Node that is connected to this node, to send traffic to
+next-node: guard
+
+lownode:
+  in:
+    # Ethernet interface
+    iface: enp88s0
+
+    # MAC address of the interface
+    mac: "00:00:00:00:00:00"
+    ip: 10.0.2.2
+  out:
+    iface: enp89s0
+    ip: 10.0.0.1
+guard:
+  in:
+    iface: enp88s0
+    mac: "11:11:11:11:11:11"
+    ip: 10.0.0.2
+  out:
+    iface: enp89s0
+    ip: 10.0.1.1
+highnode:
+  in:
+    iface: enp88s0
+    mac: "22:22:22:22:22:22"
+    ip: 10.0.1.2
+  out:
+    iface: enp89s0
+    ip: 10.0.2.1
