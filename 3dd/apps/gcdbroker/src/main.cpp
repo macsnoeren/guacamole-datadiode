@@ -1,14 +1,17 @@
 #include "../../shared/include/network/channeltable.h"
 #include "../../shared/include/network/netqueue.h"
 #include "../../shared/include/network/guacd_client.h"
+#include "../../shared/include/network/reader_group.h"
 #include "../../shared/include/network/udpreceiver.h"
 #include "../../shared/include/network/udpsender.h"
+#include "../../shared/include/util/netargs.h"
 #include "../include/nethandlers/guacd_send_handler.h"
 #include "../include/nethandlers/udp_recv_handler.h"
 #include "../include/nethandlers/udp_send_handler.h"
 #include "../include/running.h"
 #include <atomic>
 #include <iostream>
+#include <optional>
 #include <signal.h>
 #include <string>
 #include <thread>
@@ -45,10 +48,17 @@ int main(int argc, char *argv[]) {
     }
 
     const char *guacd_ip = argv[1];
-    int guacd_port = std::stoi(argv[2]);
-    int udp_recv_port = std::stoi(argv[3]);
     const char *udp_send_ip = argv[4];
-    int udp_send_port = std::stoi(argv[5]);
+    std::optional<int> p_guacd = ParsePort(argv[2]);
+    std::optional<int> p_recv = ParsePort(argv[3]);
+    std::optional<int> p_send = ParsePort(argv[5]);
+    if (!p_guacd || !p_recv || !p_send) {
+        std::cerr << "Error: ports must be integers in [1, 65535]" << std::endl;
+        return 1;
+    }
+    int guacd_port = p_guacd.value();
+    int udp_recv_port = p_recv.value();
+    int udp_send_port = p_send.value();
 
     // Set interrupt handler
     struct sigaction sa{};
@@ -75,6 +85,7 @@ int main(int argc, char *argv[]) {
 
     auto guacd_client = GuacdClient(guacd_ip, guacd_port);
     ChannelTable table;
+    ReaderGroup readers; // Tracks the per-channel guacd reader threads for shutdown
     NetQueue recv_queue;
     NetQueue send_queue;
 
@@ -85,11 +96,27 @@ int main(int argc, char *argv[]) {
     UDPRecvHandler udp_recv_handler;
 
     std::thread t_guacd_send =
-        guacd_send_handler.Run(recv_queue, send_queue, guacd_client, table);
+        guacd_send_handler.Run(recv_queue, send_queue, guacd_client, table, readers);
     std::thread t_udp_send = udp_send_handler.Run(send_queue, udp_sender);
     std::thread t_udp_recv = udp_recv_handler.Run(recv_queue, udp_receiver);
 
-    t_guacd_send.join();
+    // Shutdown ordering (SIGINT clears `running`): the UDP receiver's blocked
+    // recvfrom times out (SO_RCVTIMEO), so t_udp_recv falls out of its loop first
+    // and stops feeding recv_queue. Closing recv_queue drains t_guacd_send, which
+    // both spawns the readers and is the last producer for send_queue; once it
+    // has joined, only the detached guacd readers still touch the table. We wake
+    // those readers (they block in recv()) by shutting down their fds — each
+    // reader still owns its own close() — and WaitAll() for them before
+    // destroying the state they capture. Finally send_queue is closed to drain
+    // t_udp_send.
     t_udp_recv.join();
+    recv_queue.Close();
+    t_guacd_send.join();
+
+    for (int fd : table.Fds())
+        guacd_client.Shutdown(fd);
+    readers.WaitAll();
+
+    send_queue.Close();
     t_udp_send.join();
 }
