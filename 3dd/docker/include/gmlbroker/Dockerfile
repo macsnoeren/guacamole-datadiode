@@ -10,10 +10,12 @@ COPY apps/shared/tests/ apps/shared/tests/
 
 COPY apps/gmlbroker/src apps/gmlbroker/src
 COPY apps/gmlbroker/include apps/gmlbroker/include
+COPY apps/gmlbroker/tests apps/gmlbroker/tests
+COPY apps/gmlbroker/meson.build apps/gmlbroker/meson.build
 
 WORKDIR /app/apps/gmlbroker
 
-RUN meson setup build src/
+RUN meson setup build
 RUN meson compile -C build
 
 EXPOSE 5505/udp

@@ -10,10 +10,11 @@ COPY apps/shared/tests/ apps/shared/tests/
 
 COPY apps/gcdbroker/src apps/gcdbroker/src
 COPY apps/gcdbroker/include apps/gcdbroker/include
+COPY apps/gcdbroker/meson.build apps/gcdbroker/meson.build
 
 WORKDIR /app/apps/gcdbroker/
 
-RUN meson setup build src
+RUN meson setup build
 RUN meson compile -C build
 
 EXPOSE 5502/udp
