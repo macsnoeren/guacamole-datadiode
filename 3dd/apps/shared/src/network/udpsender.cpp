@@ -1,9 +1,11 @@
 #include "../../include/network/udpsender.h"
 #include <arpa/inet.h>
 #include <cstring>
+#include <iostream>
 #include <string>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <netdb.h>
 
 UDPSender::~UDPSender() {
     if (sock_fd >= 0) {
@@ -13,22 +15,43 @@ UDPSender::~UDPSender() {
 }
 
 int UDPSender::Initialize() {
-    sock_fd = ::socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock_fd < 0) {
-        perror("socket");
-        return 1;
+    struct addrinfo hints{}, *results, *rp;
+    std::memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;      // IPv4
+    hints.ai_socktype = SOCK_DGRAM; // UDP
+
+    // Get a linked list of possible addresses based on host, port, and hints
+    int status = ::getaddrinfo(host.c_str(), std::to_string(port).c_str(), &hints, &results);
+    if (status != 0) {
+        std::cerr << "getaddrinfo status: " << std::to_string(status) << std::endl;
+        perror("getaddrinfo");
+        return -1;
     }
 
-    std::memset(&sock_addr, 0, sizeof(sock_addr));
-    sock_addr.sin_family = AF_INET;
-    sock_addr.sin_port = htons(static_cast<uint16_t>(port));
-    int res = ::inet_pton(AF_INET, host.c_str(), &sock_addr.sin_addr);
-
-    if (res <= 0) {
-        perror("inet_pton");
-        ::close(sock_fd);
-        return errno;
+    int fd = -1;
+    
+    // Loop through list until a valid socket is found
+    for (rp = results; rp != nullptr; rp = rp->ai_next) {
+        fd = ::socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        if (fd >= 0)
+            break;
     }
+
+    ::freeaddrinfo(results);
+
+    if (rp == nullptr) {
+        std::cerr << "Could not resolve hostname or address: " << host << std::endl;
+        if (fd >= 0)
+            ::close(fd);
+        return -1;
+    }
+
+    sock_fd = fd;
+    
+    struct sockaddr_in *addr_in = reinterpret_cast<struct sockaddr_in*>(rp->ai_addr);
+    sock_addr.sin_family = addr_in->sin_family;
+    sock_addr.sin_port = addr_in->sin_port;
+    sock_addr.sin_addr = addr_in->sin_addr;
 
     return 0;
 }
