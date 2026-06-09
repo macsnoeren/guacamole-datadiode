@@ -1,5 +1,6 @@
 #include "../../include/network/udpsender.h"
 #include <arpa/inet.h>
+#include <cerrno>
 #include <cstring>
 #include <iostream>
 #include <string>
@@ -63,9 +64,13 @@ ssize_t UDPSender::Send(const char *buffer, size_t len) {
         ssize_t sent = ::sendto(sock_fd, buffer + total, len - total, 0,
                                 reinterpret_cast<sockaddr *>(&sock_addr),
                                 sizeof(sock_addr));
-        if (sent < 0 && errno != EINTR) {
+        if (sent < 0) {
+            if (errno == EINTR)
+                continue; // interrupted before anything was sent: retry
+            // Leave the socket open: the destructor is the sole closer, so a
+            // transient failure just drops this datagram instead of leaving a
+            // stale (possibly reused) fd that breaks the next Send.
             perror("sendto");
-            ::close(sock_fd);
             return -1;
         }
 

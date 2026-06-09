@@ -5,6 +5,7 @@
 #include <iostream>
 #include <poll.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <unistd.h>
 #include <netdb.h>
 
@@ -81,6 +82,14 @@ int GuacamoleServer::Initialize() {
         return 1;
     }
 
+    // Time out a blocked accept periodically so the accept loop can notice a
+    // shutdown request (the `running` flag) instead of blocking forever; SIGINT
+    // may be delivered to a different thread, so EINTR can't be relied on.
+    struct timeval tv{};
+    tv.tv_sec = 0;
+    tv.tv_usec = 200000; // 200 ms
+    ::setsockopt(listen_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
     return 0;
 }
 
@@ -91,7 +100,11 @@ int GuacamoleServer::Accept() {
     int fd = ::accept(listen_fd, reinterpret_cast<sockaddr *>(&client_addr),
                       &client_len);
     if (fd < 0) {
-        if (errno != EINVAL) // EINVAL: listen socket was shut down
+        // EINVAL: listen socket was shut down. EAGAIN/EWOULDBLOCK: accept timed
+        // out (no pending connection). EINTR: interrupted. All benign — the
+        // caller re-checks `running` and either retries or stops.
+        if (errno != EINVAL && errno != EAGAIN && errno != EWOULDBLOCK &&
+            errno != EINTR)
             perror("accept");
         return -1;
     }
