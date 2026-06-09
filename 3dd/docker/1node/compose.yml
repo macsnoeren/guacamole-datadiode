@@ -1,4 +1,4 @@
-name: 3dd-single-machine
+name: 3dd-1node
 services:
   guac_postgres:
     image: postgres:15
