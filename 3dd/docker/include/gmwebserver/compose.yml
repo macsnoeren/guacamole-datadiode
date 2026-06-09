@@ -1,7 +1,7 @@
 services:
-  guac_postgres:
+  guacamole_db:
     image: postgres:15
-    container_name: guac_postgres
+    container_name: guacamole_db
     restart: unless-stopped
     environment:
       POSTGRES_DB: guacamole_db
@@ -9,33 +9,24 @@ services:
       POSTGRES_PASSWORD: guacamole_pass
     volumes:
       - db-data:/var/lib/postgresql/data
-    networks:
-      - guac_internal
 
   guacamole:
     image: guacamole/guacamole:1.6.0
     container_name: guacamole
     restart: unless-stopped
     depends_on:
-      - guac_postgres
+      - guacamole_db
     environment:
       # DB config
-      POSTGRESQL_HOSTNAME: guac_postgres
+      POSTGRESQL_HOSTNAME: guacamole_db
       POSTGRESQL_DATABASE: guacamole_db
       POSTGRESQL_USER: guacamole_user
       POSTGRESQL_PASSWORD: guacamole_pass
 
-      GUACD_HOSTNAME: host.docker.internal
+      GUACD_HOSTNAME: gmlbroker
       GUACD_PORT: 4823
     ports:
       - "8080:8080"  # Guacamole web UI
-    networks:
-      - guac_internal
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
 
 volumes:
   db-data:
-
-networks:
-  guac_internal:

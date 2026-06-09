@@ -16,7 +16,7 @@ services:
         "./build/gmlbroker",
         "127.0.0.1", "4823",
         "127.0.0.1", "5504",
-        "127.0.0.1", "5500"
+        "guard", "5500"
       ]
 
   guard:
@@ -24,7 +24,7 @@ services:
       [
         "./build/guard",
         "5500",
-        "127.0.0.1", "5501"
+        "hrx_proxy", "5501"
       ]
 
   hrx_proxy:
@@ -32,16 +32,16 @@ services:
       [
         "./build/hrx_proxy",
         "5501",
-        "127.0.0.1", "5502"
+        "gcdbroker", "5502"
       ]
 
   gcdbroker:
     command:
       [
         "./build/gcdbroker",
-        "127.0.0.1", "4822",
+        "guacd", "4822",
         "127.0.0.1", "5502",
-        "127.0.0.1", "5503"
+        "lrx_proxy", "5503"
       ]
 
   lrx_proxy:
@@ -49,12 +49,5 @@ services:
       [
         "./build/lrx_proxy",
         "5503",
-        "127.0.0.1", "5504"
+        "gmlbroker", "5504"
       ]
-
-volumes:
-  db-data:
-
-networks:
-  guac_internal:
-  guacd_internal:

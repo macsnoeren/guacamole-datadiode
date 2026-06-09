@@ -3,11 +3,5 @@ services:
     image: guacamole/guacd:1.6.0
     container_name: guacd
     restart: unless-stopped
-    # guacd listens on 4822 TCP by default
-    ports:
-      - "4822:4822"
-    networks:
-      - guacd_internal
-
-networks:
-  guacd_internal:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

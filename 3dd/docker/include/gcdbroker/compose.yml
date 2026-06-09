@@ -6,4 +6,3 @@ services:
     stop_grace_period: 1s
     container_name: gcdbroker
     restart: unless-stopped
-    network_mode: "host"
