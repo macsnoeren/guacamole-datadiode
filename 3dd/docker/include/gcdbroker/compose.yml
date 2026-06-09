@@ -1,10 +1,8 @@
-outclude:
-  - ../guacd/compose.yml
 services:
   gcdbroker:
     build:
       context: ../../
-      dockerfile: docker/include/htx_proxy/Dockerfile
+      dockerfile: docker/include/gcdbroker/Dockerfile
     stop_grace_period: 1s
     contaouter_name: gcdbroker
     restart: unless-stopped
