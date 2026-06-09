@@ -4,6 +4,7 @@
 #include <mutex>
 #include <optional>
 #include <unordered_map>
+#include <vector>
 
 /**
  * @brief Thread-safe mapping between multiplexing channel IDs and socket fds
@@ -68,5 +69,21 @@ class ChannelTable {
         int fd = it->second;
         channel_to_fd.erase(it);
         return fd;
+    }
+
+    /**
+     * @brief Snapshots the fds of all currently bound channels
+     *
+     * Used on shutdown to shutdown() every live connection and wake the reader
+     * threads blocked in recv(). The fds are not removed: each channel's reader
+     * remains the sole owner of close().
+     */
+    std::vector<int> Fds() const {
+        std::lock_guard<std::mutex> lock(mtx);
+        std::vector<int> fds;
+        fds.reserve(channel_to_fd.size());
+        for (const auto &entry : channel_to_fd)
+            fds.push_back(entry.second);
+        return fds;
     }
 };
