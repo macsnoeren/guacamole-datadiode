@@ -15,6 +15,7 @@ class NetQueue {
     mutable std::mutex mtx;
     std::condition_variable cv;
     std::queue<BridgeMessage> queue;
+    bool closed = false;
 
   public:
     NetQueue() = default;
@@ -31,14 +32,32 @@ class NetQueue {
     }
 
     /**
-     * @brief Wait until the queue contains elements, and remove its first element
-     * @return The bridge message from the queue
+     * @brief Wakes every blocked Dequeue so consumer threads can stop.
+     *
+     * After Close, Dequeue still drains whatever is already queued, then returns
+     * std::nullopt once empty. Used on shutdown to unblock the consumer threads,
+     * which would otherwise wait forever on an empty queue.
      */
-    BridgeMessage Dequeue() {
+    void Close() {
+        {
+            std::lock_guard<std::mutex> lock(mtx);
+            closed = true;
+        }
+        cv.notify_all();
+    }
+
+    /**
+     * @brief Wait until the queue contains elements, and remove its first element
+     * @return The first message, or std::nullopt once the queue is closed and
+     *         drained (the signal for the caller to stop).
+     */
+    std::optional<BridgeMessage> Dequeue() {
         std::unique_lock<std::mutex> lock(mtx);
 
-        // Wait until a message arrives if queue is empty
-        cv.wait(lock, [this] { return !queue.empty(); });
+        // Wait for a message, or for Close() to drain us out of the loop
+        cv.wait(lock, [this] { return !queue.empty() || closed; });
+        if (queue.empty())
+            return std::nullopt;
         BridgeMessage value = std::move(queue.front());
         queue.pop();
         return value;
