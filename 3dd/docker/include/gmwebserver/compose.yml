@@ -25,6 +25,8 @@ services:
 
       GUACD_HOSTNAME: gmlbroker
       GUACD_PORT: 4823
+
+      BAN_MAX_INVALID_ATTEMPTS: 9999
     ports:
       - "8080:8080"  # Guacamole web UI
 
