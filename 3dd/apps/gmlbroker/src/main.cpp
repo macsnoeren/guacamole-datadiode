@@ -32,7 +32,7 @@ void interrupt_handler(int signum) {
  * synchronize messages using thread-safe queues.
  */
 int main(int argc, char *argv[]) {
-    if (argc != 7) {
+    if (argc != 6) {
         std::cerr << "Usage: " << argv[0] << "\n"
                   << "\t<guac_listen_ip>: Guacamole broker's listening IP "
                      "address (for the web server)\n"
@@ -50,9 +50,9 @@ int main(int argc, char *argv[]) {
 
     const char *guac_listen_ip = argv[1];
     int guac_listen_port = std::stoi(argv[2]);
-    int udp_recv_port = std::stoi(argv[4]);
-    const char *udp_send_ip = argv[5];
-    int udp_send_port = std::stoi(argv[6]);
+    int udp_recv_port = std::stoi(argv[3]);
+    const char *udp_send_ip = argv[4];
+    int udp_send_port = std::stoi(argv[5]);
 
     // Set interrupt handler
     // TODO: better signal handling

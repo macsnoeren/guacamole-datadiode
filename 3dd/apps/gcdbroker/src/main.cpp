@@ -32,24 +32,23 @@ void interrupt_handler(int signum) {
  * messages using thread-safe queues.
  */
 int main(int argc, char *argv[]) {
-    if (argc != 7) {
+    if (argc != 6) {
         std::cerr << "Usage: " << argv[0] << "\n"
                   << "\t<guacd_ip>: guacd's IP address\n"
                   << "\t<guacd_port>: guacd's listening port\n"
-                  << "\t<udp_recv_ip>: address where the broker receives traffic from (hrx_proxy)\n"
                   << "\t<udp_recv_port>: port where the broker receives traffic from\n"
                   << "\t<udp_send_ip>: address where the broker sends guacd traffic to (lrx_proxy)\n"
                   << "\t<udp_send_port>: port where the broker sends guacd traffic to\n"
                   << "\nExample: " << argv[0]
-                  << " 127.0.0.1 4822 0.0.0.0 5501 10.0.0.2 5601" << std::endl;
+                  << " 127.0.0.1 4822 5501 10.0.0.2 5601" << std::endl;
         return 1;
     }
 
     const char *guacd_ip = argv[1];
     int guacd_port = std::stoi(argv[2]);
-    int udp_recv_port = std::stoi(argv[4]);
-    const char *udp_send_ip = argv[5];
-    int udp_send_port = std::stoi(argv[6]);
+    int udp_recv_port = std::stoi(argv[3]);
+    const char *udp_send_ip = argv[4];
+    int udp_send_port = std::stoi(argv[5]);
 
     // Set interrupt handler
     struct sigaction sa{};
