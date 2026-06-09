@@ -17,6 +17,3 @@ WORKDIR /app/apps/gmlbroker
 
 RUN meson setup build
 RUN meson compile -C build
-
-EXPOSE 5505/udp
-EXPOSE 4823/udp

@@ -13,5 +13,3 @@ WORKDIR /app/apps/lrx_proxy
 
 RUN meson setup build
 RUN meson compile -C build
-
-EXPOSE 5503/udp

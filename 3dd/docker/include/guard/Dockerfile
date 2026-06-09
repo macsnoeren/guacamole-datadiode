@@ -16,5 +16,3 @@ WORKDIR /app/apps/guard
 
 RUN meson setup build
 RUN meson compile -C build
-
-EXPOSE 5500/udp

@@ -16,5 +16,3 @@ WORKDIR /app/apps/gcdbroker/
 
 RUN meson setup build
 RUN meson compile -C build
-
-EXPOSE 5502/udp
