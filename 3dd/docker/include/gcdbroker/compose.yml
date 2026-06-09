@@ -1,16 +1,9 @@
 services:
   gcdbroker:
     build:
-      context: ../../
+      context: ../../../
       dockerfile: docker/include/gcdbroker/Dockerfile
     stop_grace_period: 1s
-    contaouter_name: gcdbroker
+    container_name: gcdbroker
     restart: unless-stopped
-    command:
-      [
-        "./build/gcdbroker",
-        "127.0.0.1", "4822",
-        "0.0.0.0", "5502",
-        "10.0.3.2", "5503"
-      ]
     network_mode: "host"
