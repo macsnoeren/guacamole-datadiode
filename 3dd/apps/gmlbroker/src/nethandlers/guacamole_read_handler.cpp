@@ -82,8 +82,12 @@ void replay_handshake(NetQueue &send_queue, uint8_t channel,
  */
 std::thread GuacamoleReadHandler::Run(NetQueue &queue, GuacamoleServer &guacamole_server,
                                 ChannelTable &table, ApprovalRegistry &approvals,
-                                uint8_t channel, int fd) {
-    return std::thread([&queue, &guacamole_server, &table, &approvals, channel, fd]() {
+                                ReaderGroup &readers, uint8_t channel, int fd) {
+    return std::thread([&queue, &guacamole_server, &table, &approvals, &readers, channel, fd]() {
+        // Declared first so it is destroyed last: Leave() runs only after all
+        // shared-state access below is done, letting main's WaitAll() proceed.
+        ReaderGroup::Guard guard(readers);
+
         char buffer[Multiplexer::MAX_PAYLOAD_SIZE + 1];
         HandshakeForger forger; // forges the guacd handshake toward the web server
         std::shared_ptr<std::atomic<bool>> approved = approvals.Flag(channel);

@@ -13,8 +13,13 @@
  * reader is the sole owner of close() for its fd.
  */
 std::thread GuacdReadHandler::Run(NetQueue &send_queue, GuacdClient &guacd_client,
-                                ChannelTable &table, uint8_t channel, int fd) {
-    return std::thread([&send_queue, &guacd_client, &table, channel, fd]() {
+                                ChannelTable &table, ReaderGroup &readers,
+                                uint8_t channel, int fd) {
+    return std::thread([&send_queue, &guacd_client, &table, &readers, channel, fd]() {
+        // Declared first so it is destroyed last: Leave() runs only after all
+        // shared-state access below is done, letting main's WaitAll() proceed.
+        ReaderGroup::Guard guard(readers);
+
         char buffer[Multiplexer::MAX_PAYLOAD_SIZE + 1];
 
         while (running) {

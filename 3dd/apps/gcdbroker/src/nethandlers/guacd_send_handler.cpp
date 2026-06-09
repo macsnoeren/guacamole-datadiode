@@ -17,10 +17,14 @@
  * traffic is forwarded to guacd untouched (the guard validated it en route).
  */
 std::thread GuacdSendHandler::Run(NetQueue &recv_queue, NetQueue &send_queue,
-                                GuacdClient &guacd_client, ChannelTable &table) {
-    return std::thread([&recv_queue, &send_queue, &guacd_client, &table]() {
+                                GuacdClient &guacd_client, ChannelTable &table,
+                                ReaderGroup &readers) {
+    return std::thread([&recv_queue, &send_queue, &guacd_client, &table, &readers]() {
         while (running) {
-            BridgeMessage msg = recv_queue.Dequeue();
+            std::optional<BridgeMessage> opt = recv_queue.Dequeue();
+            if (!opt)
+                break; // queue closed and drained: shutting down
+            BridgeMessage msg = std::move(*opt);
 
             switch (msg.action) {
             case ChannelAction::CREATE_CHANNEL:
@@ -39,8 +43,12 @@ std::thread GuacdSendHandler::Run(NetQueue &recv_queue, NetQueue &send_queue,
                 if (verdict == APPROVAL_APPROVE) {
                     int fd = guacd_client.Connect();
                     if (fd >= 0 && table.Insert(msg.channel, fd)) {
+                        // Count the reader in before launching it; this handler
+                        // thread is joined on shutdown before WaitAll runs, so
+                        // the count is final by then.
+                        readers.Enter();
                         GuacdReadHandler reader;
-                        reader.Run(send_queue, guacd_client, table, msg.channel, fd)
+                        reader.Run(send_queue, guacd_client, table, readers, msg.channel, fd)
                             .detach();
                         std::cout << "guacd_send_handler: channel "
                                   << (int)msg.channel << " APPROVED, dialed guacd"

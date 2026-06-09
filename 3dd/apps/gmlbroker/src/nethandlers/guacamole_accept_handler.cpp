@@ -9,8 +9,9 @@
  */
 std::thread GuacamoleAcceptHandler::Run(NetQueue &queue, GuacamoleServer &guacamole_server,
                                   ChannelTable &table,
-                                  ApprovalRegistry &approvals) {
-    return std::thread([&queue, &guacamole_server, &table, &approvals]() {
+                                  ApprovalRegistry &approvals,
+                                  ReaderGroup &readers) {
+    return std::thread([&queue, &guacamole_server, &table, &approvals, &readers]() {
         while (running) {
             int fd = guacamole_server.Accept();
             if (fd < 0) {
@@ -40,9 +41,12 @@ std::thread GuacamoleAcceptHandler::Run(NetQueue &queue, GuacamoleServer &guacam
             // Hand the connection to its own reader thread and detach it, so the
             // accept loop can keep accepting connections. The reader's thread
             // body captures only the shared refs (not the handler), so the
-            // temporary handler going out of scope here is safe.
+            // temporary handler going out of scope here is safe. Count the reader
+            // in before launching it (this thread is joined on shutdown before
+            // WaitAll runs, so the count is final by then).
+            readers.Enter();
             GuacamoleReadHandler reader;
-            reader.Run(queue, guacamole_server, table, approvals, channel.value(), fd)
+            reader.Run(queue, guacamole_server, table, approvals, readers, channel.value(), fd)
                 .detach();
         }
     });

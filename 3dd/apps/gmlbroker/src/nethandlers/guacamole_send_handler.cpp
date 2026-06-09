@@ -19,7 +19,10 @@ std::thread GuacamoleSendHandler::Run(NetQueue &queue, GuacamoleServer &guacamol
         std::unordered_map<uint8_t, ReturnFilter> filters;
 
         while (running) {
-            BridgeMessage msg = queue.Dequeue();
+            std::optional<BridgeMessage> opt = queue.Dequeue();
+            if (!opt)
+                break; // queue closed and drained: shutting down
+            BridgeMessage msg = std::move(*opt);
 
             switch (msg.action) {
             case ChannelAction::SHUTDOWN_CHANNEL: {
