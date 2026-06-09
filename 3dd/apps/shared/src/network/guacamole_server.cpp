@@ -6,6 +6,7 @@
 #include <poll.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <netdb.h>
 
 GuacamoleServer::~GuacamoleServer() {
     if (listen_fd >= 0) {
@@ -15,11 +16,44 @@ GuacamoleServer::~GuacamoleServer() {
 }
 
 int GuacamoleServer::Initialize() {
+    struct addrinfo hints{}, *results, *rp;
+    std::memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;      // IPv4
+    hints.ai_socktype = SOCK_STREAM; // TCP
+
+    // Get a linked list of possible addresses based on host, port, and hints
+    if (::getaddrinfo(host.c_str(), std::to_string(recv_port).c_str(), &hints, &results) != 0) {
+        perror("getaddrinfo");
+        return -1;
+    }
+
+    int fd = -1;
+    
+    // Loop through list until a valid socket is found
+    for (rp = results; rp != nullptr; rp = rp->ai_next) {
+        fd = ::socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        if (fd >= 0)
+            break;
+    }
+
+    ::freeaddrinfo(results);
+
     listen_fd = ::socket(AF_INET, SOCK_STREAM, 0);
     if (listen_fd < 0) {
         perror("socket");
         return 1;
     }
+
+    if (rp == nullptr) {
+        std::cerr << "Could not resolve hostname or address: " << host << std::endl;
+        if (fd >= 0)
+            ::close(fd);
+        return -1;
+    }
+
+    listen_fd = fd;
+    
+    struct sockaddr_in *addr_in = reinterpret_cast<struct sockaddr_in*>(rp->ai_addr);
 
     // Reuse address if it is already in use or not properly cleaned up
     int one = 1;
@@ -27,20 +61,23 @@ int GuacamoleServer::Initialize() {
 
     sockaddr_in addr;
     std::memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    addr.sin_port = htons(static_cast<uint16_t>(recv_port));
+    addr.sin_family = addr_in->sin_family;
+    addr.sin_port = addr_in->sin_port;
+    addr.sin_addr = addr_in->sin_addr;
 
     // Bind and listen to the given port
     if (::bind(listen_fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) <
         0) {
         perror("bind");
-        ::close(listen_fd);
+        if (listen_fd >= 0)
+            ::close(listen_fd);
         return 1;
     }
 
     if (::listen(listen_fd, 16) < 0) {
         perror("listen");
+        if (listen_fd >= 0)
+            ::close(listen_fd);
         return 1;
     }
 

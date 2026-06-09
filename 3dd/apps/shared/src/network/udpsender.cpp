@@ -21,9 +21,7 @@ int UDPSender::Initialize() {
     hints.ai_socktype = SOCK_DGRAM; // UDP
 
     // Get a linked list of possible addresses based on host, port, and hints
-    int status = ::getaddrinfo(host.c_str(), std::to_string(port).c_str(), &hints, &results);
-    if (status != 0) {
-        std::cerr << "getaddrinfo status: " << std::to_string(status) << std::endl;
+    if (::getaddrinfo(host.c_str(), std::to_string(port).c_str(), &hints, &results) != 0) {
         perror("getaddrinfo");
         return -1;
     }
@@ -49,6 +47,7 @@ int UDPSender::Initialize() {
     sock_fd = fd;
     
     struct sockaddr_in *addr_in = reinterpret_cast<struct sockaddr_in*>(rp->ai_addr);
+    std::memset(&sock_addr, 0, sizeof(sock_addr));
     sock_addr.sin_family = addr_in->sin_family;
     sock_addr.sin_port = addr_in->sin_port;
     sock_addr.sin_addr = addr_in->sin_addr;

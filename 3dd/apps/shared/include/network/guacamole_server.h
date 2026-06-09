@@ -14,13 +14,13 @@
  */
 class GuacamoleServer {
   private:
-    std::string recv_ip;
+    std::string host;
     int recv_port;
     int listen_fd = -1;
 
   public:
-    GuacamoleServer(std::string recv_ip, int recv_port)
-        : recv_ip(recv_ip), recv_port(recv_port) {}
+    GuacamoleServer(std::string host, int recv_port)
+        : host(host), recv_port(recv_port) {}
 
     /**
      * @brief Closes the listening socket
