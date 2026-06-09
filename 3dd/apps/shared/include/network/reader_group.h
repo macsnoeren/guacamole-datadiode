@@ -10,7 +10,7 @@
  * Readers stay detached (no thread-handle bookkeeping that would accumulate over
  * the lifetime of the process). Instead each reader is counted: the spawning
  * thread calls Enter() before launching the reader, and the reader's body holds
- * a Guard whose destructor calls Leave() as its very last act. On shutdown, once
+ * a Sentinel whose destructor calls Leave() as its very last act. On shutdown, once
  * the spawning thread has been joined (so the count is final) and every
  * connection fd has been shut down to wake the blocked recv()s, WaitAll() blocks
  * until the last reader has left — only then may main tear down the queues and
@@ -55,11 +55,11 @@ class ReaderGroup {
      * Declare it as the reader's first local so it is destroyed last, after the
      * reader has finished touching all shared state.
      */
-    struct Guard {
+    struct Sentinel {
         ReaderGroup &group;
-        explicit Guard(ReaderGroup &group) : group(group) {}
-        ~Guard() { group.Leave(); }
-        Guard(const Guard &) = delete;
-        Guard &operator=(const Guard &) = delete;
+        explicit Sentinel(ReaderGroup &group) : group(group) {}
+        ~Sentinel() { group.Leave(); }
+        Sentinel(const Sentinel &) = delete;
+        Sentinel &operator=(const Sentinel &) = delete;
     };
 };

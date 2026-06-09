@@ -86,7 +86,7 @@ std::thread GuacamoleReadHandler::Run(NetQueue &queue, GuacamoleServer &guacamol
     return std::thread([&queue, &guacamole_server, &table, &approvals, &readers, channel, fd]() {
         // Declared first so it is destroyed last: Leave() runs only after all
         // shared-state access below is done, letting main's WaitAll() proceed.
-        ReaderGroup::Guard guard(readers);
+        ReaderGroup::Sentinel sentinel(readers);
 
         char buffer[Multiplexer::MAX_PAYLOAD_SIZE + 1];
         HandshakeForger forger; // forges the guacd handshake toward the web server
