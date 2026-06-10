@@ -2,6 +2,7 @@
 #include "../../shared/include/network/udpreceiver.h"
 #include "../../shared/include/network/udpsender.h"
 #include "../../shared/include/parser/opcode_parser.h"
+#include "../include/guard_opcode_parser.h"
 #include "../../shared/include/util/netargs.h"
 #include "../include/approver.h"
 #include <atomic>
@@ -96,7 +97,7 @@ int main(int argc, char *argv[]) {
         return rc;
 
     // One parser per channel; channels that violate policy are poisoned
-    std::unordered_map<uint8_t, OpcodeParser> parsers;
+    std::unordered_map<uint8_t, GuardOpcodeParser> parsers;
     std::unordered_set<uint8_t> poisoned;
 
     // The guard is the approval gate: the operator decides on each inert CREATE
@@ -123,7 +124,7 @@ int main(int argc, char *argv[]) {
         // CREATE is the inert approval request: the operator decides here.
         case ChannelAction::CREATE_CHANNEL: {
             // Fresh state for a (possibly reused) channel id
-            parsers[msg.channel] = OpcodeParser{};
+            parsers[msg.channel] = GuardOpcodeParser{};
             poisoned.erase(msg.channel);
             approved.erase(msg.channel);
 
@@ -189,7 +190,7 @@ int main(int argc, char *argv[]) {
                 break;
             }
 
-            OpcodeParser &parser = parsers[msg.channel];
+            GuardOpcodeParser &parser = parsers[msg.channel];
             ParserState state =
                 parser.Parse(msg.payload.data(), msg.payload.size());
 
