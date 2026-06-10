@@ -14,7 +14,7 @@ services:
     command:
       [
         "./build/gmlbroker",
-        "127.0.0.1", "4823",
+        "gmlbroker", "4823",
         "5504",
         "guard", "5500"
       ]
