@@ -55,15 +55,8 @@ ParserState OpcodeParser::Parse(const char *data, size_t len) {
                 current_read = 0;
                 if (current_length == 0)
                     state = ParserState::EXPECT_DELIM;
-                else if (next_args_max_length == 0 ||
-                         static_cast<uint32_t>(current_length) <=
-                             next_args_max_length)
+                else
                     state = ParserState::READING_DATA;
-                else {
-                    // Argument length exceeded next_args_max_length
-                    state = ParserState::STREAM_CORRUPTED;
-                    return state;
-                }
             } else {
                 // This is not a digit or length-terminating character
                 state = ParserState::STREAM_CORRUPTED;
@@ -130,7 +123,6 @@ ParserState OpcodeParser::Parse(const char *data, size_t len) {
                     OnInstructionEnd();
                 }
                 reading_opcode = true;
-                next_args_max_length = 0;
             }
             // Comma or semicolon: another element/instruction follows
             current_length = -1;
@@ -188,11 +180,13 @@ bool OpcodeParser::OnInstructionBegin(const GuacElement &opcode) {
     /*
      * 3.key
      * 3.ack
+     * 3.nop
      * 3.end
      * 4.size
      * 4.name
      * 4.argv
      * 4.sync
+     * 4.blob
      * 5.audio
      * 5.video
      * 5.image
@@ -200,6 +194,7 @@ bool OpcodeParser::OnInstructionBegin(const GuacElement &opcode) {
      * 6.select
      * 7.connect
      * 8.timezone
+     * 9.clipboard
      * 10.disconnect
      */
     switch (opcode.len) {
@@ -207,11 +202,8 @@ bool OpcodeParser::OnInstructionBegin(const GuacElement &opcode) {
         return !memcmp(opcode.ptr, "key", 3) || !memcmp(opcode.ptr, "ack", 3) ||
                !memcmp(opcode.ptr, "nop", 3) || !memcmp(opcode.ptr, "end", 3);
     case 4:
-        if (!memcmp(opcode.ptr, "blob", 4)) {
-            next_args_max_length = CLIPBOARD_MAX_BYTES;
-            return true;
-        }
-        return !memcmp(opcode.ptr, "size", 4) ||
+        return !memcmp(opcode.ptr, "blob", 4) ||
+               !memcmp(opcode.ptr, "size", 4) ||
                !memcmp(opcode.ptr, "name", 4) ||
                !memcmp(opcode.ptr, "argv", 4) || !memcmp(opcode.ptr, "sync", 4);
     case 5:
