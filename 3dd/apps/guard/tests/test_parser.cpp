@@ -1,4 +1,5 @@
 #include "../../shared/include/parser/opcode_parser.h"
+#include "../include/guard_opcode_parser.h"
 #include <cassert>
 #include <iostream>
 #include <stdlib.h>
@@ -214,17 +215,45 @@ void test_denied_excision() {
 }
 
 /**
- * @brief Tests the boundaries of length-bound opcodes (clipboard payloads)
+ * @brief Tests the clipboard payload cap enforced by GuardOpcodeParser.
+ *
+ * A clipboard blob's payload is bounded to MAX_CLIPBOARD_BYTES; an oversized one
+ * is denied (and excised), leaving the rest of the stream intact. Blobs not tied
+ * to a clipboard stream are not capped here. The cap is keyed on the stream index
+ * shared by the `clipboard` open and the `blob`, so it is enforced through the
+ * GuardOpcodeParser hooks (passed in as the base pointer).
  */
 void test_length_bound_opcodes() {
-    // Should pass, payload is below maximum
-    test_parsing("9.clipboard;", ParserState::READING_LENGTH);
-    test_parsing("4.blob,9.abcdefghi;", ParserState::READING_LENGTH);
-    test_parsing("9.clipboard,1.0,10.text/plain;4.blob,1.0,9.abcdefghi;3.end,1.0;", ParserState::READING_LENGTH);
+    const std::string cap(GuardOpcodeParser::MAX_CLIPBOARD_BYTES, 'a');
+    const std::string over(GuardOpcodeParser::MAX_CLIPBOARD_BYTES + 1, 'a');
+    const std::string len_cap = std::to_string(cap.size());
+    const std::string len_over = std::to_string(over.size());
 
-    // Should fail, maximum payload length exceeded
-    test_parsing("4.blob,15.abcdefghijklmno;", ParserState::STREAM_CORRUPTED);
-    test_parsing("9.clipboard,1.0,10.text/plain;4.blob,1.0,20.aGV5IGhldCB3ZXJrdA==;3.end,1.0;", ParserState::STREAM_CORRUPTED);
+    // A clipboard open with no payload, and a small blob on its stream, parse.
+    { GuardOpcodeParser p; test_parsing("9.clipboard;", ParserState::READING_LENGTH, &p); }
+    { GuardOpcodeParser p;
+      test_parsing("9.clipboard,1.0,10.text/plain;4.blob,1.0,9.abcdefghi;3.end,1.0;",
+                   ParserState::READING_LENGTH, &p); }
+
+    // A payload exactly at the cap is allowed.
+    { GuardOpcodeParser p;
+      test_parsing("9.clipboard,1.0,10.text/plain;4.blob,1.0," + len_cap + "." + cap + ";3.end,1.0;",
+                   ParserState::READING_LENGTH, &p); }
+
+    // A payload over the cap is denied so the whole blob can be excised.
+    { GuardOpcodeParser p;
+      test_parsing("9.clipboard,1.0,10.text/plain;4.blob,1.0," + len_over + "." + over + ";3.end,1.0;",
+                   ParserState::DENIED_DATA, &p); }
+
+    // A blob that is not on the open clipboard stream is denied outright (and
+    // excised), regardless of payload size.
+    { GuardOpcodeParser p;
+      test_parsing("9.clipboard,1.0,10.text/plain;4.blob,1.1,9.abcdefghi;",
+                   ParserState::DENIED_DATA, &p); }
+
+    // A blob with no clipboard stream open at all is likewise denied.
+    { GuardOpcodeParser p;
+      test_parsing("4.blob,1.0,9.abcdefghi;", ParserState::DENIED_DATA, &p); }
 }
 
 /**

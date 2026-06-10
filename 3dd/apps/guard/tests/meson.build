@@ -1,5 +1,6 @@
 test_sources = files(
   'test_parser.cpp',
+  '../src/guard_opcode_parser.cpp',
   '../../shared/src/parser/opcode_parser.cpp'
 )
 
