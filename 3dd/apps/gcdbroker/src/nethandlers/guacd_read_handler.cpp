@@ -14,7 +14,7 @@
  */
 std::thread GuacdReadHandler::Run(NetQueue &send_queue, GuacdClient &guacd_client,
                                 ChannelTable &table, ReaderGroup &readers,
-                                uint8_t channel, int fd) {
+                                uint16_t channel, int fd) {
     return std::thread([&send_queue, &guacd_client, &table, &readers, channel, fd]() {
         // Declared first so it is destroyed last: Leave() runs only after all
         // shared-state access below is done, letting main's WaitAll() proceed.

@@ -21,7 +21,7 @@ std::thread GuacamoleAcceptHandler::Run(NetQueue &queue, GuacamoleServer &guacam
             }
 
             // Try to allocate the lowest channel not yet taken
-            std::optional<uint8_t> channel = table.Allocate(fd);
+            std::optional<uint16_t> channel = table.Allocate(fd);
             if (!channel) {
                 std::cerr
                     << "accept_handler: channel table full, rejecting client"

@@ -16,7 +16,7 @@ std::thread GuacamoleSendHandler::Run(NetQueue &queue, GuacamoleServer &guacamol
                                 ApprovalRegistry &approvals) {
     return std::thread([&queue, &guacamole_server, &table, &approvals]() {
         // Per-channel return-path filter that swallows guacd's real args/ready.
-        std::unordered_map<uint8_t, ReturnFilter> filters;
+        std::unordered_map<uint16_t, ReturnFilter> filters;
 
         while (running) {
             std::optional<BridgeMessage> opt = queue.Dequeue();

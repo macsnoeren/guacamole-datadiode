@@ -16,17 +16,17 @@
 class ChannelTable {
   private:
     mutable std::mutex mtx;
-    std::unordered_map<uint8_t, int> channel_to_fd;
+    std::unordered_map<uint16_t, int> channel_to_fd;
 
   public:
     /**
      * @brief Allocates the lowest free channel ID and binds it to fd
-     * @return The allocated channel, or std::nullopt if all 256 are in use
+     * @return The allocated channel, or std::nullopt if all 65536 are in use
      */
-    std::optional<uint8_t> Allocate(int fd) {
+    std::optional<uint16_t> Allocate(int fd) {
         std::lock_guard<std::mutex> lock(mtx);
-        for (int candidate = 0; candidate <= 0xFF; ++candidate) {
-            uint8_t channel = static_cast<uint8_t>(candidate);
+        for (int candidate = 0; candidate <= 0xFFFF; ++candidate) {
+            uint16_t channel = static_cast<uint16_t>(candidate);
             // If channel does not appear in map, create a new mapping
             if (channel_to_fd.find(channel) == channel_to_fd.end()) {
                 channel_to_fd[channel] = fd;
@@ -40,7 +40,7 @@ class ChannelTable {
      * @brief Binds a specific (peer-chosen) channel to fd
      * @return False if the channel was already in use
      */
-    bool Insert(uint8_t channel, int fd) {
+    bool Insert(uint16_t channel, int fd) {
         std::lock_guard<std::mutex> lock(mtx);
         return channel_to_fd.emplace(channel, fd).second;
     }
@@ -48,7 +48,7 @@ class ChannelTable {
     /**
      * @brief Looks up the fd bound to a channel
      */
-    std::optional<int> Get(uint8_t channel) const {
+    std::optional<int> Get(uint16_t channel) const {
         std::lock_guard<std::mutex> lock(mtx);
         auto it = channel_to_fd.find(channel);
         if (it == channel_to_fd.end())
@@ -61,7 +61,7 @@ class ChannelTable {
      * @return The fd that was bound, or std::nullopt if the channel was unknown.
      *         The caller that receives the fd is responsible for closing it.
      */
-    std::optional<int> Remove(uint8_t channel) {
+    std::optional<int> Remove(uint16_t channel) {
         std::lock_guard<std::mutex> lock(mtx);
         auto it = channel_to_fd.find(channel);
         if (it == channel_to_fd.end())

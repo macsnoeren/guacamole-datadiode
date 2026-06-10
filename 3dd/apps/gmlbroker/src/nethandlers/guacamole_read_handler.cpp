@@ -50,7 +50,7 @@ std::string sync_instruction() {
  * forwarded `connect` doubles as the approval request; gcdbroker holds it until
  * an operator decides, then (if approved) hands it to the real guacd.
  */
-void replay_handshake(NetQueue &send_queue, uint8_t channel,
+void replay_handshake(NetQueue &send_queue, uint16_t channel,
                       const std::string &handshake) {
     constexpr size_t CHUNK = Multiplexer::MAX_PAYLOAD_SIZE;
     for (size_t off = 0; off < handshake.size(); off += CHUNK) {
@@ -82,7 +82,7 @@ void replay_handshake(NetQueue &send_queue, uint8_t channel,
  */
 std::thread GuacamoleReadHandler::Run(NetQueue &queue, GuacamoleServer &guacamole_server,
                                 ChannelTable &table, ApprovalRegistry &approvals,
-                                ReaderGroup &readers, uint8_t channel, int fd) {
+                                ReaderGroup &readers, uint16_t channel, int fd) {
     return std::thread([&queue, &guacamole_server, &table, &approvals, &readers, channel, fd]() {
         // Declared first so it is destroyed last: Leave() runs only after all
         // shared-state access below is done, letting main's WaitAll() proceed.

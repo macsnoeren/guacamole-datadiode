@@ -97,13 +97,13 @@ int main(int argc, char *argv[]) {
         return rc;
 
     // One parser per channel; channels that violate policy are poisoned
-    std::unordered_map<uint8_t, GuardOpcodeParser> parsers;
-    std::unordered_set<uint8_t> poisoned;
+    std::unordered_map<uint16_t, GuardOpcodeParser> parsers;
+    std::unordered_set<uint16_t> poisoned;
 
     // The guard is the approval gate: the operator decides on each inert CREATE
     // request here. `approved` holds the channels cleared to carry Guacamole.
     Approver approver;
-    std::unordered_set<uint8_t> approved;
+    std::unordered_set<uint16_t> approved;
 
     char buffer[Multiplexer::MAX_DATAGRAM_SIZE + 1];
 
