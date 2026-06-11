@@ -8,6 +8,8 @@ include:
   - ../include/gcdbroker/compose.yml
   - ../include/guacd/compose.yml
   - ../include/lrx_proxy/compose.yml
+  - ../include/sshd/compose.yml
+  - ../include/nettest/compose.yml
 
 services:
   gmlbroker:
@@ -51,3 +53,10 @@ services:
         "5503",
         "gmlbroker", "5504"
       ]
+
+  nettest:
+    # Bind-mount the in-container report dir to a host folder alongside this
+    # compose file, so the per-run Markdown reports show up at
+    # docker/1node/nettest-reports/ and can be opened directly.
+    volumes:
+      - ./nettest-reports:/var/log/nettest
