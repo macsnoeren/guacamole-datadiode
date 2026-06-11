@@ -98,12 +98,19 @@ class AsyncInstructionStream:
         loop = asyncio.get_running_loop()
         deadline = loop.time() + timeout
         while True:
+            # Read next instruction
             instr, self.buf = guacclient.parse_instruction(self.buf)
+
+            # Valid instruction
             if instr is not None:
                 return instr
+
+            # Connection was closed before data could be received
             if self.eof:
                 return None
             remaining = deadline - loop.time()
+
+            # Reader timeout
             if remaining <= 0:
                 return None
             try:
@@ -111,11 +118,14 @@ class AsyncInstructionStream:
             except asyncio.TimeoutError:
                 return None
             except OSError:
+                # The connection was closed
                 self.eof = True
                 return None
             if not chunk:
                 self.eof = True
                 return None
+
+            # Try decoding the instruction
             try:
                 self.buf += self._decoder.decode(chunk)
             except UnicodeDecodeError as e:
