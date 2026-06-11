@@ -17,19 +17,29 @@ class ChannelTable {
   private:
     mutable std::mutex mtx;
     std::unordered_map<uint16_t, int> channel_to_fd;
+    // Round-robin cursor for Allocate. Channels are handed out sequentially and
+    // a freed channel is not reused until the cursor wraps the whole 16-bit
+    // space. This matters because control frames (a peer SHUTDOWN echo, a stale
+    // APPROVAL) for a just-closed channel can still be in flight on the bridge;
+    // reusing that id immediately — as lowest-free allocation did — let such a
+    // frame tear down or disrupt the new occupant. Delaying reuse lets the old
+    // frames drain first.
+    uint16_t next_channel = 0;
 
   public:
     /**
-     * @brief Allocates the lowest free channel ID and binds it to fd
+     * @brief Allocates the next free channel ID (round-robin) and binds it to fd
      * @return The allocated channel, or std::nullopt if all 65536 are in use
      */
     std::optional<uint16_t> Allocate(int fd) {
         std::lock_guard<std::mutex> lock(mtx);
-        for (int candidate = 0; candidate <= 0xFFFF; ++candidate) {
-            uint16_t channel = static_cast<uint16_t>(candidate);
-            // If channel does not appear in map, create a new mapping
+        for (int i = 0; i <= 0xFFFF; ++i) {
+            // next_channel + i wraps mod 65536 on the cast, so the scan covers
+            // every slot starting from the cursor.
+            uint16_t channel = static_cast<uint16_t>(next_channel + i);
             if (channel_to_fd.find(channel) == channel_to_fd.end()) {
                 channel_to_fd[channel] = fd;
+                next_channel = static_cast<uint16_t>(channel + 1);
                 return channel;
             }
         }
