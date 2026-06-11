@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>3DD nettest</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 2rem auto; max-width: 60rem; }
+  h1 { font-size: 1.3rem; }
+  h2 { font-size: 1rem; margin: 1.5rem 0 .5rem; }
+  #controls { display: flex; gap: .5rem; align-items: center; margin: 1rem 0; }
+  button { padding: .4rem 1rem; font-size: 1rem; cursor: pointer; }
+  #status { padding: .2rem .6rem; border-radius: .3rem; font-weight: bold; }
+  #reports { color: #555; font-size: .85rem; margin: -.5rem 0 1rem; }
+  #reports code { background: #f0f0f0; padding: .05rem .3rem; border-radius: .2rem; }
+  .idle    { background: #eee; }
+  .running { background: #cce5ff; }
+  .passed  { background: #d4edda; }
+  .failed, .error { background: #f8d7da; }
+  .stopped { background: #fff3cd; }
+  fieldset { border: 1px solid #ccc; border-radius: .4rem; margin: 1rem 0; }
+  legend { font-weight: bold; padding: 0 .4rem; }
+  .params { display: grid; grid-template-columns: repeat(2, 1fr); gap: .6rem 1.5rem; }
+  .params label { display: flex; align-items: center; gap: .4rem; cursor: help; }
+  .params input[type=number] { width: 6rem; }
+  .params input[type=range] { flex: 1; }
+  #c-err { color: #b30000; font-weight: bold; margin-left: .6rem; }
+  #live { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem;
+          margin: .5rem 0; }
+  #live .card { background: #f5f5f5; border-radius: .4rem; padding: .6rem .8rem; }
+  #live .card h3 { font-size: .8rem; margin: 0 0 .3rem; color: #555;
+                   text-transform: uppercase; letter-spacing: .03em; }
+  #live .card .v { font-size: .9rem; line-height: 1.5; }
+  #live .num { font-variant-numeric: tabular-nums; font-weight: bold; }
+  #log { background: #1e1e1e; color: #d4d4d4; padding: 1rem; min-height: 16rem;
+         max-height: 50vh; overflow-y: auto; white-space: pre-wrap;
+         font-family: monospace; font-size: .85rem; }
+</style>
+</head>
+<body>
+<h1>3DD nettest — remote-access test flows</h1>
+<div id="controls">
+  <span id="tests"></span>
+  <button id="stop">Stop</button>
+  <span id="status" class="idle">idle</span>
+</div>
+<p id="reports">Reports are saved when each test ends or is stopped.</p>
+
+<fieldset id="custom">
+  <legend>Custom adversarial-load test</legend>
+  <div class="params">
+    <label title="Valid connections that ping-pong: send input and time the guacd paint-back. 0–65535.">
+      Good connections
+      <input id="c-good" type="number" min="0" max="65535" value="5">
+    </label>
+    <label title="Connections that establish, then send a corrupt packet (2.foo;) so the guard shuts them down. The good connections should keep working. 0–65535.">
+      Bad connections
+      <input id="c-bad" type="number" min="0" max="65535" value="2">
+    </label>
+    <label title="Seconds each connection waits between sends. 0 = as fast as possible.">
+      Send delay (s)
+      <input id="c-delay" type="range" min="0" max="10" step="0.1" value="0.5">
+      <output id="c-delay-val">0.5</output>
+    </label>
+    <label title="Stagger each connection's start by a small random offset instead of all sending in lockstep.">
+      <input id="c-rand" type="checkbox"> Randomize send offsets
+    </label>
+    <label title="How long the test runs, in seconds.">
+      Duration (s)
+      <input id="c-dur" type="number" min="1" max="3600" value="15">
+    </label>
+  </div>
+  <p>
+    <button id="c-run">Run custom</button>
+    <span id="c-err"></span>
+  </p>
+</fieldset>
+
+<h2>Live statistics</h2>
+<div id="live"></div>
+
+<h2>Log</h2>
+<pre id="log"></pre>
+<script>
+let cursor = 0;
+
+async function loadTests() {
+  const r = await fetch("/api/tests");
+  const { tests } = await r.json();
+  const span = document.getElementById("tests");
+  for (const name of tests) {
+    if (name === "custom") continue;  // custom has its own parameter panel
+    const b = document.createElement("button");
+    b.textContent = "Run " + name;
+    b.onclick = () => { clearLog(); fetch("/api/start?test=" + name, { method: "POST" }); };
+    span.appendChild(b);
+  }
+}
+
+function clearLog() { document.getElementById("log").textContent = ""; cursor = 0; }
+
+// --- custom parameter panel ---
+const $ = (id) => document.getElementById(id);
+$("c-delay").oninput = () => { $("c-delay-val").textContent = $("c-delay").value; };
+
+function customValid() {
+  const good = parseInt($("c-good").value || "0", 10);
+  const bad = parseInt($("c-bad").value || "0", 10);
+  const err = $("c-err");
+  if (good + bad > 65535) {
+    err.textContent = `good + bad = ${good + bad} exceeds the 65535-channel limit`;
+    $("c-run").disabled = true;
+    return false;
+  }
+  if (good + bad === 0) {
+    err.textContent = "set at least one good or bad connection";
+    $("c-run").disabled = true;
+    return false;
+  }
+  err.textContent = "";
+  $("c-run").disabled = false;
+  return true;
+}
+["c-good", "c-bad"].forEach((id) => { $(id).oninput = customValid; });
+
+$("c-run").onclick = () => {
+  if (!customValid()) return;
+  clearLog();
+  fetch("/api/start?test=custom", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      good: parseInt($("c-good").value || "0", 10),
+      bad: parseInt($("c-bad").value || "0", 10),
+      delay: parseFloat($("c-delay").value),
+      randomize: $("c-rand").checked,
+      duration: parseInt($("c-dur").value || "0", 10),
+    }),
+  });
+};
+
+document.getElementById("stop").onclick =
+  () => fetch("/api/stop", { method: "POST" });
+
+// --- live stats rendering ---
+function card(title, rows) {
+  const lines = rows.map(([k, v]) => `${k}: <span class="num">${v}</span>`).join("<br>");
+  return `<div class="card"><h3>${title}</h3><div class="v">${lines}</div></div>`;
+}
+
+function renderLive(live) {
+  const el = document.getElementById("live");
+  if (!live) { el.innerHTML = '<div class="card"><div class="v">no run yet</div></div>'; return; }
+  const g = live.good, b = live.bad, l = live.latency_ms;
+  const lat = l
+    ? [["n", l.count], ["mean", l.mean_ms + " ms"], ["min", l.min_ms + " ms"],
+       ["max", l.max_ms + " ms"], ["stddev", l.stddev_ms + " ms"]]
+    : [["samples", "none yet"]];
+  el.innerHTML =
+    card("Connections", [["open", live.open_connections], ["peak", live.peak_open]]) +
+    card("Good", [["total", g.total], ["established", g.established],
+                  ["disconnected", g.disconnected], ["timeouts", g.timeouts]]) +
+    card("Bad", [["total", b.total], ["established", b.established],
+                 ["corrupted", b.corrupted], ["shut down", b.shutdown_observed],
+                 ["dropped early", b.disconnected]]) +
+    card("Latency", lat);
+}
+
+function renderReports(st) {
+  const el = document.getElementById("reports");
+  if (!st.report_dir) return;
+  let html = `Reports are saved in the nettest container at <code>${st.report_dir}</code>`;
+  if (st.report) html += ` — latest: <code>${st.report.split("/").pop()}</code>`;
+  el.innerHTML = html;
+}
+
+async function poll() {
+  try {
+    const st = await (await fetch("/api/status")).json();
+    const badge = document.getElementById("status");
+    badge.textContent = st.state + (st.test ? " (" + st.test + ")" : "");
+    badge.className = st.state;
+    renderLive(st.live);
+    renderReports(st);
+
+    const lg = await (await fetch("/api/log?since=" + cursor)).json();
+    cursor = lg.next;
+    if (lg.lines.length) {
+      const el = document.getElementById("log");
+      el.textContent += lg.lines.join("\n") + "\n";
+      el.scrollTop = el.scrollHeight;
+    }
+  } catch (e) { /* server restarting; keep polling */ }
+}
+
+loadTests();
+customValid();
+renderLive(null);
+setInterval(poll, 500);
+</script>
+</body>
+</html>
