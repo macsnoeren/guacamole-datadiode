@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../shared/include/parser/opcode_parser.h"
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -20,7 +21,12 @@
  */
 class GuardOpcodeParser : public OpcodeParser {
   public:
-    static constexpr uint32_t MAX_CLIPBOARD_BYTES = 50;
+    static constexpr uint32_t MAX_CLIPBOARD_INPUT_BYTES = 50;
+
+    // The maximum amount of base64 characters that can be sent.
+    // Since base64 results in about 33% more characters than
+    // their original values, this equation is used.
+    static constexpr uint32_t MAX_CLIPBOARD_BYTES = (uint32_t)(MAX_CLIPBOARD_INPUT_BYTES * 1.33f);
 
   protected:
     bool OnInstructionBegin(const GuacElement &instr) override;
