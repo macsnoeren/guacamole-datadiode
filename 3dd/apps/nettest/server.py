@@ -26,6 +26,13 @@ STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
 
 def load_cfg():
+    """Read configuration from the environment, applying defaults.
+
+    Returns
+    -------
+    dict
+        The config consumed by the server, runner, and flows.
+    """
     env = os.environ.get
     return {
         "GML_HOST": env("GML_HOST", "gmlbroker"),
@@ -52,6 +59,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     # Parse GET requests
     def do_GET(self):
+        """Route a GET request: the page and the read-only API endpoints.
+
+        Returns
+        -------
+        None
+        """
         url = urllib.parse.urlparse(self.path)
         if url.path == "/":
             with open(os.path.join(STATIC, "index.html"), "rb") as f:
@@ -71,6 +84,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     # Parse POST requests
     def do_POST(self):
+        """Route a POST request: starting and stopping a flow.
+
+        Returns
+        -------
+        None
+        """
         url = urllib.parse.urlparse(self.path)
         if url.path == "/api/start":
             test = urllib.parse.parse_qs(url.query).get("test", [None])[0]
@@ -91,8 +110,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     # Parse JSON body
     def _read_json_body(self):
-        """Parse the request body as a JSON object. Returns {} for an empty
-        body (flows that take no params) and None if the body is malformed."""
+        """Parse the request body as a JSON object.
+
+        Returns
+        -------
+        dict or None
+            The parsed object; ``{}`` for an empty body (flows that take no
+            params); None if the body is present but not a valid JSON object.
+        """
         length = int(self.headers.get("Content-Length", 0))
         if length == 0:
             return {}
@@ -104,9 +129,37 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return obj if isinstance(obj, dict) else None
 
     def _json(self, code, obj):
+        """Send a JSON response.
+
+        Parameters
+        ----------
+        code : int
+            HTTP status code.
+        obj : Any
+            A JSON-serialisable object for the body.
+
+        Returns
+        -------
+        None
+        """
         self._reply(code, "application/json", json.dumps(obj).encode())
 
     def _reply(self, code, ctype, body):
+        """Send a response with an explicit content type and length.
+
+        Parameters
+        ----------
+        code : int
+            HTTP status code.
+        ctype : str
+            The Content-Type header value.
+        body : bytes
+            The response body.
+
+        Returns
+        -------
+        None
+        """
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
@@ -115,6 +168,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 def main():
+    """Build the server, install signal handlers, and serve until shutdown.
+
+    Returns
+    -------
+    None
+    """
     cfg = load_cfg()
     try:
         os.makedirs(cfg["REPORT_DIR"], exist_ok=True)
