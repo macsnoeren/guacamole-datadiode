@@ -3,7 +3,6 @@ name: 3dd-3node-lownode
 include:
   - ../include/gmwebserver/compose.yml
   - ../include/gmlbroker/compose.yml
-  - ../include/sshd/compose.yml
   - ../include/nettest/compose.yml
 
 services:
