@@ -1,2 +1,5 @@
 # nettest per-run Markdown reports (host bind mount from the nettest container)
 docker/1node/nettest-reports/
+
+# CodeQL scan output
+.codeql/
