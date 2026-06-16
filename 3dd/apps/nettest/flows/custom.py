@@ -40,6 +40,8 @@ from guacclient import encode
 CHANNEL_LIMIT = 65535
 CONNECT_TIMEOUT_S = 5.0        # TCP connect (generous under high fan-out)
 RESPONSE_TIMEOUT_S = 2.0       # await a paint instruction from guacd
+QUIET_GAP_S = 0.05            # stream counts as "quiet" after 50 ms with no instruction
+DRAIN_BUDGET_S = 1.0          # cap on draining so a chatty stream can't stall the loop
 SHUTDOWN_OBSERVE_S = 3.0       # await the guard's shutdown message after corrupting the stream
 PUBLISH_INTERVAL_S = 0.5       # live-stats cadence
 
@@ -394,6 +396,15 @@ async def _good_conn(stats, stop, cfg):
         stats.good_established += 1
 
         while not stop.is_set():
+            # Drain any in-flight or leftover frames so the timed paint is a
+            # genuine response to *our* keypress — not a stale trailing frame
+            # from the previous prompt redraw, the initial terminal render, or
+            # guacd's ~1 Hz sync heartbeat. Without this the next read can return
+            # an already-buffered paint immediately, recording an RTT near 0 ms.
+            if not await _drain_quiet(stream, QUIET_GAP_S, DRAIN_BUDGET_S):
+                stats.good_disconnected += 1  # peer closed during the drain
+                return
+
             t0 = loop.time()
             try:
                 # Send input: pressing and immediately letting go of the ENTER key
@@ -402,10 +413,12 @@ async def _good_conn(stats, stop, cfg):
                 stats.good_disconnected += 1
                 return
 
-            # Wait for next paint frame (e.g. rect, cfill)
+            # The stream was just drained quiet, so the first real guacd op after
+            # the keypress is the response we want to time.
             frame = await _read_until(stream, _is_paint, RESPONSE_TIMEOUT_S)
             if frame is None:
-                # If channel is closed, no reply back from guacd
+                # No paint: a closed channel is a disconnect; otherwise the
+                # session is alive but slow, a genuine timeout.
                 if stream.eof:
                     stats.good_disconnected += 1
                     return
@@ -580,6 +593,38 @@ def _is_paint(instr):
         True if the opcode is in ``GUACD_DRAW_OPS``.
     """
     return instr[0] in GUACD_DRAW_OPS
+
+
+async def _drain_quiet(stream, quiet, budget):
+    """Read and discard instructions until the stream falls silent.
+
+    Called before timing a keypress so the measured paint is a response to that
+    keypress and not a frame already in flight (a multi-frame prompt redraw, the
+    initial terminal render, or guacd's periodic sync).
+
+    Parameters
+    ----------
+    stream : aguacclient.AsyncInstructionStream
+        The connection to drain.
+    quiet : float
+        Seconds of silence that count as drained — once a read waits this long
+        without yielding an instruction, the stream is considered quiet.
+    budget : float
+        Upper bound on total draining, so a continuously chatty stream cannot
+        stall the caller.
+
+    Returns
+    -------
+    bool
+        True if the stream went quiet (still connected); False if the peer
+        closed it during the drain.
+    """
+    loop = asyncio.get_running_loop()
+    end = loop.time() + budget
+    while loop.time() < end:
+        if await stream.read_instruction(quiet) is None:
+            return not stream.eof  # quiet (True) or closed mid-drain (False)
+    return not stream.eof
 
 
 async def _drain_until_eof(stream, timeout):
