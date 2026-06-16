@@ -107,6 +107,11 @@ int main(int argc, char *argv[]) {
     Approver approver;
     std::unordered_set<uint16_t> approved;
 
+    // Set by the control listener on a global "deny"; the main loop observes it
+    // and tears down every still-approved channel, so a deny disconnects live
+    // sessions and not just future requests.
+    std::atomic<bool> deny_teardown{false};
+
     // Out-of-band control listener: a plaintext "approve"/"deny" datagram on the
     // control port flips the global approval switch at runtime (relayed here by
     // gmlbroker). Its UDPReceiver has the same 200 ms recv timeout, so the loop
@@ -117,7 +122,7 @@ int main(int argc, char *argv[]) {
     std::cout << "Listening for approval toggles on UDP port "
               << ControlChannel::APPROVAL_CONTROL_PORT << std::endl;
 
-    std::thread control_thread([&approver, &control_receiver]() {
+    std::thread control_thread([&approver, &control_receiver, &deny_teardown]() {
         char buf[256];
         while (running) {
             int n = control_receiver.Receive(buf, sizeof(buf));
@@ -131,6 +136,10 @@ int main(int argc, char *argv[]) {
                 continue;
             }
             approver.SetApprove(*mode);
+            // A deny also disconnects channels already carrying Guacamole; the
+            // main loop owns the channel state, so just flag it here.
+            if (!*mode)
+                deny_teardown.store(true, std::memory_order_relaxed);
             std::cout << "guard: approval switch set to "
                       << (*mode ? "APPROVE" : "DENY") << std::endl;
         }
@@ -139,6 +148,20 @@ int main(int argc, char *argv[]) {
     char buffer[Multiplexer::MAX_DATAGRAM_SIZE + 1];
 
     while (running) {
+        // Act on a global deny: tear down every still-approved channel. This
+        // operation checks if `deny_teardown` is true, and sets it to false.
+        if (deny_teardown.exchange(false, std::memory_order_relaxed)) {
+            for (uint16_t ch : approved) {
+                BridgeMessage shutdown{ch, ChannelAction::SHUTDOWN_CHANNEL, ""};
+                std::string wire = Multiplexer::Serialize(shutdown);
+                sender.Send(wire.data(), wire.size());
+                parsers.erase(ch);
+                std::cout << "guard: channel " << (int)ch
+                          << " torn down by global deny" << std::endl;
+            }
+            approved.clear();
+        }
+
         int received = receiver.Receive(buffer, sizeof(buffer));
         if (received <= 0)
             continue;
