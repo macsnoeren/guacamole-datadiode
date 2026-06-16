@@ -12,6 +12,9 @@
   #status { padding: .2rem .6rem; border-radius: .3rem; font-weight: bold; }
   #reports { color: #555; font-size: .85rem; margin: -.5rem 0 1rem; }
   #reports code { background: #f0f0f0; padding: .05rem .3rem; border-radius: .2rem; }
+  #approval { display: flex; gap: .5rem; align-items: center; margin: 1rem 0; }
+  #approval-note { color: #777; font-size: .8rem; }
+  #approval-msg { font-weight: bold; }
   .idle    { background: #eee; }
   .running { background: #cce5ff; }
   .passed  { background: #d4edda; }
@@ -44,6 +47,14 @@
   <span id="status" class="idle">idle</span>
 </div>
 <p id="reports">Reports are saved when each test ends or is stopped.</p>
+
+<div id="approval">
+  <strong>Guard approval:</strong>
+  <button id="approve">Approve</button>
+  <button id="deny">Deny</button>
+  <span id="approval-msg"></span>
+  <span id="approval-note">global runtime switch — applies to all new connections</span>
+</div>
 
 <fieldset id="custom">
   <legend>Custom adversarial-load test</legend>
@@ -140,6 +151,25 @@ $("c-run").onclick = () => {
 
 document.getElementById("stop").onclick =
   () => fetch("/api/stop", { method: "POST" });
+
+// --- guard approval switch (global runtime toggle) ---
+async function setApproval(mode) {
+  const msg = document.getElementById("approval-msg");
+  msg.textContent = "…";
+  try {
+    const r = await fetch("/api/approval", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode }),
+    });
+    const body = await r.json();
+    msg.textContent = r.ok ? `set to ${body.mode}` : `error: ${body.error}`;
+  } catch (e) {
+    msg.textContent = "error: " + e;
+  }
+}
+document.getElementById("approve").onclick = () => setApproval("approve");
+document.getElementById("deny").onclick = () => setApproval("deny");
 
 // --- live stats rendering ---
 function card(title, rows) {

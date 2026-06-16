@@ -16,6 +16,7 @@ import http.server
 import json
 import os
 import signal
+import socket
 import threading
 import urllib.parse
 
@@ -23,6 +24,35 @@ import flows
 import runner
 
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+
+
+def send_approval_toggle(host, port, mode):
+    """Send a plaintext approval-toggle datagram to gmlbroker's control port.
+
+    gmlbroker relays it on to the guard, which applies it as a global
+    approve/deny switch. nettest cannot reach the guard directly across the
+    diode, so the toggle always goes via gmlbroker.
+
+    Parameters
+    ----------
+    host : str
+        gmlbroker's host.
+    port : int
+        gmlbroker's control port (UDP).
+    mode : str
+        ``"approve"`` or ``"deny"``.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    OSError
+        If the datagram cannot be sent (e.g. the host does not resolve).
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        s.sendto(mode.encode(), (host, port))
 
 
 def load_cfg():
@@ -37,6 +67,7 @@ def load_cfg():
     return {
         "GML_HOST": env("GML_HOST", "gmlbroker"),
         "GML_PORT": int(env("GML_PORT", "4823")),
+        "GML_CONTROL_PORT": int(env("GML_CONTROL_PORT", "4999")),
         "HTTP_PORT": int(env("HTTP_PORT", "8081")),
         "E2E_SSH_HOST": env("E2E_SSH_HOST", "sshd"),
         "E2E_SSH_PORT": env("E2E_SSH_PORT", "22"),
@@ -53,6 +84,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     # Set once in main() before the server starts.
     runner = None
     log_buffer = None
+    cfg = None
 
     def log_message(self, *args):
         pass  # the UI polls every 500 ms; default logging would flood stdout
@@ -105,8 +137,38 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif url.path == "/api/stop":
             self.runner.stop()
             self._json(200, {"stopping": True})
+        elif url.path == "/api/approval":
+            self._set_approval()
         else:
             self._json(404, {"error": "not found"})
+
+    def _set_approval(self):
+        """Flip the guard's global approval switch via gmlbroker's control port.
+
+        Reads ``{"mode": "approve"|"deny"}`` from the body and relays it as a
+        UDP datagram. The switch is global (all connections) and applies to
+        subsequent approval requests.
+
+        Returns
+        -------
+        None
+        """
+        body = self._read_json_body()
+        mode = body.get("mode") if body is not None else None
+        if mode not in ("approve", "deny"):
+            self._json(400, {"error": "mode must be 'approve' or 'deny'"})
+            return
+        host, port = self.cfg["GML_HOST"], self.cfg["GML_CONTROL_PORT"]
+        try:
+            send_approval_toggle(host, port, mode)
+        except OSError as e:
+            self._json(502, {"error": f"could not reach gmlbroker control "
+                                      f"port {host}:{port}: {e}"})
+            return
+        self.log_buffer.append(
+            f"[approval] global switch set to {mode.upper()} "
+            f"(sent to {host}:{port})")
+        self._json(200, {"mode": mode})
 
     # Parse JSON body
     def _read_json_body(self):
@@ -182,6 +244,7 @@ def main():
               f"will be skipped: {e}", flush=True)
     Handler.log_buffer = runner.LogBuffer()
     Handler.runner = runner.TestRunner(flows.TESTS, cfg, Handler.log_buffer)
+    Handler.cfg = cfg
 
     srv = http.server.ThreadingHTTPServer(("0.0.0.0", cfg["HTTP_PORT"]), Handler)
     srv.daemon_threads = True
