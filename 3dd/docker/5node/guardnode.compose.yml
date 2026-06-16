@@ -13,3 +13,4 @@ services:
       ]
     ports:
       - "5500:5500/udp"
+      - "4999:4999/udp" # Approval-toggle control port 
