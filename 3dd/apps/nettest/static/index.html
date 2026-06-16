@@ -79,6 +79,13 @@
       Duration (s)
       <input id="c-dur" type="number" min="1" max="3600" value="15">
     </label>
+    <label title="What each good connection sends to measure the round-trip. 'key' presses ENTER and times guacd's terminal repaint (realistic, heavy return load). 'argv' opens an argv stream and times guacd's tiny ack (light, single-frame).">
+      Probe
+      <select id="c-probe">
+        <option value="key">key &rarr; paint</option>
+        <option value="argv">argv &rarr; ack</option>
+      </select>
+    </label>
   </div>
   <p>
     <button id="c-run">Run custom</button>
@@ -142,6 +149,7 @@ $("c-run").onclick = () => {
     body: JSON.stringify({
       good: parseInt($("c-good").value || "0", 10),
       bad: parseInt($("c-bad").value || "0", 10),
+      probe: $("c-probe").value,
       delay: parseFloat($("c-delay").value),
       randomize: $("c-rand").checked,
       duration: parseInt($("c-dur").value || "0", 10),
