@@ -96,20 +96,22 @@ int main(int argc, char *argv[]) {
     std::cout << "Initialized UDP sender for " << udp_send_ip << ":"
               << udp_send_port << std::endl;
 
+    int apprv_port = ControlChannel::APPROVAL_CONTROL_PORT;
+
     // Out-of-band approval-toggle relay: nettest (IT-side) cannot reach the
     // guard directly across the diode, so it sends a plaintext "approve"/"deny"
     // datagram here and we forward it on to the guard's control port (the
     // diode-allowed direction). gmlbroker does not decide approvals; it only
     // relays. Both sockets carry the 200 ms recv timeout so the relay loop
     // observes `running` and stops on SIGINT.
-    UDPReceiver control_receiver(APPROVAL_CONTROL_PORT);
+    UDPReceiver control_receiver(apprv_port);
     if ((exit = control_receiver.Initialize()) != 0)
         return exit;
-    UDPSender control_sender(udp_send_ip, APPROVAL_CONTROL_PORT);
+    UDPSender control_sender(udp_send_ip, apprv_port);
     if ((exit = control_sender.Initialize()) != 0)
         return exit;
-    std::cout << "Relaying approval toggles on UDP port " << APPROVAL_CONTROL_PORT
-              << " to " << udp_send_ip << ":" << APPROVAL_CONTROL_PORT
+    std::cout << "Relaying approval toggles on UDP port " << apprv_port
+              << " to " << udp_send_ip << ":" << apprv_port
               << std::endl;
 
     ChannelTable table; // Shared by accept thread and guacamole_send thread to keep track of connections
@@ -142,7 +144,7 @@ int main(int argc, char *argv[]) {
             if (n <= 0)
                 continue;
             std::optional<bool> mode =
-                ParseApprovalToggle(std::string(buf, n));
+                ControlChannel::ParseApprovalToggle(std::string(buf, n));
             if (!mode) {
                 std::cerr << "gmlbroker: ignored unrecognised approval command"
                           << std::endl;

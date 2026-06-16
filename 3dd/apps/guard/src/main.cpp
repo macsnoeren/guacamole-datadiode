@@ -111,11 +111,11 @@ int main(int argc, char *argv[]) {
     // control port flips the global approval switch at runtime (relayed here by
     // gmlbroker). Its UDPReceiver has the same 200 ms recv timeout, so the loop
     // observes `running` and stops on SIGINT.
-    UDPReceiver control_receiver(APPROVAL_CONTROL_PORT);
+    UDPReceiver control_receiver(ControlChannel::APPROVAL_CONTROL_PORT);
     if ((rc = control_receiver.Initialize()) != 0)
         return rc;
     std::cout << "Listening for approval toggles on UDP port "
-              << APPROVAL_CONTROL_PORT << std::endl;
+              << ControlChannel::APPROVAL_CONTROL_PORT << std::endl;
 
     std::thread control_thread([&approver, &control_receiver]() {
         char buf[256];
@@ -124,7 +124,7 @@ int main(int argc, char *argv[]) {
             if (n <= 0)
                 continue;
             std::optional<bool> mode =
-                ParseApprovalToggle(std::string(buf, n));
+                ControlChannel::ParseApprovalToggle(std::string(buf, n));
             if (!mode) {
                 std::cerr << "guard: ignored unrecognised approval command"
                           << std::endl;
