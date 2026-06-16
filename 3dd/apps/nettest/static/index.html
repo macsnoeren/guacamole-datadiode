@@ -2,109 +2,174 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>3DD nettest</title>
 <style>
-  body { font-family: system-ui, sans-serif; margin: 2rem auto; max-width: 60rem; }
-  h1 { font-size: 1.3rem; }
-  h2 { font-size: 1rem; margin: 1.5rem 0 .5rem; }
-  #controls { display: flex; gap: .5rem; align-items: center; margin: 1rem 0; }
-  button { padding: .4rem 1rem; font-size: 1rem; cursor: pointer; }
-  #status { padding: .2rem .6rem; border-radius: .3rem; font-weight: bold; }
-  #reports { color: #555; font-size: .85rem; margin: -.5rem 0 1rem; }
-  #reports code { background: #f0f0f0; padding: .05rem .3rem; border-radius: .2rem; }
-  #approval { display: flex; gap: .5rem; align-items: center; margin: 1rem 0; }
-  #approval-note { color: #777; font-size: .8rem; }
-  #approval-msg { font-weight: bold; }
-  .idle    { background: #eee; }
-  .running { background: #cce5ff; }
-  .passed  { background: #d4edda; }
-  .failed, .error { background: #f8d7da; }
+  :root {
+    --bg: #f6f7f9; --panel: #fff; --border: #e3e4e8; --muted: #6b7280;
+    --accent: #2563eb; --ink: #1f2937;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font-family: system-ui, sans-serif; line-height: 1.4; }
+
+  /* sticky top bar: title + run state, always visible */
+  header { position: sticky; top: 0; z-index: 5; background: #fff;
+           border-bottom: 1px solid var(--border); }
+  .bar { max-width: 64rem; margin: 0 auto; padding: .7rem 1.5rem;
+         display: flex; align-items: center; gap: .8rem; }
+  .bar h1 { flex: 1; font-size: 1.05rem; margin: 0; }
+  #status { padding: .25rem .7rem; border-radius: 999px;
+            font-weight: 600; font-size: .82rem; }
+
+  .wrap { max-width: 64rem; margin: 0 auto; padding: 1.2rem 1.5rem 3rem; }
+
+  /* panels */
+  .panel { background: var(--panel); border: 1px solid var(--border);
+           border-radius: .6rem; padding: 1rem 1.2rem; margin-bottom: 1.1rem; }
+  .panel > h2 { font-size: .95rem; margin: 0 0 .15rem; }
+  .panel > .hint { color: var(--muted); font-size: .8rem; margin: 0 0 .85rem; }
+
+  /* buttons */
+  button { font: inherit; font-size: .9rem; padding: .4rem .9rem;
+           border: 1px solid var(--border); border-radius: .4rem;
+           background: #fff; cursor: pointer; }
+  button:hover { background: #f0f1f4; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { filter: brightness(1.07); }
+  #approve { border-color: #16a34a; color: #166534; }
+  #deny { border-color: #dc2626; color: #991b1b; }
+
+  .row { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+  #approval-msg { font-weight: 600; font-size: .85rem; color: var(--muted); }
+
+  /* test parameters */
+  .params { display: grid; gap: .85rem 1.2rem;
+            grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+            margin-bottom: .9rem; }
+  .field { display: flex; flex-direction: column; gap: .3rem; cursor: help; }
+  .field > span { font-size: .78rem; color: var(--muted); }
+  .field input[type=number], .field select { padding: .35rem; font: inherit;
+            border: 1px solid var(--border); border-radius: .35rem; }
+  .field.check { flex-direction: row; align-items: center; gap: .45rem;
+                 align-self: end; cursor: pointer; }
+  .field.check > span { font-size: .85rem; color: var(--ink); }
+  .range { display: flex; align-items: center; gap: .5rem; }
+  .range input { flex: 1; }
+  #c-err { color: #b91c1c; font-weight: 600; font-size: .85rem; }
+
+  /* quick one-click flows, separated from the custom form */
+  .quick { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+           margin-top: 1rem; padding-top: .9rem; border-top: 1px solid var(--border); }
+  .quick .lbl { font-size: .8rem; color: var(--muted); }
+
+  /* run-state colours (shared by the status badge) */
+  .idle { background: #eee; } .running { background: #cce5ff; }
+  .passed { background: #d4edda; } .failed, .error { background: #f8d7da; }
   .stopped { background: #fff3cd; }
-  fieldset { border: 1px solid #ccc; border-radius: .4rem; margin: 1rem 0; }
-  legend { font-weight: bold; padding: 0 .4rem; }
-  .params { display: grid; grid-template-columns: repeat(2, 1fr); gap: .6rem 1.5rem; }
-  .params label { display: flex; align-items: center; gap: .4rem; cursor: help; }
-  .params input[type=number] { width: 6rem; }
-  .params input[type=range] { flex: 1; }
-  #c-err { color: #b30000; font-weight: bold; margin-left: .6rem; }
-  #live { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem;
-          margin: .5rem 0; }
-  #live .card { background: #f5f5f5; border-radius: .4rem; padding: .6rem .8rem; }
-  #live .card h3 { font-size: .8rem; margin: 0 0 .3rem; color: #555;
-                   text-transform: uppercase; letter-spacing: .03em; }
-  #live .card .v { font-size: .9rem; line-height: 1.5; }
-  #live .num { font-variant-numeric: tabular-nums; font-weight: bold; }
-  #log { background: #1e1e1e; color: #d4d4d4; padding: 1rem; min-height: 16rem;
-         max-height: 50vh; overflow-y: auto; white-space: pre-wrap;
-         font-family: monospace; font-size: .85rem; }
+
+  /* live statistics */
+  #live { display: grid; gap: .7rem;
+          grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr)); }
+  .card { background: #f7f8fa; border: 1px solid var(--border);
+          border-radius: .5rem; padding: .6rem .8rem; }
+  .card h3 { font-size: .7rem; margin: 0 0 .35rem; color: var(--muted);
+             text-transform: uppercase; letter-spacing: .04em; }
+  .card .v { font-size: .88rem; line-height: 1.55; }
+  .num { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+  /* log */
+  #reports { color: var(--muted); font-size: .8rem; margin: 0 0 .7rem; }
+  #reports code { background: #eee; padding: .05rem .3rem; border-radius: .25rem; }
+  #log { background: #1e1e1e; color: #d4d4d4; padding: .9rem; border-radius: .5rem;
+         min-height: 14rem; max-height: 46vh; overflow-y: auto; white-space: pre-wrap;
+         font-family: ui-monospace, monospace; font-size: .82rem; }
 </style>
 </head>
 <body>
-<h1>3DD nettest — remote-access test flows</h1>
-<div id="controls">
-  <span id="tests"></span>
-  <button id="stop">Stop</button>
-  <span id="status" class="idle">idle</span>
-</div>
-<p id="reports">Reports are saved when each test ends or is stopped.</p>
-
-<div id="approval">
-  <strong>Guard approval:</strong>
-  <button id="approve">Approve</button>
-  <button id="deny">Deny</button>
-  <span id="approval-msg"></span>
-  <span id="approval-note">global runtime switch — applies to all new connections</span>
-</div>
-
-<fieldset id="custom">
-  <legend>Custom adversarial-load test</legend>
-  <div class="params">
-    <label title="Valid connections that ping-pong: send input and time the guacd paint-back. 0–65535.">
-      Good connections
-      <input id="c-good" type="number" min="0" max="65535" value="5">
-    </label>
-    <label title="Connections that establish, then send a corrupt packet (2.foo;) so the guard shuts them down. The good connections should keep working. 0–65535.">
-      Bad connections
-      <input id="c-bad" type="number" min="0" max="65535" value="2">
-    </label>
-    <label title="Seconds each connection waits between sends. 0 = as fast as possible.">
-      Send delay (s)
-      <input id="c-delay" type="range" min="0" max="10" step="0.1" value="0.5">
-      <output id="c-delay-val">0.5</output>
-    </label>
-    <label title="Stagger each connection's start by a small random offset instead of all sending in lockstep.">
-      <input id="c-rand" type="checkbox"> Randomize send offsets
-    </label>
-    <label title="How long the test runs, in seconds.">
-      Duration (s)
-      <input id="c-dur" type="number" min="1" max="3600" value="15">
-    </label>
-    <label title="What each good connection sends to measure the round-trip. 'key' presses ENTER and times guacd's terminal repaint (realistic, heavy return load). 'argv' opens an argv stream and times guacd's tiny ack (light, single-frame).">
-      Probe
-      <select id="c-probe">
-        <option value="key">key &rarr; paint</option>
-        <option value="argv">argv &rarr; ack</option>
-      </select>
-    </label>
+<header>
+  <div class="bar">
+    <h1>3DD nettest</h1>
+    <span id="status" class="idle">idle</span>
+    <button id="stop">Stop test</button>
   </div>
-  <p>
-    <button id="c-run">Run custom</button>
-    <span id="c-err"></span>
-  </p>
-</fieldset>
+</header>
 
-<h2>Live statistics</h2>
-<div id="live"></div>
+<div class="wrap">
 
-<h2>Log</h2>
-<pre id="log"></pre>
+  <section class="panel">
+    <h2>Guard approval</h2>
+    <p class="hint">Global runtime switch — applies to every new connection.</p>
+    <div class="row">
+      <button id="approve">Approve</button>
+      <button id="deny">Deny</button>
+      <span id="approval-msg"></span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Run a test</h2>
+    <p class="hint">Drive a mix of good and bad connections and watch them live.</p>
+    <div class="params">
+      <label class="field" title="Valid connections that ping-pong: send a probe and time the response. 0–65535.">
+        <span>Good connections</span>
+        <input id="c-good" type="number" min="0" max="65535" value="5">
+      </label>
+      <label class="field" title="Connections that establish, then send a corrupt packet (2.foo;) so the guard shuts them down. The good connections should keep working. 0–65535.">
+        <span>Bad connections</span>
+        <input id="c-bad" type="number" min="0" max="65535" value="2">
+      </label>
+      <label class="field" title="What each good connection sends to measure the round-trip. 'key' presses ENTER and times guacd's terminal repaint (realistic, heavy return load). 'argv' opens an argv stream and times guacd's tiny ack (light, single-frame).">
+        <span>Probe</span>
+        <select id="c-probe">
+          <option value="key">key &rarr; paint</option>
+          <option value="argv">argv &rarr; ack</option>
+        </select>
+      </label>
+      <label class="field" title="Seconds each connection waits between sends. 0 = as fast as possible.">
+        <span>Send delay (s) — <output id="c-delay-val">0.5</output></span>
+        <div class="range"><input id="c-delay" type="range" min="0" max="10" step="0.1" value="0.5"></div>
+      </label>
+      <label class="field" title="How long the test runs, in seconds.">
+        <span>Duration (s)</span>
+        <input id="c-dur" type="number" min="1" max="3600" value="15">
+      </label>
+      <label class="field check" title="Stagger each connection's start by a small random offset instead of all sending in lockstep.">
+        <input id="c-rand" type="checkbox">
+        <span>Randomize send offsets</span>
+      </label>
+    </div>
+    <div class="row">
+      <button id="c-run" class="primary">Run test</button>
+      <span id="c-err"></span>
+    </div>
+    <div class="quick">
+      <span class="lbl">Quick flows:</span>
+      <span id="tests"></span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Live statistics</h2>
+    <div id="live"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Log</h2>
+    <p id="reports">Reports are saved when each test ends or is stopped.</p>
+    <pre id="log"></pre>
+  </section>
+
+</div>
 <script>
 let cursor = 0;
+const $ = (id) => document.getElementById(id);
 
 async function loadTests() {
   const r = await fetch("/api/tests");
   const { tests } = await r.json();
-  const span = document.getElementById("tests");
+  const span = $("tests");
   for (const name of tests) {
     if (name === "custom") continue;  // custom has its own parameter panel
     const b = document.createElement("button");
@@ -114,10 +179,9 @@ async function loadTests() {
   }
 }
 
-function clearLog() { document.getElementById("log").textContent = ""; cursor = 0; }
+function clearLog() { $("log").textContent = ""; cursor = 0; }
 
 // --- custom parameter panel ---
-const $ = (id) => document.getElementById(id);
 $("c-delay").oninput = () => { $("c-delay-val").textContent = $("c-delay").value; };
 
 function customValid() {
@@ -157,12 +221,11 @@ $("c-run").onclick = () => {
   });
 };
 
-document.getElementById("stop").onclick =
-  () => fetch("/api/stop", { method: "POST" });
+$("stop").onclick = () => fetch("/api/stop", { method: "POST" });
 
 // --- guard approval switch (global runtime toggle) ---
 async function setApproval(mode) {
-  const msg = document.getElementById("approval-msg");
+  const msg = $("approval-msg");
   msg.textContent = "…";
   try {
     const r = await fetch("/api/approval", {
@@ -176,8 +239,8 @@ async function setApproval(mode) {
     msg.textContent = "error: " + e;
   }
 }
-document.getElementById("approve").onclick = () => setApproval("approve");
-document.getElementById("deny").onclick = () => setApproval("deny");
+$("approve").onclick = () => setApproval("approve");
+$("deny").onclick = () => setApproval("deny");
 
 // --- live stats rendering ---
 function card(title, rows) {
@@ -186,7 +249,7 @@ function card(title, rows) {
 }
 
 function renderLive(live) {
-  const el = document.getElementById("live");
+  const el = $("live");
   if (!live) { el.innerHTML = '<div class="card"><div class="v">no run yet</div></div>'; return; }
   const g = live.good, b = live.bad, l = live.latency_ms;
   const lat = l
@@ -204,7 +267,7 @@ function renderLive(live) {
 }
 
 function renderReports(st) {
-  const el = document.getElementById("reports");
+  const el = $("reports");
   if (!st.report_dir) return;
   let html = `Reports are saved in the nettest container at <code>${st.report_dir}</code>`;
   if (st.report) html += ` — latest: <code>${st.report.split("/").pop()}</code>`;
@@ -214,7 +277,7 @@ function renderReports(st) {
 async function poll() {
   try {
     const st = await (await fetch("/api/status")).json();
-    const badge = document.getElementById("status");
+    const badge = $("status");
     badge.textContent = st.state + (st.test ? " (" + st.test + ")" : "");
     badge.className = st.state;
     renderLive(st.live);
@@ -223,7 +286,7 @@ async function poll() {
     const lg = await (await fetch("/api/log?since=" + cursor)).json();
     cursor = lg.next;
     if (lg.lines.length) {
-      const el = document.getElementById("log");
+      const el = $("log");
       el.textContent += lg.lines.join("\n") + "\n";
       el.scrollTop = el.scrollHeight;
     }
