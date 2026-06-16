@@ -3,6 +3,7 @@
 #include "../../shared/include/network/udpsender.h"
 #include "../../shared/include/parser/opcode_parser.h"
 #include "../include/guard_opcode_parser.h"
+#include "../../shared/include/util/control_channel.h"
 #include "../../shared/include/util/netargs.h"
 #include "../include/approver.h"
 #include <atomic>
@@ -10,6 +11,7 @@
 #include <iostream>
 #include <optional>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -104,6 +106,35 @@ int main(int argc, char *argv[]) {
     // request here. `approved` holds the channels cleared to carry Guacamole.
     Approver approver;
     std::unordered_set<uint16_t> approved;
+
+    // Out-of-band control listener: a plaintext "approve"/"deny" datagram on the
+    // control port flips the global approval switch at runtime (relayed here by
+    // gmlbroker). Its UDPReceiver has the same 200 ms recv timeout, so the loop
+    // observes `running` and stops on SIGINT.
+    UDPReceiver control_receiver(APPROVAL_CONTROL_PORT);
+    if ((rc = control_receiver.Initialize()) != 0)
+        return rc;
+    std::cout << "Listening for approval toggles on UDP port "
+              << APPROVAL_CONTROL_PORT << std::endl;
+
+    std::thread control_thread([&approver, &control_receiver]() {
+        char buf[256];
+        while (running) {
+            int n = control_receiver.Receive(buf, sizeof(buf));
+            if (n <= 0)
+                continue;
+            std::optional<bool> mode =
+                ParseApprovalToggle(std::string(buf, n));
+            if (!mode) {
+                std::cerr << "guard: ignored unrecognised approval command"
+                          << std::endl;
+                continue;
+            }
+            approver.SetApprove(*mode);
+            std::cout << "guard: approval switch set to "
+                      << (*mode ? "APPROVE" : "DENY") << std::endl;
+        }
+    });
 
     char buffer[Multiplexer::MAX_DATAGRAM_SIZE + 1];
 
@@ -239,4 +270,8 @@ int main(int argc, char *argv[]) {
         }
         }
     }
+
+    // SIGINT cleared `running`; the control listener's recv times out and the
+    // thread leaves its loop, so join it before returning.
+    control_thread.join();
 }
