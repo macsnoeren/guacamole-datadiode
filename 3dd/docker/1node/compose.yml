@@ -4,6 +4,7 @@ include:
   - ../include/gmwebserver/compose.yml
   - ../include/gmlbroker/compose.yml
   - ../include/guard/compose.yml
+  - ../include/approver/compose.yml
   - ../include/hrx_proxy/compose.yml
   - ../include/gcdbroker/compose.yml
   - ../include/guacd/compose.yml
