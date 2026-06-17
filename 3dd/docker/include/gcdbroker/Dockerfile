@@ -10,6 +10,7 @@ COPY apps/shared/tests/ apps/shared/tests/
 
 COPY apps/gcdbroker/src apps/gcdbroker/src
 COPY apps/gcdbroker/include apps/gcdbroker/include
+COPY apps/gcdbroker/tests apps/gcdbroker/tests
 COPY apps/gcdbroker/meson.build apps/gcdbroker/meson.build
 
 WORKDIR /app/apps/gcdbroker/
