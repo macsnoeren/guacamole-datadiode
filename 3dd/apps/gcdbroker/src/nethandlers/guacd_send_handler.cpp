@@ -43,8 +43,8 @@ std::thread GuacdSendHandler::Run(NetQueue &recv_queue, NetQueue &send_queue,
                 if (verdict == APPROVAL_APPROVE) {
                     int fd = guacd_client.Connect();
                     if (fd >= 0)
-                        std::cout << "guacd_send_handler: connected to guacd"
-                                  << std::endl;
+                        std::cout << "guacd_send_handler: APPROVE received,"
+                                     " connected to guacd" << std::endl;
 
                     if (fd >= 0 && table.Insert(msg.channel, fd)) {
                         // Count the reader in before launching it; this handler
@@ -54,9 +54,6 @@ std::thread GuacdSendHandler::Run(NetQueue &recv_queue, NetQueue &send_queue,
                         GuacdReadHandler reader;
                         reader.Run(recv_queue, send_queue, guacd_client, table, readers, msg.channel, fd)
                             .detach();
-                        std::cout << "guacd_send_handler: channel "
-                                  << (int)msg.channel << " APPROVED"
-                                  << " (fd " << fd << ")" << std::endl;
                     } else {
                         if (fd >= 0) {
                             guacd_client.Close(fd);
