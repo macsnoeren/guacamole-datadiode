@@ -38,6 +38,8 @@
   button:disabled { opacity: .5; cursor: not-allowed; }
   button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
   button.primary:hover { filter: brightness(1.07); }
+  button.danger { border-color: #dc2626; color: #991b1b; }
+  button.danger:hover { background: #fdeaea; }
 
   .row { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
 
@@ -144,7 +146,10 @@
 
   <section class="panel">
     <h2>Log</h2>
-    <p id="reports">Reports are saved when each test ends or is stopped.</p>
+    <div class="row" style="margin-bottom:.7rem">
+      <p id="reports" style="margin:0; flex:1">Reports are saved when each test ends or is stopped.</p>
+      <button id="clear-reports" class="danger">Clear reports</button>
+    </div>
     <pre id="log"></pre>
   </section>
 
@@ -209,6 +214,22 @@ $("c-run").onclick = () => {
 };
 
 $("stop").onclick = () => fetch("/api/stop", { method: "POST" });
+
+$("clear-reports").onclick = async () => {
+  if (!confirm("Delete ALL saved nettest reports? This cannot be undone.")) return;
+  const btn = $("clear-reports");
+  btn.disabled = true;
+  try {
+    const r = await fetch("/api/reports/clear", { method: "POST" });
+    const data = await r.json();
+    if (!r.ok) throw new Error((data.errors || [data.error]).join("; "));
+    $("reports").textContent = `Cleared ${data.deleted} report(s).`;
+  } catch (e) {
+    $("reports").textContent = "Clear failed: " + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+};
 
 // --- live stats rendering ---
 function card(title, rows) {

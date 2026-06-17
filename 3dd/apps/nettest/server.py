@@ -106,6 +106,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif url.path == "/api/stop":
             self.runner.stop()
             self._json(200, {"stopping": True})
+        elif url.path == "/api/reports/clear":
+            deleted, errors = self.runner.clear_reports()
+            if errors:
+                self._json(500, {"deleted": deleted, "errors": errors})
+            else:
+                self._json(200, {"deleted": deleted})
         else:
             self._json(404, {"error": "not found"})
 

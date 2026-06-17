@@ -227,6 +227,38 @@ class TestRunner:
                 "report_dir": self._cfg.get("REPORT_DIR"),
             }
 
+    def clear_reports(self):
+        """Delete all saved Markdown reports from REPORT_DIR.
+
+        Only files matching the ``nettest-*.md`` report naming are removed, so
+        nothing else in the directory is touched. The last-report pointer is
+        cleared too, so ``status()`` stops referencing a deleted file.
+
+        Returns
+        -------
+        tuple[int, list[str]]
+            The number of reports deleted, and any per-file error messages.
+        """
+        report_dir = self._cfg.get("REPORT_DIR")
+        deleted = 0
+        errors = []
+        if report_dir:
+            try:
+                names = os.listdir(report_dir)
+            except OSError as e:
+                return 0, [f"could not read {report_dir}: {e}"]
+            for name in names:
+                if name.startswith("nettest-") and name.endswith(".md"):
+                    try:
+                        os.remove(os.path.join(report_dir, name))
+                        deleted += 1
+                    except OSError as e:
+                        errors.append(f"{name}: {e}")
+        with self._lock:
+            self._report = None
+        self._log.append(f"[reports] cleared {deleted} report(s)")
+        return deleted, errors
+
     def _run(self, name, ctx):
         """Worker-thread body: run the flow and record its terminal state.
 
