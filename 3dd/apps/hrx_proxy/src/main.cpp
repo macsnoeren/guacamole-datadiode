@@ -40,8 +40,8 @@ int main(int argc, char *argv[]) {
     while (true) {
         int received = receiver.Receive(buffer, sizeof(buffer));
         if (received > 0) {
-            std::cout << "Sending " << received << " bytes from :" << src_port
-                      << " -> " << dst_ip << ":" << dst_port << std::endl;
+            std::cout << "Relaying " << received << " bytes (:" << src_port
+                      << " -> " << dst_ip << ":" << dst_port << ")" << std::endl;
             sender.Send(buffer, received);
         }
     }

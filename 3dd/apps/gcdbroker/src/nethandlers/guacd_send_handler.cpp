@@ -42,6 +42,10 @@ std::thread GuacdSendHandler::Run(NetQueue &recv_queue, NetQueue &send_queue,
                     msg.payload.empty() ? APPROVAL_DENY : msg.payload[0];
                 if (verdict == APPROVAL_APPROVE) {
                     int fd = guacd_client.Connect();
+                    if (fd >= 0)
+                        std::cout << "guacd_send_handler: connected to guacd"
+                                  << std::endl;
+
                     if (fd >= 0 && table.Insert(msg.channel, fd)) {
                         // Count the reader in before launching it; this handler
                         // thread is joined on shutdown before WaitAll runs, so
@@ -51,11 +55,14 @@ std::thread GuacdSendHandler::Run(NetQueue &recv_queue, NetQueue &send_queue,
                         reader.Run(recv_queue, send_queue, guacd_client, table, readers, msg.channel, fd)
                             .detach();
                         std::cout << "guacd_send_handler: channel "
-                                  << (int)msg.channel << " APPROVED, dialed guacd"
+                                  << (int)msg.channel << " APPROVED"
                                   << " (fd " << fd << ")" << std::endl;
                     } else {
-                        if (fd >= 0)
+                        if (fd >= 0) {
                             guacd_client.Close(fd);
+                            std::cout << "guacd_send_handler: connection to guacd closed"
+                                      << std::endl;
+                        }
                         // Dial failed: downgrade the relayed verdict so gmlbroker
                         // tears down instead of waiting forever.
                         msg.payload[0] = APPROVAL_DENY;
@@ -74,7 +81,8 @@ std::thread GuacdSendHandler::Run(NetQueue &recv_queue, NetQueue &send_queue,
                 if (fd) {
                     guacd_client.Shutdown(*fd); // wakes the reader, which closes it
                     std::cout << "guacd_send_handler: channel " << (int)msg.channel
-                              << " SHUTDOWN from peer" << std::endl;
+                              << " SHUTDOWN from peer, relaying message"
+                              << std::endl;
                 }
                 // Echo the teardown back on the return path so gmlbroker tears
                 // down the browser. The guard can originate a SHUTDOWN (corrupt
@@ -95,8 +103,9 @@ std::thread GuacdSendHandler::Run(NetQueue &recv_queue, NetQueue &send_queue,
                 // approval.
                 std::optional<int> fd = table.Get(msg.channel);
                 if (!fd) {
-                    std::cerr << "guacd_send_handler: channel " << (int)msg.channel
-                              << " not approved, dropping " << msg.payload.size()
+                    std::cerr << "guacd_send_handler: Error: channel " << (int)msg.channel
+                              << " received traffic, but was not approved,"
+                                 " dropping " << msg.payload.size()
                               << " bytes" << std::endl;
                     break;
                 }

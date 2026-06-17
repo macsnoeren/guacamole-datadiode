@@ -1,5 +1,4 @@
 #include "../include/handshake_forger.h"
-#include <iostream>
 #include <random>
 #include <string>
 #include <vector>

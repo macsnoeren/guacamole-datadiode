@@ -1,8 +1,6 @@
 #include "../../include/nethandlers/udp_send_handler.h"
 #include "../../../shared/include/network/multiplexer.h"
 #include "../../include/running.h"
-#include <iostream>
-#include <sstream>
 #include <string>
 
 /*
@@ -17,11 +15,6 @@ std::thread UDPSendHandler::Run(NetQueue &queue, UDPSender &udp_sender) {
             BridgeMessage msg = std::move(*opt);
             std::string wire = Multiplexer::Serialize(msg);
             udp_sender.Send(wire.data(), wire.size());
-
-            std::stringstream info;
-            info << "udp_send_handler: sent " << wire.size()
-                 << " bytes on channel " << (int)msg.channel << std::endl;
-            std::cout << info.str();
         }
     });
 }

@@ -31,8 +31,9 @@ std::thread GuacamoleSendHandler::Run(NetQueue &queue, GuacamoleServer &guacamol
                 std::optional<int> fd = table.Remove(msg.channel);
                 if (fd) {
                     guacamole_server.Shutdown(*fd); // wakes the reader, which closes it
-                    std::cout << "guacamole_send_handler: channel " << (int)msg.channel
-                              << " SHUTDOWN from peer" << std::endl;
+                    std::cout << "guacamole_send_handler: received channel "
+                              << (int)msg.channel << " SHUTDOWN from peer"
+                              << std::endl;
                 }
                 break;
             }

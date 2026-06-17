@@ -202,7 +202,7 @@ int main(int argc, char *argv[]) {
             if (verdict.approved) {
                 approved.insert(msg.channel);
                 std::cout << "guard: channel " << (int)msg.channel
-                          << " APPROVED (id " << request_id << ")" << std::endl;
+                          << " APPROVED" << std::endl;
             } else {
                 // Denied: no Guacamole will ever cross; tear the channel down.
                 BridgeMessage shutdown{msg.channel,
@@ -211,7 +211,7 @@ int main(int argc, char *argv[]) {
                 sender.Send(sd.data(), sd.size());
                 parsers.erase(msg.channel);
                 std::cout << "guard: channel " << (int)msg.channel
-                          << " DENIED (id " << request_id << ")" << std::endl;
+                          << " DENIED" << std::endl;
             }
             break;
         }
@@ -223,7 +223,8 @@ int main(int argc, char *argv[]) {
             approved.erase(msg.channel);
             sender.Send(buffer, received);
             std::cout << "guard: channel " << (int)msg.channel
-                      << " SHUTDOWN, forwarded" << std::endl;
+                      << " SHUTDOWN, forwarded SHUTDOWN"
+                      << std::endl;
             break;
 
         case ChannelAction::NONE:
@@ -239,8 +240,8 @@ int main(int argc, char *argv[]) {
             // No Guacamole crosses the bridge until the channel is approved.
             if (!approved.count(msg.channel)) {
                 std::cerr << "guard: channel " << (int)msg.channel
-                          << " not approved, dropped " << msg.payload.size()
-                          << " bytes" << std::endl;
+                          << " received traffic but was not approved, dropped "
+                          << msg.payload.size() << " bytes" << std::endl;
                 break;
             }
 
@@ -286,9 +287,6 @@ int main(int argc, char *argv[]) {
                 // Clean: forward the datagram verbatim.
                 sender.Send(buffer, received);
             }
-            std::cout << "guard: channel " << (int)msg.channel << " forwarded "
-                      << msg.payload.size() << " bytes (" << state_name(state)
-                      << ")" << std::endl;
             break;
         }
         }

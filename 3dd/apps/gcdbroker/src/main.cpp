@@ -22,7 +22,7 @@ std::atomic<bool> running = true;
  * @brief Signals all threads to stop when an interrupt signal is received
  */
 void interrupt_handler(int signum) {
-    std::cout << "Stopping program..." << std::endl;
+    std::cout << "Interrupt received, stopping program..." << std::endl;
     running = false;
 }
 

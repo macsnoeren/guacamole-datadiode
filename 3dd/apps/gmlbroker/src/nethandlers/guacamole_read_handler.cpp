@@ -157,7 +157,7 @@ std::thread GuacamoleReadHandler::Run(NetQueue &queue, GuacamoleServer &guacamol
                     create.payload = req_id;
                     queue.Enqueue(std::move(create));
                     std::cout << "guacamole_reader: channel " << (int)channel
-                              << " requesting approval (id " << req_id << ")"
+                              << " requesting approval"
                               << std::endl;
                 }
                 continue;

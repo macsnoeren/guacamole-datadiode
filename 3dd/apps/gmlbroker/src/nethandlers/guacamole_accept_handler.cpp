@@ -36,7 +36,7 @@ std::thread GuacamoleAcceptHandler::Run(NetQueue &queue, GuacamoleServer &guacam
             // handshake.
             approvals.Create(channel.value());
             std::cout << "accept_handler: new channel " << (int)channel.value()
-                      << " (fd " << fd << ")" << std::endl;
+                      << std::endl;
 
             // Hand the connection to its own reader thread and detach it, so the
             // accept loop can keep accepting connections. The reader's thread
