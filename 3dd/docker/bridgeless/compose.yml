@@ -5,6 +5,7 @@ include:
   - ../include/gmwebserver/compose.yml
   - ../include/guacd/compose.yml
   - ../include/sshd/compose.yml
+  - ../include/rdp/compose.yml
   - ../include/nettest/compose.yml
 
 services:

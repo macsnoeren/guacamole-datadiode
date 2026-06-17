@@ -10,6 +10,7 @@ include:
   - ../include/guacd/compose.yml
   - ../include/lrx_proxy/compose.yml
   - ../include/sshd/compose.yml
+  - ../include/rdp/compose.yml
   - ../include/nettest/compose.yml
 
 services:
