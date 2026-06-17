@@ -80,12 +80,14 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Stop the receive loop cleanly on SIGINT.
+    // Stop the receive loop cleanly on SIGINT or SIGTERM (the latter is what
+    // `docker compose down`/`stop` send).
     struct sigaction sa{};
     sa.sa_handler = interrupt_handler;
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = 0;
     sigaction(SIGINT, &sa, nullptr);
+    sigaction(SIGTERM, &sa, nullptr);
 
     int rc;
     UDPReceiver receiver = UDPReceiver(src_port.value());
@@ -298,7 +300,21 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    // SIGINT cleared `running`; the control listener's recv times out and the
-    // thread leaves its loop, so join it before returning.
+    // Announce a clean teardown to the rest of the bridge: emit SHUTDOWN for
+    // every still-approved channel so gcdbroker closes guacd and gmlbroker tears
+    // the browser down. SIGTERM now reaches us, so this runs within the stop
+    // grace period on `docker compose down`. The main loop is the sole owner of
+    // `approved`/`sender`, and it has already left its loop here.
+    for (uint16_t ch : approved) {
+        BridgeMessage shutdown{ch, ChannelAction::SHUTDOWN_CHANNEL, ""};
+        std::string wire = Multiplexer::Serialize(shutdown);
+        sender.Send(wire.data(), wire.size());
+        std::cout << "guard: channel " << (int)ch << " SHUTDOWN on stop"
+                  << std::endl;
+    }
+    approved.clear();
+
+    // SIGINT/SIGTERM cleared `running`; the control listener's recv times out
+    // and the thread leaves its loop, so join it before returning.
     control_thread.join();
 }

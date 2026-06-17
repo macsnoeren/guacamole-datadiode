@@ -66,6 +66,7 @@ int main(int argc, char *argv[]) {
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = 0;
     sigaction(SIGINT, &sa, nullptr);
+    sigaction(SIGTERM, &sa, nullptr); // `docker compose down`/`stop` send SIGTERM
 
     // Initialize UDP and TCP infrastructure
     int exit;
