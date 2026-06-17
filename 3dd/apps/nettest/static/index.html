@@ -38,11 +38,8 @@
   button:disabled { opacity: .5; cursor: not-allowed; }
   button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
   button.primary:hover { filter: brightness(1.07); }
-  #approve { border-color: #16a34a; color: #166534; }
-  #deny { border-color: #dc2626; color: #991b1b; }
 
   .row { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
-  #approval-msg { font-weight: 600; font-size: .85rem; color: var(--muted); }
 
   /* test parameters */
   .params { display: grid; gap: .85rem 1.2rem;
@@ -97,16 +94,6 @@
 </header>
 
 <div class="wrap">
-
-  <section class="panel">
-    <h2>Guard approval</h2>
-    <p class="hint">Global runtime switch — applies to every new connection.</p>
-    <div class="row">
-      <button id="approve">Approve</button>
-      <button id="deny">Deny</button>
-      <span id="approval-msg"></span>
-    </div>
-  </section>
 
   <section class="panel">
     <h2>Run a test</h2>
@@ -222,25 +209,6 @@ $("c-run").onclick = () => {
 };
 
 $("stop").onclick = () => fetch("/api/stop", { method: "POST" });
-
-// --- guard approval switch (global runtime toggle) ---
-async function setApproval(mode) {
-  const msg = $("approval-msg");
-  msg.textContent = "…";
-  try {
-    const r = await fetch("/api/approval", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode }),
-    });
-    const body = await r.json();
-    msg.textContent = r.ok ? `set to ${body.mode}` : `error: ${body.error}`;
-  } catch (e) {
-    msg.textContent = "error: " + e;
-  }
-}
-$("approve").onclick = () => setApproval("approve");
-$("deny").onclick = () => setApproval("deny");
 
 // --- live stats rendering ---
 function card(title, rows) {

@@ -15,9 +15,10 @@ namespace ControlChannel {
      * @brief control channel for the runtime approval switch.
      *
      * The approval policy is a global, runtime-toggleable approve/deny switch.
-     * nettest sends a plaintext "approve"/"deny" datagram to gmlbroker's control port;
-     * gmlbroker relays it forward to the guard's control port and the guard applies
-     * it. The port is the same on both nodes.
+     * The operator commands the guard directly from the OT side: the approver
+     * console (apps/approver, co-located with the guard) sends a plaintext
+     * "approve"/"deny" datagram to this port and the guard applies it. Nothing
+     * on the IT side can reach it, so IT cannot influence the gate.
      */
     constexpr int APPROVAL_CONTROL_PORT = 4999;
 

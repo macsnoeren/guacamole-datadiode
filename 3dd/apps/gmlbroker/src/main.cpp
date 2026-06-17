@@ -4,7 +4,6 @@
 #include "../../shared/include/network/reader_group.h"
 #include "../../shared/include/network/udpreceiver.h"
 #include "../../shared/include/network/udpsender.h"
-#include "../../shared/include/util/control_channel.h"
 #include "../../shared/include/util/netargs.h"
 #include "../include/nethandlers/guacamole_accept_handler.h"
 #include "../include/nethandlers/guacamole_send_handler.h"
@@ -96,23 +95,9 @@ int main(int argc, char *argv[]) {
     std::cout << "Initialized UDP sender for " << udp_send_ip << ":"
               << udp_send_port << std::endl;
 
-    int apprv_port = ControlChannel::APPROVAL_CONTROL_PORT;
-
-    // Out-of-band approval-toggle relay: nettest (IT-side) cannot reach the
-    // guard directly across the diode, so it sends a plaintext "approve"/"deny"
-    // datagram here and we forward it on to the guard's control port (the
-    // diode-allowed direction). gmlbroker does not decide approvals; it only
-    // relays. Both sockets carry the 200 ms recv timeout so the relay loop
-    // observes `running` and stops on SIGINT.
-    UDPReceiver control_receiver(apprv_port);
-    if ((exit = control_receiver.Initialize()) != 0)
-        return exit;
-    UDPSender control_sender(udp_send_ip, apprv_port);
-    if ((exit = control_sender.Initialize()) != 0)
-        return exit;
-    std::cout << "Relaying approval toggles on UDP port " << apprv_port
-              << " to " << udp_send_ip << ":" << apprv_port
-              << std::endl;
+    // The approval switch is no longer relayed through here: the operator
+    // commands the guard directly from the OT side (see apps/approver), so
+    // nothing IT-side can influence the gate.
 
     ChannelTable table; // Shared by accept thread and guacamole_send thread to keep track of connections
     ApprovalRegistry approvals; // Per-channel approval flags
@@ -135,28 +120,6 @@ int main(int argc, char *argv[]) {
     std::thread t_udp_send = udp_send_handler.Run(send_queue, udp_sender);
     std::thread t_udp_recv = udp_recv_handler.Run(recv_queue, udp_receiver);
 
-    // Validating relay: only recognised toggles are forwarded (normalised), so
-    // arbitrary bytes never reach the guard's control port.
-    std::thread t_control([&control_receiver, &control_sender]() {
-        char buf[256];
-        while (running) {
-            int n = control_receiver.Receive(buf, sizeof(buf));
-            if (n <= 0)
-                continue;
-            std::optional<bool> mode =
-                ControlChannel::ParseApprovalToggle(std::string(buf, n));
-            if (!mode) {
-                std::cerr << "gmlbroker: ignored unrecognised approval command"
-                          << std::endl;
-                continue;
-            }
-            std::string norm = *mode ? "approve" : "deny";
-            control_sender.Send(norm.data(), norm.size());
-            std::cout << "gmlbroker: relayed approval toggle (" << norm
-                      << ") to the guard" << std::endl;
-        }
-    });
-
     // Shutdown ordering (SIGINT clears `running`): the blocked accept() and
     // recvfrom() time out (SO_RCVTIMEO), so the two producer threads fall out of
     // their loops first. recv_queue then has no producer, so closing it drains
@@ -167,7 +130,6 @@ int main(int argc, char *argv[]) {
     // producers were those readers, is closed to drain t_udp_send.
     t_accept.join();
     t_udp_recv.join();
-    t_control.join();
     recv_queue.Close();
     t_guacamole_send.join();
 
