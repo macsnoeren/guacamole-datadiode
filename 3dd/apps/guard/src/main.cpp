@@ -274,12 +274,15 @@ int main(int argc, char *argv[]) {
                 size_t plen = orig;
 
                 std::cerr << "DENIED_DATA: channel " << (int)msg.channel
-                          << " excising " << (orig - plen) << " bytes of"
-                             " denied content, got: '" << msg.payload
+                          << " excising data, got: '" << msg.payload
                           << "'" << std::endl;
 
                 parser.Excise(msg.payload.data(), plen);
                 msg.payload.resize(plen);
+
+                std::cerr << "DENIED_DATA: channel " << (int)msg.channel
+                          << " excised " << (orig - plen) << " bytes of"
+                             " denied content" << std::endl;
 
                 if (msg.payload.empty())
                     break; // nothing left to forward
