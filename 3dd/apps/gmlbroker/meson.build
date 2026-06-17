@@ -9,6 +9,7 @@ sources = [
   'src/main.cpp',
   'src/handshake_forger.cpp',
   'src/return_filter.cpp',
+  'src/forward_keepalive_filter.cpp',
   'src/approval_registry.cpp',
   'src/nethandlers/guacamole_accept_handler.cpp',
   'src/nethandlers/guacamole_read_handler.cpp',

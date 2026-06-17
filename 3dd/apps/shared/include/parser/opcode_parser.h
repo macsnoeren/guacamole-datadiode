@@ -68,7 +68,12 @@ class OpcodeParser {
     void Excise(char *data, size_t &len);
 
     /*
-     * TODO: implement
+     * @brief Resets the framing state to a clean instruction boundary.
+     *
+     * Clears the FSM, the in-flight element, and any recorded denied ranges so
+     * the next Parse() starts fresh — e.g. to recover (fail open) after a
+     * STREAM_CORRUPTED. Subclasses with their own per-instruction state should
+     * override and chain to this.
      */
     void Reset();
 

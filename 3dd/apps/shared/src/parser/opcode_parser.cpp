@@ -190,6 +190,16 @@ void OpcodeParser::Excise(char *data, size_t &len) {
     denied_ranges.clear();
 }
 
+void OpcodeParser::Reset() {
+    state = ParserState::READING_LENGTH;
+    current_index = 0;
+    current_length = -1;
+    current_read = 0;
+    reading_opcode = true;
+    opcode_start_idx = 0;
+    denied_ranges.clear();
+}
+
 bool OpcodeParser::OnInstructionBegin(const GuacElement &opcode) {
     // Neutral framer: allow every opcode. The opcode allowlist is a guard policy
     // and lives in GuardOpcodeParser::OnInstructionBegin.
