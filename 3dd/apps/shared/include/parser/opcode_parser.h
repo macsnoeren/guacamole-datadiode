@@ -75,10 +75,31 @@ class OpcodeParser {
   protected:
     /*
      * @brief Called whenever an instruction (opcode) is received by the parser
+     *
+     * The base parser is a neutral Guacamole framer and allows every opcode; the
+     * opcode allowlist is a guard policy and lives in `GuardOpcodeParser`. A
+     * subclass overrides this to reject an instruction (the base then records its
+     * byte range for excision).
+     *
      * @param instr: the struct containing the opcode
      * @return Whether or not an instruction is allowed
      */
     virtual bool OnInstructionBegin(const GuacElement &instr);
+
+    /*
+     * @brief Policy for an element whose declared length exceeds the element
+     * buffer (MAX_ELEMENT_SIZE).
+     *
+     * The base treats an oversized element as untrustworthy — the guard's
+     * behaviour: STREAM_CORRUPTED. A subclass that legitimately sees large
+     * elements — e.g. gcdbroker scanning guacd's drawing output — overrides this
+     * to return true; the parser then buffers only the first MAX_ELEMENT_SIZE
+     * bytes (so the hooks see a clamped element) and frames past the rest.
+     *
+     * @return true to tolerate (skip the surplus of) oversized elements, false
+     *         to corrupt the stream.
+     */
+    virtual bool ToleratesOversizedElements() { return false; }
 
     /*
      * @brief Called whenever an argument is received by the parser
@@ -105,11 +126,14 @@ class OpcodeParser {
     // Index of the byte currently being processed in Parse()
     size_t current_index = 0;
 
-    // Current length of the value being parsed
-    int current_length = -1;
+    // Declared length of the value being parsed. 64-bit because a tolerated
+    // oversized element (see ToleratesOversizedElements) can be far larger than
+    // the buffer, and the true length is needed to know where the element ends.
+    long long current_length = -1;
 
-    // Amount of bytes that is being read
-    uint32_t current_read = 0;
+    // Number of value bytes read so far (counts the whole element, even when only
+    // the first MAX_ELEMENT_SIZE are buffered).
+    long long current_read = 0;
     bool reading_opcode = true;
 
     // Storage for the current opcode or argument being parsed

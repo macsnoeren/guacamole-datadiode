@@ -48,7 +48,7 @@ std::thread GuacdSendHandler::Run(NetQueue &recv_queue, NetQueue &send_queue,
                         // the count is final by then.
                         readers.Enter();
                         GuacdReadHandler reader;
-                        reader.Run(send_queue, guacd_client, table, readers, msg.channel, fd)
+                        reader.Run(recv_queue, send_queue, guacd_client, table, readers, msg.channel, fd)
                             .detach();
                         std::cout << "guacd_send_handler: channel "
                                   << (int)msg.channel << " APPROVED, dialed guacd"

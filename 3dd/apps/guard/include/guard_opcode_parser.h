@@ -33,6 +33,10 @@ class GuardOpcodeParser : public OpcodeParser {
     bool OnArgument(const GuacElement &arg) override;
 
   private:
+    // The guard's opcode allowlist: only these cross toward guacd. (`sync` is
+    // deliberately absent — it is blocked inbound and faked by the brokers.)
+    static bool IsAllowedOpcode(const GuacElement &opcode);
+
     std::string current_opcode;
     int clipboard_sidx = -1;   // index of the open clipboard stream, or -1 if none
     size_t current_arg = 0;    // 1-based position of the argument being parsed

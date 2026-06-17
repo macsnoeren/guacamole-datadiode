@@ -39,8 +39,12 @@ ParserState OpcodeParser::Parse(const char *data, size_t len) {
                 // add the digit to the current length (as an integer!)
                 current_length = current_length * 10 + (c - '0');
 
-                // Observed length exceeds the maximum allowed
-                if (current_length > MAX_ELEMENT_SIZE) {
+                // Observed length exceeds the buffer. By default that is an
+                // untrustworthy stream (the guard); a parser that tolerates large
+                // elements keeps framing and just buffers the first
+                // MAX_ELEMENT_SIZE bytes for the hooks.
+                if (current_length > MAX_ELEMENT_SIZE &&
+                    !ToleratesOversizedElements()) {
                     state = ParserState::STREAM_CORRUPTED;
                     return state;
                 }
@@ -65,17 +69,21 @@ ParserState OpcodeParser::Parse(const char *data, size_t len) {
             break;
 
         case ParserState::READING_DATA:
-            // byte MUST be ascii value
-            if (static_cast<unsigned char>(c) > 127) {
-                state = ParserState::STREAM_CORRUPTED;
-                return state;
+            // Buffer only the first MAX_ELEMENT_SIZE bytes; the surplus of a
+            // tolerated oversized element is framed but not stored (and not
+            // ASCII-checked, since the hooks never see it).
+            if (current_read < MAX_ELEMENT_SIZE) {
+                // byte MUST be ascii value
+                if (static_cast<unsigned char>(c) > 127) {
+                    state = ParserState::STREAM_CORRUPTED;
+                    return state;
+                }
+                element_buffer[current_read] = c;
             }
-
-            // add data to the buffer, then advance current_read
-            element_buffer[current_read++] = c;
+            ++current_read;
 
             // current_read has advanced to the observed length
-            if (current_read == static_cast<uint32_t>(current_length))
+            if (current_read == current_length)
                 state = ParserState::EXPECT_DELIM;
             break;
 
@@ -91,8 +99,14 @@ ParserState OpcodeParser::Parse(const char *data, size_t len) {
             }
 
             if (!denying) {
-                GuacElement elem{static_cast<uint32_t>(current_length),
-                                 element_buffer};
+                // For a tolerated oversized element only the first
+                // MAX_ELEMENT_SIZE bytes were buffered, so the hook sees a
+                // clamped view.
+                uint32_t elem_len =
+                    current_length > MAX_ELEMENT_SIZE
+                        ? static_cast<uint32_t>(MAX_ELEMENT_SIZE)
+                        : static_cast<uint32_t>(current_length);
+                GuacElement elem{elem_len, element_buffer};
                 bool allowed = reading_opcode ? OnInstructionBegin(elem)
                                               : OnArgument(elem);
                 if (!allowed) {
@@ -177,51 +191,8 @@ void OpcodeParser::Excise(char *data, size_t &len) {
 }
 
 bool OpcodeParser::OnInstructionBegin(const GuacElement &opcode) {
-    /*
-     * 3.key
-     * 3.ack
-     * 3.nop
-     * 3.end
-     * 4.size
-     * 4.name
-     * 4.argv
-     * 4.sync
-     * 4.blob
-     * 5.audio
-     * 5.video
-     * 5.image
-     * 5.mouse
-     * 6.select
-     * 7.connect
-     * 8.timezone
-     * 9.clipboard
-     * 10.disconnect
-     */
-    switch (opcode.len) {
-    case 3:
-        return !memcmp(opcode.ptr, "key", 3) || !memcmp(opcode.ptr, "ack", 3) ||
-               !memcmp(opcode.ptr, "nop", 3) || !memcmp(opcode.ptr, "end", 3);
-    case 4:
-        return !memcmp(opcode.ptr, "blob", 4) ||
-               !memcmp(opcode.ptr, "size", 4) ||
-               !memcmp(opcode.ptr, "name", 4) ||
-               !memcmp(opcode.ptr, "argv", 4) || !memcmp(opcode.ptr, "sync", 4);
-    case 5:
-        return !memcmp(opcode.ptr, "audio", 5) ||
-               !memcmp(opcode.ptr, "video", 5) ||
-               !memcmp(opcode.ptr, "image", 5) ||
-               !memcmp(opcode.ptr, "mouse", 5);
-    case 6:
-        return !memcmp(opcode.ptr, "select", 6);
-    case 7:
-        return !memcmp(opcode.ptr, "connect", 7);
-    case 8:
-        return !memcmp(opcode.ptr, "timezone", 8);
-    case 9:
-        return !memcmp(opcode.ptr, "clipboard", 9);
-    case 10:
-        return !memcmp(opcode.ptr, "disconnect", 10);
-    default:
-        return false;
-    }
+    // Neutral framer: allow every opcode. The opcode allowlist is a guard policy
+    // and lives in GuardOpcodeParser::OnInstructionBegin.
+    (void)opcode;
+    return true;
 }

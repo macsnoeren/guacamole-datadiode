@@ -7,6 +7,7 @@ project(
 
 sources = [
   'src/main.cpp',
+  'src/sync_faker.cpp',
   'src/nethandlers/guacd_send_handler.cpp',
   'src/nethandlers/guacd_read_handler.cpp',
   'src/nethandlers/udp_recv_handler.cpp',
@@ -15,6 +16,7 @@ sources = [
   '../shared/src/network/udpreceiver.cpp',
   '../shared/src/network/guacd_client.cpp',
   '../shared/src/network/multiplexer.cpp',
+  '../shared/src/parser/opcode_parser.cpp',
   ]
 
 incdir = include_directories('../shared/include/network')
@@ -24,3 +26,5 @@ executable(
   sources: sources,
   include_directories: incdir,
   )
+
+subdir('tests')
