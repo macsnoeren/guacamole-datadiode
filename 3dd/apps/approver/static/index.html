@@ -44,7 +44,7 @@
     <p class="sub">Operator console — commands the guard directly (OT-side).</p>
     <div class="state">
       <span id="dot" class="dot"></span>
-      <span>Last command this session: <strong id="state-text">none (guard default: APPROVE)</strong></span>
+      <span>Last command this session: <strong id="state-text">none (guard default: DENY)</strong></span>
     </div>
     <div class="buttons">
       <button id="approve">Approve</button>
@@ -59,7 +59,7 @@ function render(mode) {
   const dot = $("dot"), text = $("state-text");
   dot.className = "dot" + (mode ? " " + mode : "");
   text.textContent = mode ? mode.toUpperCase()
-                          : "none (guard default: APPROVE)";
+                          : "none (guard default: DENY)";
 }
 
 async function setMode(mode) {

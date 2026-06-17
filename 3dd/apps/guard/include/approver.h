@@ -21,8 +21,9 @@ struct ApprovalResult {
  *
  * For the PoC the decision is a single global approve/deny switch, flipped at
  * runtime over the control port (see control_channel.h). It defaults to
- * approve. SetApprove is called from the control-listener thread while
- * HandleRequest runs on the main receive loop, so the switch is atomic.
+ * deny, so a connection is refused until an operator explicitly approves.
+ * SetApprove is called from the control-listener thread while HandleRequest
+ * runs on the main receive loop, so the switch is atomic.
  */
 class Approver {
   public:
@@ -51,5 +52,5 @@ class Approver {
     ApprovalResult HandleRequest(const std::string &request_id);
 
   private:
-    std::atomic<bool> approve_{true};
+    std::atomic<bool> approve_{false};
 };

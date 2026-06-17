@@ -19,7 +19,7 @@ STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
 # The approver cannot read the guard's switch back, so it remembers the last
 # command it sent. `None` means "not set this session" (the guard defaults to
-# APPROVE on startup). Guarded by `_state_lock` as the HTTP server is threaded.
+# DENY on startup). Guarded by `_state_lock` as the HTTP server is threaded.
 _state_lock = threading.Lock()
 _last_mode = None
 
