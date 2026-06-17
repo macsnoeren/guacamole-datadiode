@@ -23,15 +23,18 @@ bool GuardOpcodeParser::IsAllowedOpcode(const GuacElement &opcode) {
      * guacd. `sync` is deliberately NOT allowed: it is blocked on the inbound
      * path and the brokers fake the keepalive instead.
      *
-     * 3.key   3.ack   3.nop   3.end
+     * 3.key   3.ack   3.end
      * 4.size  4.name  4.argv  4.blob
      * 5.audio 5.video 5.image 5.mouse
      * 6.select 7.connect 8.timezone 9.clipboard 10.disconnect
+     *
+     * `sync` and `nop` are NOT allowed: they are keepalives that gmlbroker
+     * swallows on the forward path (ForwardKeepaliveFilter) and the brokers fake.
      */
     switch (opcode.len) {
     case 3:
         return !memcmp(opcode.ptr, "key", 3) || !memcmp(opcode.ptr, "ack", 3) ||
-               !memcmp(opcode.ptr, "nop", 3) || !memcmp(opcode.ptr, "end", 3);
+               !memcmp(opcode.ptr, "end", 3);
     case 4:
         return !memcmp(opcode.ptr, "blob", 4) ||
                !memcmp(opcode.ptr, "size", 4) ||

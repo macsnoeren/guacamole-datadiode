@@ -177,8 +177,10 @@ void test_denied_opcodes() {
     test_parsing("5.cfill;", ParserState::DENIED_DATA);
     test_parsing("10.filesystem;", ParserState::DENIED_DATA);
     test_parsing("4.file;", ParserState::DENIED_DATA);
-    // sync is blocked on the inbound path so it never reaches guacd.
+    // sync and nop are keepalives blocked on the inbound path (gmlbroker
+    // swallows them at the source; the guard denies them as defense-in-depth).
     test_parsing("4.sync,2.31;", ParserState::DENIED_DATA);
+    test_parsing("3.nop;", ParserState::DENIED_DATA);
 
     test_parsing("3.key,", ParserState::READING_LENGTH);
     test_parsing("4.size,", ParserState::READING_LENGTH);
