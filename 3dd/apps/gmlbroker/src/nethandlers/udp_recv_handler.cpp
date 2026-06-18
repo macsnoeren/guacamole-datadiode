@@ -23,6 +23,8 @@ std::thread UDPRecvHandler::Run(NetQueue &queue, UDPReceiver &udp_receiver) {
                 continue;
             }
 
+            std::cout << "<payload>" << msg.payload << "</payload>" << std::endl;
+
             queue.Enqueue(std::move(msg));
         }
     });

@@ -1,6 +1,7 @@
 #include "../../include/nethandlers/udp_send_handler.h"
 #include "../../../shared/include/network/multiplexer.h"
 #include "../../include/running.h"
+#include <iostream>
 #include <string>
 
 /*
@@ -13,6 +14,9 @@ std::thread UDPSendHandler::Run(NetQueue &queue, UDPSender &udp_sender) {
             if (!opt)
                 break; // queue closed and drained: shutting down
             BridgeMessage msg = std::move(*opt);
+
+            std::cout << "<payload>" << msg.payload << "</payload>" << std::endl;
+
             std::string wire = Multiplexer::Serialize(msg);
             udp_sender.Send(wire.data(), wire.size());
         }
