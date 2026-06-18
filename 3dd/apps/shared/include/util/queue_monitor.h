@@ -39,8 +39,14 @@ inline std::thread StartQueueMonitor(const NetQueue &recv_queue,
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
             elapsed += 200;
             if (elapsed >= interval) {
-                std::cout << tag << " qstats: recv_queue=" << recv_queue.Size()
-                          << " send_queue=" << send_queue.Size() << std::endl;
+                // Report the peak since the last line too, so a burst between
+                // samples is not invisible.
+                std::cout << tag
+                          << " qstats: recv_queue=" << recv_queue.Size()
+                          << " (peak " << recv_queue.TakeHighWater() << ")"
+                          << " send_queue=" << send_queue.Size()
+                          << " (peak " << send_queue.TakeHighWater() << ")"
+                          << std::endl;
                 elapsed = 0;
             }
         }
