@@ -1,4 +1,5 @@
 #include "../../include/network/udpreceiver.h"
+#include "../../include/util/sockbuf.h"
 #include <arpa/inet.h>
 #include <cerrno>
 #include <cstring>
@@ -19,6 +20,10 @@ int UDPReceiver::Initialize() {
         perror("socket");
         return 1;
     }
+
+    // Enlarge the receive buffer so traffic bursts don't overflow it and drop
+    // datagrams (the bridge has no retransmit).
+    set_bridge_sockbuf(sock_fd, SO_RCVBUF, "UDPReceiver SO_RCVBUF");
 
     sockaddr_in addr;
     std::memset(&addr, 0, sizeof(addr));
