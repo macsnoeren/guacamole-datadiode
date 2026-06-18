@@ -15,8 +15,6 @@ std::thread UDPSendHandler::Run(NetQueue &queue, UDPSender &udp_sender) {
                 break; // queue closed and drained: shutting down
             BridgeMessage msg = std::move(*opt);
 
-            std::cout << "<payload>" << msg.payload << "</payload>" << std::endl;
-
             std::string wire = Multiplexer::Serialize(msg);
             udp_sender.Send(wire.data(), wire.size());
         }

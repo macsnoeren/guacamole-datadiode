@@ -104,8 +104,8 @@ int main(int argc, char *argv[]) {
 
     // Optional diagnostic (set QUEUE_STATS_MS): watch for the return-path
     // send_queue growing, which means the bridge can't drain guacd's output.
-    std::thread t_qstats =
-        StartQueueMonitor(recv_queue, send_queue, running, "gcdbroker");
+    // std::thread t_qstats =
+    //     StartQueueMonitor(recv_queue, send_queue, running, "gcdbroker");
 
     // Shutdown ordering (SIGINT clears `running`): the UDP receiver's blocked
     // recvfrom times out (SO_RCVTIMEO), so t_udp_recv falls out of its loop first
@@ -116,8 +116,8 @@ int main(int argc, char *argv[]) {
     // reader still owns its own close() — and WaitAll() for them before
     // destroying the state they capture. Finally send_queue is closed to drain
     // t_udp_send.
-    if (t_qstats.joinable())
-        t_qstats.join();
+    // if (t_qstats.joinable())
+    //     t_qstats.join();
     t_udp_recv.join();
     recv_queue.Close();
     t_guacd_send.join();
