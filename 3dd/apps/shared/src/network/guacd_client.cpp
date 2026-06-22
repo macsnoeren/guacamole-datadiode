@@ -31,7 +31,7 @@ int guacd_send_timeout_ms() {
 int guacd_recv_timeout_ms() {
     const char *env = std::getenv("GUACD_KEEPALIVE_MS");
     int v = env ? std::atoi(env) : 0;
-    return v > 0 ? v : 5000;
+    return v > 0 ? v : 3000;
 }
 } // namespace
 
