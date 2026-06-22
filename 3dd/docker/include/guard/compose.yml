@@ -1,0 +1,8 @@
+services:
+  guard:
+    build:
+      context: ../../../
+      dockerfile: docker/include/guard/Dockerfile
+    stop_grace_period: 1s
+    container_name: guard
+    restart: unless-stopped

@@ -37,7 +37,7 @@ constexpr char APPROVAL_DENY = 'D';
  * verdict char followed by that id.
  */
 struct BridgeMessage {
-    uint8_t channel = 0;                       // Identifier for multiplexing Guacamole connections
+    uint16_t channel = 0;                       // Identifier for multiplexing Guacamole connections
     ChannelAction action = ChannelAction::NONE;
     std::string payload;                       // Content of the message (owns its bytes)
 };
@@ -49,19 +49,21 @@ struct BridgeMessage {
  * using the connections can be distinguished. This class converts between the
  * on-wire representation and the BridgeMessage struct.
  *
- * Wire format (2-byte header, then payload):
+ * Wire format (3-byte header, then payload):
  *
- *   byte 0   byte 1            byte 2 .. N
- *  +--------+--------+---------------------------+
- *  | channel| flags  |   payload (0..1200 bytes) |
- *  +--------+--------+---------------------------+
- *             |
- *             +-- bits 7-6 = ChannelAction, bits 5-0 = reserved (must be 0)
+ *   byte 0   byte 1   byte 2            byte 3 .. N
+ *  +--------+--------+--------+---------------------------+
+ *  |   channel (BE)  | flags  |   payload (0..1200 bytes) |
+ *  +--------+--------+--------+---------------------------+
+ *                      |
+ *                      +-- bits 7-6 = ChannelAction, bits 5-0 = reserved (must be 0)
+ *
+ * The channel ID is two bytes, big-endian (network order).
  */
 class Multiplexer {
   public:
     // Size of the BridgeMessage header that precedes every payload
-    static constexpr int HEADER_SIZE = 2;
+    static constexpr int HEADER_SIZE = 3;
     // Max size that a single payload over the bridge can ever be
     static constexpr int MAX_PAYLOAD_SIZE = 1200;
     // Max size of a full datagram (header + payload)

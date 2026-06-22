@@ -1,0 +1,16 @@
+name: 3dd-5node-lowrxnode
+
+include:
+  - ../include/lrx_proxy/compose.yml
+
+services:
+  lrx_proxy:
+    command:
+      [
+        "./build/lrx_proxy",
+        "5503",
+        "10.0.4.2", "5504"
+      ]
+    ports:
+      - "5503:5503/udp"
+

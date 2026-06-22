@@ -6,11 +6,13 @@ project(
 )
 
 core_sources = files(
-  'src/guacparser.cpp',
+  '../shared/src/parser/opcode_parser.cpp',
 )
 
 release_sources = core_sources + files(
   'src/main.cpp',
+  'src/approver.cpp',
+  'src/guard_opcode_parser.cpp',
   '../shared/src/network/udpsender.cpp',
   '../shared/src/network/udpreceiver.cpp',
   '../shared/src/network/multiplexer.cpp')
@@ -18,6 +20,7 @@ release_sources = core_sources + files(
 incdirs = include_directories(
   'include',
   '../shared/include/network',
+  '../shared/include/parser',
 )
 
 executable(

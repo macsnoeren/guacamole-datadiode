@@ -1,0 +1,32 @@
+services:
+  nettest:
+    build:
+      context: ../../../
+      dockerfile: docker/include/nettest/Dockerfile
+    stop_grace_period: 1s
+    container_name: nettest
+    restart: unless-stopped
+    # Flow 5 (custom) can open many concurrent sockets on the asyncio loop; the
+    # default ~1024 fd limit would cap it well below the 65535-channel ceiling.
+    ulimits:
+      nofile:
+        soft: 1048576
+        hard: 1048576
+    environment:
+      GML_HOST: gmlbroker
+      GML_PORT: "4823"
+      HTTP_PORT: "8081"
+      # Flow 4 (e2e): the SSH backend guacd dials, matching the sshd container.
+      E2E_SSH_HOST: sshd
+      E2E_SSH_PORT: "22"
+      E2E_SSH_USER: tester
+      E2E_SSH_PASS: testpass
+    ports:
+      - "8081:8081"
+    # Per-run Markdown reports are written to /var/log/nettest; the deployment
+    # compose decides where that maps on the host (see docker/1node/compose.yml).
+    healthcheck:
+      test: ["CMD", "python3", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8081/api/status', timeout=2)"]
+      interval: 30s
+      timeout: 5s

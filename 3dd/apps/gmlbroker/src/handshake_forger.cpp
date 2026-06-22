@@ -94,7 +94,7 @@ std::string HandshakeForger::Feed(const char *data, size_t len) {
     // guacd once approved. (Feed is only called before ESTABLISHED.)
     handshake_raw.append(data, len);
     Parse(data, len);
-    if (GetState() == ParserState::INVALID)
+    if (GetState() == ParserState::STREAM_CORRUPTED)
         hs_state = HandshakeState::INVALID_HANDSHAKE;
     return out;
 }

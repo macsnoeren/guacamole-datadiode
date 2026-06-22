@@ -11,7 +11,10 @@
 std::thread UDPSendHandler::Run(NetQueue &queue, UDPSender &udp_sender) {
     return std::thread([&queue, &udp_sender]() {
         while (running) {
-            BridgeMessage msg = queue.Dequeue();
+            std::optional<BridgeMessage> opt = queue.Dequeue();
+            if (!opt)
+                break; // queue closed and drained: shutting down
+            BridgeMessage msg = std::move(*opt);
             std::string wire = Multiplexer::Serialize(msg);
             udp_sender.Send(wire.data(), wire.size());
 

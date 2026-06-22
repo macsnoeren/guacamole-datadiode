@@ -1,0 +1,15 @@
+name: 3dd-5node-highrxnode
+
+include:
+  - ../include/hrx_proxy/compose.yml
+
+services:
+  hrx_proxy:
+    command:
+      [
+        "./build/hrx_proxy",
+        "5501",
+        "10.0.2.2", "5502"
+      ]
+    ports:
+      - "5501:5501/udp"

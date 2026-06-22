@@ -1,9 +1,10 @@
 test_sources = files(
   'test_parser.cpp',
-  '../src/guacparser.cpp'
+  '../src/guard_opcode_parser.cpp',
+  '../../shared/src/parser/opcode_parser.cpp'
 )
 
-incdirs = include_directories('../include')
+incdirs = include_directories('../include', '../../shared/include/parser')
 
 test_exe = executable(
   'test_parser',

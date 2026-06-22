@@ -17,7 +17,7 @@ void test_rejects(const std::string &buffer, const std::string &why) {
 /**
  * @brief Asserts that a buffer parses into the expected channel/action/payload
  */
-void test_accepts(const std::string &buffer, uint8_t channel,
+void test_accepts(const std::string &buffer, uint16_t channel,
                   ChannelAction action, const std::string &payload) {
     BridgeMessage msg;
     if (!Multiplexer::TryCast(buffer.data(), buffer.size(), msg)) {
@@ -31,11 +31,12 @@ void test_accepts(const std::string &buffer, uint8_t channel,
 }
 
 /**
- * @brief Builds a raw datagram from a channel byte, flags byte and payload
+ * @brief Builds a raw datagram from a channel ID (big-endian), flags byte and payload
  */
-std::string frame(uint8_t channel, uint8_t flags, const std::string &payload) {
+std::string frame(uint16_t channel, uint8_t flags, const std::string &payload) {
     std::string out;
-    out.push_back(static_cast<char>(channel));
+    out.push_back(static_cast<char>(channel >> 8));
+    out.push_back(static_cast<char>(channel & 0xFF));
     out.push_back(static_cast<char>(flags));
     out.append(payload);
     return out;
@@ -83,6 +84,10 @@ void test_round_trip() {
 void test_valid_frames() {
     test_accepts(frame(0, 0x00, ""), 0, ChannelAction::NONE, "");
     test_accepts(frame(255, 0x00, "data"), 255, ChannelAction::NONE, "data");
+    // Channels with the top bit set in either byte must not sign-extend
+    test_accepts(frame(128, 0x00, ""), 128, ChannelAction::NONE, "");
+    test_accepts(frame(0x8001, 0x00, ""), 0x8001, ChannelAction::NONE, "");
+    test_accepts(frame(65535, 0x00, ""), 65535, ChannelAction::NONE, "");
     test_accepts(frame(1, 0x40, ""), 1, ChannelAction::CREATE_CHANNEL, "");
     test_accepts(frame(1, 0x80, ""), 1, ChannelAction::SHUTDOWN_CHANNEL, "");
     test_accepts(frame(1, 0xC0, "A"), 1, ChannelAction::APPROVAL, "A");
@@ -101,6 +106,7 @@ void test_invalid_frames() {
     // Too short to contain a header
     test_rejects("", "empty buffer");
     test_rejects(std::string(1, '\0'), "1-byte buffer");
+    test_rejects(std::string(2, '\0'), "2-byte buffer");
 
     // Reserved bits set in the flags byte
     test_rejects(frame(0, 0x01, ""), "reserved bit 0 set");

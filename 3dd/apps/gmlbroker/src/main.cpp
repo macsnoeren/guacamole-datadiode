@@ -1,15 +1,18 @@
 #include "../../shared/include/network/channeltable.h"
 #include "../../shared/include/network/netqueue.h"
-#include "../../shared/include/network/tcpserver.h"
+#include "../../shared/include/network/guacamole_server.h"
+#include "../../shared/include/network/reader_group.h"
 #include "../../shared/include/network/udpreceiver.h"
 #include "../../shared/include/network/udpsender.h"
-#include "../include/nethandlers/tcp_accept_handler.h"
-#include "../include/nethandlers/tcp_send_handler.h"
+#include "../../shared/include/util/netargs.h"
+#include "../include/nethandlers/guacamole_accept_handler.h"
+#include "../include/nethandlers/guacamole_send_handler.h"
 #include "../include/nethandlers/udp_recv_handler.h"
 #include "../include/nethandlers/udp_send_handler.h"
 #include "../include/running.h"
 #include <atomic>
 #include <iostream>
+#include <optional>
 #include <signal.h>
 #include <thread>
 
@@ -32,7 +35,7 @@ void interrupt_handler(int signum) {
  * synchronize messages using thread-safe queues.
  */
 int main(int argc, char *argv[]) {
-    if (argc != 7) {
+    if (argc != 6) {
         std::cerr << "Usage: " << argv[0] << "\n"
                   << "\t<guac_listen_ip>: Guacamole broker's listening IP "
                      "address (for the web server)\n"
@@ -49,12 +52,20 @@ int main(int argc, char *argv[]) {
     }
 
     const char *guac_listen_ip = argv[1];
-    int guac_listen_port = std::stoi(argv[2]);
-    int udp_recv_port = std::stoi(argv[4]);
-    const char *udp_send_ip = argv[5];
-    int udp_send_port = std::stoi(argv[6]);
+    const char *udp_send_ip = argv[4];
+    std::optional<int> p_listen = ParsePort(argv[2]);
+    std::optional<int> p_recv = ParsePort(argv[3]);
+    std::optional<int> p_send = ParsePort(argv[5]);
+    if (!p_listen || !p_recv || !p_send) {
+        std::cerr << "Error: ports must be integers in [1, 65535]" << std::endl;
+        return 1;
+    }
+    int guac_listen_port = p_listen.value();
+    int udp_recv_port = p_recv.value();
+    int udp_send_port = p_send.value();
 
     // Set interrupt handler
+    // TODO: better signal handling
     struct sigaction sa{};
     sa.sa_handler = interrupt_handler;
     sigemptyset(&sa.sa_mask);
@@ -63,8 +74,8 @@ int main(int argc, char *argv[]) {
 
     // Initialize UDP and TCP infrastructure
     int exit;
-    auto tcp_server = TCPServer(guac_listen_ip, guac_listen_port);
-    if ((exit = tcp_server.Initialize()) != 0)
+    auto gml_server = GuacamoleServer(guac_listen_ip, guac_listen_port);
+    if ((exit = gml_server.Initialize()) != 0)
         return exit;
 
     std::cout << "Listening on TCP port " << guac_listen_port << "..."
@@ -84,28 +95,44 @@ int main(int argc, char *argv[]) {
     std::cout << "Initialized UDP sender for " << udp_send_ip << ":"
               << udp_send_port << std::endl;
 
-    ChannelTable table; // Shared by accept thread and tcp_send thread to keep track of connections
+    ChannelTable table; // Shared by accept thread and guacamole_send thread to keep track of connections
     ApprovalRegistry approvals; // Per-channel approval flags
+    ReaderGroup readers; // Tracks the per-connection reader threads for shutdown
     NetQueue recv_queue;
     NetQueue send_queue;
 
-    // Start the handler threads. The accept and tcp_send handlers route by
+    // Start the handler threads. The accept and guacamole_send handlers route by
     // channel via the shared ChannelTable and ApprovalRegistry; the UDP
     // handlers ferry between the bridge and the queues.
-    TCPAcceptHandler accept_handler;
-    TCPSendHandler tcp_send_handler;
+    GuacamoleAcceptHandler accept_handler;
+    GuacamoleSendHandler guacamole_send_handler;
     UDPSendHandler udp_send_handler;
     UDPRecvHandler udp_recv_handler;
 
     std::thread t_accept =
-        accept_handler.Run(send_queue, tcp_server, table, approvals);
-    std::thread t_tcp_send =
-        tcp_send_handler.Run(recv_queue, tcp_server, table, approvals);
+        accept_handler.Run(send_queue, gml_server, table, approvals, readers);
+    std::thread t_guacamole_send =
+        guacamole_send_handler.Run(recv_queue, gml_server, table, approvals);
     std::thread t_udp_send = udp_send_handler.Run(send_queue, udp_sender);
     std::thread t_udp_recv = udp_recv_handler.Run(recv_queue, udp_receiver);
 
+    // Shutdown ordering (SIGINT clears `running`): the blocked accept() and
+    // recvfrom() time out (SO_RCVTIMEO), so the two producer threads fall out of
+    // their loops first. recv_queue then has no producer, so closing it drains
+    // t_guacamole_send — once it is gone, only the detached reader threads still
+    // touch the table and gml_server. We wake those readers by shutting down
+    // their fds (each reader still owns its own close()) and WaitAll() for them
+    // before destroying the state they capture. Finally send_queue, whose last
+    // producers were those readers, is closed to drain t_udp_send.
     t_accept.join();
-    t_tcp_send.join();
     t_udp_recv.join();
+    recv_queue.Close();
+    t_guacamole_send.join();
+
+    for (int fd : table.Fds())
+        gml_server.Shutdown(fd);
+    readers.WaitAll();
+
+    send_queue.Close();
     t_udp_send.join();
 }

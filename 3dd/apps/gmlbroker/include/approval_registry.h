@@ -21,32 +21,32 @@ class ApprovalRegistry {
         /**
          * @brief Creates a channel-to-approval association to store
          */
-        void Create(uint8_t channel);
+        void Create(uint16_t channel);
 
         /**
          * @brief Returns whether the approval request for this channel is approved or denied
          */
-        std::shared_ptr<std::atomic<bool>> Flag(uint8_t channel);
+        std::shared_ptr<std::atomic<bool>> Flag(uint16_t channel);
 
         /**
          * @brief Sets the approval request's request ID
          */
-        void SetRequestId(uint8_t channel, const std::string &id);
+        void SetRequestId(uint16_t channel, const std::string &id);
 
         /**
          * @brief Marks the channel approved if the verdict's id matches its request.
          */
-        bool Approve(uint8_t channel, const std::string &id);
+        bool Approve(uint16_t channel, const std::string &id);
 
         /**
          * @brief Whether a verdict's id matches the channel's outstanding request.
          */
-        bool Matches(uint8_t channel, const std::string &id);
+        bool Matches(uint16_t channel, const std::string &id);
 
         /**
          * @brief Removes the channel-to-approval association/entry
          */
-        void Remove(uint8_t channel);
+        void Remove(uint16_t channel);
 
     private:
         /**
@@ -60,5 +60,5 @@ class ApprovalRegistry {
             std::string request_id;
         };
         std::mutex mutex;
-        std::unordered_map<uint8_t, Entry> entries;
+        std::unordered_map<uint16_t, Entry> entries;
 };

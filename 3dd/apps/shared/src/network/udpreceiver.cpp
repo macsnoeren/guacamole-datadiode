@@ -1,8 +1,10 @@
 #include "../../include/network/udpreceiver.h"
 #include <arpa/inet.h>
+#include <cerrno>
 #include <cstring>
 #include <iostream>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <unistd.h>
 
 UDPReceiver::~UDPReceiver() {
@@ -33,6 +35,15 @@ int UDPReceiver::Initialize() {
         return 1;
     }
 
+    // Time out a blocked recvfrom periodically so the receive loop can notice a
+    // shutdown request (the `running` flag) instead of blocking forever. SIGINT
+    // is delivered to one arbitrary thread, so we cannot rely on EINTR waking
+    // this one.
+    struct timeval tv{};
+    tv.tv_sec = 0;
+    tv.tv_usec = 200000; // 200 ms
+    ::setsockopt(sock_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
     return 0;
 }
 
@@ -45,6 +56,10 @@ int UDPReceiver::Receive(char *buffer, size_t len) {
                    reinterpret_cast<sockaddr *>(&src_addr), &src_len);
 
     if (received < 0) {
+        // Timed out (no data) or interrupted: benign, let the caller re-check
+        // whether it should keep running.
+        if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)
+            return 0;
         perror("recvfrom");
         return -1;
     }

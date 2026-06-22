@@ -1,0 +1,185 @@
+#include "../../include/network/guacamole_server.h"
+#include <arpa/inet.h>
+#include <cerrno>
+#include <cstring>
+#include <iostream>
+#include <poll.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <unistd.h>
+#include <netdb.h>
+
+GuacamoleServer::~GuacamoleServer() {
+    if (listen_fd >= 0) {
+        ::shutdown(listen_fd, SHUT_RDWR);
+        ::close(listen_fd);
+    }
+}
+
+int GuacamoleServer::Initialize() {
+    struct addrinfo hints{}, *results, *rp;
+    std::memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;      // IPv4
+    hints.ai_socktype = SOCK_STREAM; // TCP
+
+    // Get a linked list of possible addresses based on host, port, and hints
+    if (::getaddrinfo(host.c_str(), std::to_string(recv_port).c_str(), &hints, &results) != 0) {
+        perror("getaddrinfo");
+        return -1;
+    }
+
+    int fd = -1;
+    
+    // Loop through list until a valid socket is found
+    for (rp = results; rp != nullptr; rp = rp->ai_next) {
+        fd = ::socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        if (fd >= 0)
+            break;
+    }
+
+    ::freeaddrinfo(results);
+
+    listen_fd = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (listen_fd < 0) {
+        perror("socket");
+        return 1;
+    }
+
+    if (rp == nullptr) {
+        std::cerr << "Could not resolve hostname or address: " << host << std::endl;
+        if (fd >= 0)
+            ::close(fd);
+        return -1;
+    }
+
+    listen_fd = fd;
+    
+    struct sockaddr_in *addr_in = reinterpret_cast<struct sockaddr_in*>(rp->ai_addr);
+
+    // Reuse address if it is already in use or not properly cleaned up
+    int one = 1;
+    ::setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+
+    sockaddr_in addr;
+    std::memset(&addr, 0, sizeof(addr));
+    addr.sin_family = addr_in->sin_family;
+    addr.sin_port = addr_in->sin_port;
+    addr.sin_addr = addr_in->sin_addr;
+
+    // Bind and listen to the given port
+    if (::bind(listen_fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) <
+        0) {
+        perror("bind");
+        if (listen_fd >= 0)
+            ::close(listen_fd);
+        return 1;
+    }
+
+    if (::listen(listen_fd, 16) < 0) {
+        perror("listen");
+        if (listen_fd >= 0)
+            ::close(listen_fd);
+        return 1;
+    }
+
+    // Time out a blocked accept periodically so the accept loop can notice a
+    // shutdown request (the `running` flag) instead of blocking forever; SIGINT
+    // may be delivered to a different thread, so EINTR can't be relied on.
+    struct timeval tv{};
+    tv.tv_sec = 0;
+    tv.tv_usec = 200000; // 200 ms
+    ::setsockopt(listen_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    return 0;
+}
+
+int GuacamoleServer::Accept() {
+    sockaddr_in client_addr;
+    socklen_t client_len = sizeof(client_addr);
+
+    int fd = ::accept(listen_fd, reinterpret_cast<sockaddr *>(&client_addr),
+                      &client_len);
+    if (fd < 0) {
+        // EINVAL: listen socket was shut down. EAGAIN/EWOULDBLOCK: accept timed
+        // out (no pending connection). EINTR: interrupted. All benign — the
+        // caller re-checks `running` and either retries or stops.
+        if (errno != EINVAL && errno != EAGAIN && errno != EWOULDBLOCK &&
+            errno != EINTR)
+            perror("accept");
+        return -1;
+    }
+
+    char ip_str[INET_ADDRSTRLEN];
+    ::inet_ntop(AF_INET, &client_addr.sin_addr, ip_str, sizeof(ip_str));
+    std::cout << "Client connected from " << ip_str << ":"
+              << ntohs(client_addr.sin_port) << " (fd " << fd << ")"
+              << std::endl;
+
+    return fd;
+}
+
+int GuacamoleServer::WaitReadable(int fd, int timeout_ms) {
+    struct pollfd pfd{};
+    pfd.fd = fd;
+    pfd.events = POLLIN;
+
+    int r = ::poll(&pfd, 1, timeout_ms);
+    if (r < 0) {
+        if (errno == EINTR)
+            return 0;
+        perror("poll");
+        return -1;
+    }
+    return r > 0 ? 1 : 0;
+}
+
+int GuacamoleServer::Receive(int fd, char *buffer, size_t len) {
+    ssize_t received = ::recv(fd, buffer, len - 1, 0);
+
+    if (received < 0) {
+        switch (errno) {
+        case EAGAIN:
+            // No data available, not an error
+            return 0;
+        default:
+            perror("recv");
+            return -1;
+        }
+    }
+
+    buffer[received] = '\0'; // make it a C-string for printing
+
+    return received;
+}
+
+ssize_t GuacamoleServer::Send(int fd, const char *buffer, size_t len) {
+    if (fd < 0) {
+        std::cerr << "Error: cannot send to an invalid fd\n";
+        return -1;
+    }
+
+    size_t total = 0;
+    while (total < len) {
+        ssize_t sent = ::send(fd, buffer + total, len - total, 0);
+        if (sent < 0) {
+            if (errno == EINTR)
+                continue;
+            perror("send");
+            return -1;
+        }
+
+        total += sent;
+    }
+
+    return total;
+}
+
+void GuacamoleServer::Shutdown(int fd) {
+    if (fd >= 0)
+        ::shutdown(fd, SHUT_RDWR);
+}
+
+void GuacamoleServer::Close(int fd) {
+    if (fd >= 0)
+        ::close(fd);
+}

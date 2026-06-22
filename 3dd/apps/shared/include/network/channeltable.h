@@ -4,6 +4,7 @@
 #include <mutex>
 #include <optional>
 #include <unordered_map>
+#include <vector>
 
 /**
  * @brief Thread-safe mapping between multiplexing channel IDs and socket fds
@@ -15,20 +16,30 @@
 class ChannelTable {
   private:
     mutable std::mutex mtx;
-    std::unordered_map<uint8_t, int> channel_to_fd;
+    std::unordered_map<uint16_t, int> channel_to_fd;
+    // Round-robin cursor for Allocate. Channels are handed out sequentially and
+    // a freed channel is not reused until the cursor wraps the whole 16-bit
+    // space. This matters because control frames (a peer SHUTDOWN echo, a stale
+    // APPROVAL) for a just-closed channel can still be in flight on the bridge;
+    // reusing that id immediately — as lowest-free allocation did — let such a
+    // frame tear down or disrupt the new occupant. Delaying reuse lets the old
+    // frames drain first.
+    uint16_t next_channel = 0;
 
   public:
     /**
-     * @brief Allocates the lowest free channel ID and binds it to fd
-     * @return The allocated channel, or std::nullopt if all 256 are in use
+     * @brief Allocates the next free channel ID (round-robin) and binds it to fd
+     * @return The allocated channel, or std::nullopt if all 65536 are in use
      */
-    std::optional<uint8_t> Allocate(int fd) {
+    std::optional<uint16_t> Allocate(int fd) {
         std::lock_guard<std::mutex> lock(mtx);
-        for (int candidate = 0; candidate <= 0xFF; ++candidate) {
-            uint8_t channel = static_cast<uint8_t>(candidate);
-            // If channel does not appear in map, create a new mapping
+        for (int i = 0; i <= 0xFFFF; ++i) {
+            // next_channel + i wraps mod 65536 on the cast, so the scan covers
+            // every slot starting from the cursor.
+            uint16_t channel = static_cast<uint16_t>(next_channel + i);
             if (channel_to_fd.find(channel) == channel_to_fd.end()) {
                 channel_to_fd[channel] = fd;
+                next_channel = static_cast<uint16_t>(channel + 1);
                 return channel;
             }
         }
@@ -39,7 +50,7 @@ class ChannelTable {
      * @brief Binds a specific (peer-chosen) channel to fd
      * @return False if the channel was already in use
      */
-    bool Insert(uint8_t channel, int fd) {
+    bool Insert(uint16_t channel, int fd) {
         std::lock_guard<std::mutex> lock(mtx);
         return channel_to_fd.emplace(channel, fd).second;
     }
@@ -47,7 +58,7 @@ class ChannelTable {
     /**
      * @brief Looks up the fd bound to a channel
      */
-    std::optional<int> Get(uint8_t channel) const {
+    std::optional<int> Get(uint16_t channel) const {
         std::lock_guard<std::mutex> lock(mtx);
         auto it = channel_to_fd.find(channel);
         if (it == channel_to_fd.end())
@@ -60,7 +71,7 @@ class ChannelTable {
      * @return The fd that was bound, or std::nullopt if the channel was unknown.
      *         The caller that receives the fd is responsible for closing it.
      */
-    std::optional<int> Remove(uint8_t channel) {
+    std::optional<int> Remove(uint16_t channel) {
         std::lock_guard<std::mutex> lock(mtx);
         auto it = channel_to_fd.find(channel);
         if (it == channel_to_fd.end())
@@ -68,5 +79,21 @@ class ChannelTable {
         int fd = it->second;
         channel_to_fd.erase(it);
         return fd;
+    }
+
+    /**
+     * @brief Snapshots the fds of all currently bound channels
+     *
+     * Used on shutdown to shutdown() every live connection and wake the reader
+     * threads blocked in recv(). The fds are not removed: each channel's reader
+     * remains the sole owner of close().
+     */
+    std::vector<int> Fds() const {
+        std::lock_guard<std::mutex> lock(mtx);
+        std::vector<int> fds;
+        fds.reserve(channel_to_fd.size());
+        for (const auto &entry : channel_to_fd)
+            fds.push_back(entry.second);
+        return fds;
     }
 };
