@@ -2,7 +2,6 @@
 #include <cstring>
 #include <string.h>
 
-// TODO: parse connection requests
 ParserState OpcodeParser::Parse(const char *data, size_t len) {
     // Ranges recorded here belong to this call's buffer only.
     denied_ranges.clear();
@@ -16,9 +15,7 @@ ParserState OpcodeParser::Parse(const char *data, size_t len) {
     // prerequisite for cutting it out).
     bool opcode_in_this_call = false;
 
-    // Each byte drives exactly one state. The diagram's two transient states are
-    // folded into the state that consumes their trigger byte: READING_DOT into
-    // the '.' branch of READING_LENGTH, and HANDLING_ELEMENT into EXPECT_DELIM.
+    // Each byte drives exactly one state
     for (size_t i = 0; i < len; ++i) {
         current_index = i;
         char c = data[i];

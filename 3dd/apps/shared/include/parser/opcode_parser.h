@@ -10,14 +10,17 @@
 /*
  * @brief Every state of the opcode-parsing FSM.
  *
- * There is no separate "phase": the single state captures both where in an
- * element the parser sits and any terminal verdict. Each byte advances exactly
- * one state. The diagram also draws two transient states — READING_DOT (the '.'
- * closing a length) and HANDLING_ELEMENT (a complete element to validate) — but
- * they consume no input of their own, so the code folds them into the state
- * that consumes their trigger byte (READING_LENGTH's '.' branch and
- * EXPECT_DELIM respectively). STREAM_CORRUPTED and DENIED_DATA are terminal for
- * the current Parse() call.
+ * The single state captures where in an
+ * element the parser sits. Each byte advances exactly
+ * one state. READING_LENGTH for reading element length,
+ * READING_DATA is for reading data after the .-character
+ * (only if the length is valid). STREAM_CORRUPTED occurs
+ * when the parser received non-Guacamole data, or the Guacamole
+ * data had an invalid format (not <length>.<value><, or ;>)
+ * and DENIED_DATA occurs when an opcode or argument is disallowed.
+ * Disallowing an opcode is not functionality of OpcodeParser, but
+ * left for the inheriting GuardOpcodeParser class (which does the
+ * filtering).
  */
 enum class ParserState {
     READING_LENGTH,   // reading the digits of an element's length prefix
@@ -72,8 +75,7 @@ class OpcodeParser {
      *
      * Clears the FSM, the in-flight element, and any recorded denied ranges so
      * the next Parse() starts fresh — e.g. to recover (fail open) after a
-     * STREAM_CORRUPTED. Subclasses with their own per-instruction state should
-     * override and chain to this.
+     * STREAM_CORRUPTED.
      */
     void Reset();
 
