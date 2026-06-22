@@ -30,9 +30,22 @@ std::thread GuacdReadHandler::Run(NetQueue &recv_queue, NetQueue &send_queue,
 
         char buffer[Multiplexer::MAX_PAYLOAD_SIZE + 1];
         SyncFaker sync_faker; // synthesises the client's sync ack toward guacd
+        std::string last_ack; // most recent sync ack, re-sent as an idle keepalive
 
         while (running) {
             int received = guacd_client.Receive(fd, buffer, sizeof(buffer));
+
+            if (received == GuacdClient::RECV_TIMEOUT) {
+                // Idle: guacd sent nothing this interval, so there is no sync to
+                // echo. The browser's own periodic keepalive was swallowed on the
+                // forward path, so re-send the last sync ack ourselves — otherwise
+                // guacd trips its "user not responding" timeout when idle.
+                if (!last_ack.empty()) {
+                    BridgeMessage keepalive{channel, ChannelAction::NONE, last_ack};
+                    recv_queue.Enqueue(std::move(keepalive));
+                }
+                continue;
+            }
             if (received <= 0)
                 break; // 0: guacd closed, <0: error
 
@@ -46,6 +59,7 @@ std::thread GuacdReadHandler::Run(NetQueue &recv_queue, NetQueue &send_queue,
             // guacd just emitted (the guard dropped the real one).
             std::string ack = sync_faker.Feed(buffer, received);
             if (!ack.empty()) {
+                last_ack = ack; // remember for the idle keepalive above
                 BridgeMessage sync{channel, ChannelAction::NONE, std::move(ack)};
                 recv_queue.Enqueue(std::move(sync));
             }

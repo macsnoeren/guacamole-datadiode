@@ -23,6 +23,16 @@ int guacd_send_timeout_ms() {
     int v = env ? std::atoi(env) : 0;
     return v > 0 ? v : 2000;
 }
+
+// How long Receive() blocks before reporting an idle timeout, so the reader can
+// re-send a keepalive to guacd. The browser's own periodic keepalive is swallowed
+// on the forward path, so without this an idle session would trip guacd's
+// "user not responding" timeout (~15 s). Must stay comfortably under it.
+int guacd_recv_timeout_ms() {
+    const char *env = std::getenv("GUACD_KEEPALIVE_MS");
+    int v = env ? std::atoi(env) : 0;
+    return v > 0 ? v : 5000;
+}
 } // namespace
 
 int GuacdClient::Connect() {
@@ -61,11 +71,20 @@ int GuacdClient::Connect() {
         // Bound how long a write to this guacd connection may block, so a
         // stalled connection can't head-of-line block the shared writer thread
         // and starve other channels' sync acks.
-        int ms = guacd_send_timeout_ms();
-        struct timeval tv{};
-        tv.tv_sec = ms / 1000;
-        tv.tv_usec = (ms % 1000) * 1000;
-        ::setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+        int sms = guacd_send_timeout_ms();
+        struct timeval stv{};
+        stv.tv_sec = sms / 1000;
+        stv.tv_usec = (sms % 1000) * 1000;
+        ::setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &stv, sizeof(stv));
+
+        // Receive timeout so the reader wakes periodically (when guacd is idle)
+        // to re-send a keepalive — otherwise an idle session is silent toward
+        // guacd and trips its "user not responding" timeout.
+        int rms = guacd_recv_timeout_ms();
+        struct timeval rtv{};
+        rtv.tv_sec = rms / 1000;
+        rtv.tv_usec = (rms % 1000) * 1000;
+        ::setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &rtv, sizeof(rtv));
     }
 
     return fd;
@@ -75,14 +94,11 @@ int GuacdClient::Receive(int fd, char *buffer, size_t len) {
     ssize_t received = ::recv(fd, buffer, len - 1, 0);
 
     if (received < 0) {
-        switch (errno) {
-        case EAGAIN:
-            // No data available, not an error
-            return 0;
-        default:
-            perror("recv");
-            return -1;
-        }
+        // Receive timeout: idle, but the connection is alive.
+        if (errno == EAGAIN || errno == EWOULDBLOCK)
+            return RECV_TIMEOUT;
+        perror("recv");
+        return -1;
     }
 
     buffer[received] = '\0'; // make it a C-string for printing
