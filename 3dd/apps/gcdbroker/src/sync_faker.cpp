@@ -3,8 +3,18 @@
 
 std::string SyncFaker::Feed(const char *data, size_t len) {
     echoes.clear();
-    // Pure analysis; we never deny or excise, so the returned state is unused.
-    Parse(data, len);
+    // guacd's output is not ours to police, and it can contain bytes the base
+    // FSM rejects (non-ASCII text, or UTF-8 whose code-point length differs from
+    // its byte length). A latched STREAM_CORRUPTED would silently stop all future
+    // sync echoes and make guacd time the user out, so fail open: skip the
+    // offending byte, resync, and keep scanning for syncs.
+    size_t off = 0;
+    while (off < len) {
+        if (Parse(data + off, len - off) != ParserState::STREAM_CORRUPTED)
+            break;
+        off += CurrentIndex() + 1; // past the byte that tripped the parser
+        Reset();
+    }
     return echoes;
 }
 

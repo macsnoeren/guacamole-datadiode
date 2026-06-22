@@ -83,6 +83,23 @@ void test_zero_length_elements() {
     assert(feed(f, "7.connect,0.,4.host;4.sync,1.7;") == "4.sync,1.7;");
 }
 
+/*
+ * @brief Fail-open resync: a byte the FSM rejects (here a non-ASCII byte inside
+ * an element) must not permanently stop echoing — a following sync still echoes.
+ */
+void test_recovers_from_corruption() {
+    SyncFaker f;
+    // A name carrying a non-ASCII (0xC3) byte would latch STREAM_CORRUPTED; the
+    // sync after it must still be echoed.
+    std::string in = "4.name,3.a";
+    in.push_back('\xC3');
+    in += "z;4.sync,1.9;";
+    assert(feed(f, in) == "4.sync,1.9;");
+
+    // And the faker keeps working on the next chunk (state was reset, not stuck).
+    assert(feed(f, "4.sync,2.42;") == "4.sync,2.42;");
+}
+
 int main() {
     test_basic_echo();
     test_embedded();
@@ -91,6 +108,7 @@ int main() {
     test_split_across_reads();
     test_multiple();
     test_zero_length_elements();
+    test_recovers_from_corruption();
     std::cout << "all SyncFaker tests passed" << std::endl;
     return 0;
 }
