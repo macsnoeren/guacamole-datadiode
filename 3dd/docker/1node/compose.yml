@@ -56,6 +56,13 @@ services:
         "gmlbroker", "5504"
       ]
 
+  approver:
+    # Demo: run the approver on the low side. It reaches the isolated guard only
+    # through gmlbroker's relay (low->guard is the diode-allowed direction), so
+    # the guard still feels isolated even though approvals are toggled IT-side.
+    environment:
+      GUARD_HOST: gmlbroker
+
   nettest:
     # Bind-mount the in-container report dir to a host folder alongside this
     # compose file, so the per-run Markdown reports show up at

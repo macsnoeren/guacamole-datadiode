@@ -2,7 +2,6 @@ name: 3dd-3node-guardnode
 
 include:
   - ../include/guard/compose.yml
-  - ../include/approver/compose.yml
 
 services:
   guard:

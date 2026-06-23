@@ -3,6 +3,7 @@ name: 3dd-3node-lownode
 include:
   - ../include/gmwebserver/compose.yml
   - ../include/gmlbroker/compose.yml
+  - ../include/approver/compose.yml
   - ../include/nettest/compose.yml
 
 services:
@@ -16,6 +17,13 @@ services:
       ]
     ports:
       - "5502:5502/udp"
+
+  approver:
+    # Low-side approver: reaches the isolated guard only through gmlbroker's relay
+    # (gmlbroker forwards the toggle to the guard at 10.0.0.2:4999, the diode-
+    # allowed direction).
+    environment:
+      GUARD_HOST: gmlbroker
 
   nettest:
     volumes:
