@@ -7,11 +7,12 @@
 /*
  * @brief Accepts Guacamole connections, allocating a channel for each
  */
-std::thread GuacamoleAcceptHandler::Run(NetQueue &queue, GuacamoleServer &guacamole_server,
+std::thread GuacamoleAcceptHandler::Run(NetQueue &queue, NetQueue &recv_queue,
+                                  GuacamoleServer &guacamole_server,
                                   ChannelTable &table,
                                   ApprovalRegistry &approvals,
                                   ReaderGroup &readers) {
-    return std::thread([&queue, &guacamole_server, &table, &approvals, &readers]() {
+    return std::thread([&queue, &recv_queue, &guacamole_server, &table, &approvals, &readers]() {
         while (running) {
             int fd = guacamole_server.Accept();
             if (fd < 0) {
@@ -46,7 +47,7 @@ std::thread GuacamoleAcceptHandler::Run(NetQueue &queue, GuacamoleServer &guacam
             // WaitAll runs, so the count is final by then).
             readers.Enter();
             GuacamoleReadHandler reader;
-            reader.Run(queue, guacamole_server, table, approvals, readers, channel.value(), fd)
+            reader.Run(queue, recv_queue, guacamole_server, table, approvals, readers, channel.value(), fd)
                 .detach();
         }
     });

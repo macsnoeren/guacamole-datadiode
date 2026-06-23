@@ -116,7 +116,7 @@ int main(int argc, char *argv[]) {
     UDPRecvHandler udp_recv_handler;
 
     std::thread t_accept =
-        accept_handler.Run(send_queue, gml_server, table, approvals, readers);
+        accept_handler.Run(send_queue, recv_queue, gml_server, table, approvals, readers);
     std::thread t_guacamole_send =
         guacamole_send_handler.Run(recv_queue, gml_server, table, approvals);
     std::thread t_udp_send = udp_send_handler.Run(send_queue, udp_sender);

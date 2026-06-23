@@ -9,5 +9,5 @@
 
 class GuacamoleAcceptHandler {
     public:
-        std::thread Run(NetQueue &queue, GuacamoleServer &guacamole_server, ChannelTable &table, ApprovalRegistry &approvals, ReaderGroup &readers);
+        std::thread Run(NetQueue &queue, NetQueue &recv_queue, GuacamoleServer &guacamole_server, ChannelTable &table, ApprovalRegistry &approvals, ReaderGroup &readers);
 };

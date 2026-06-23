@@ -1,5 +1,6 @@
 #include "../../include/nethandlers/guacamole_read_handler.h"
 #include "../../../shared/include/network/multiplexer.h"
+#include "../../include/clipboard_ack_faker.h"
 #include "../../include/forward_keepalive_filter.h"
 #include "../../include/handshake_forger.h"
 #include "../../include/running.h"
@@ -81,10 +82,11 @@ void replay_handshake(NetQueue &send_queue, uint16_t channel,
  * if it was first to remove it, it announces SHUTDOWN. The reader is the sole
  * owner of close().
  */
-std::thread GuacamoleReadHandler::Run(NetQueue &queue, GuacamoleServer &guacamole_server,
+std::thread GuacamoleReadHandler::Run(NetQueue &queue, NetQueue &recv_queue,
+                                GuacamoleServer &guacamole_server,
                                 ChannelTable &table, ApprovalRegistry &approvals,
                                 ReaderGroup &readers, uint16_t channel, int fd) {
-    return std::thread([&queue, &guacamole_server, &table, &approvals, &readers, channel, fd]() {
+    return std::thread([&queue, &recv_queue, &guacamole_server, &table, &approvals, &readers, channel, fd]() {
         // Declared first so it is destroyed last: Leave() runs only after all
         // shared-state access below is done, letting main's WaitAll() proceed.
         ReaderGroup::Sentinel sentinel(readers);
@@ -92,6 +94,7 @@ std::thread GuacamoleReadHandler::Run(NetQueue &queue, GuacamoleServer &guacamol
         char buffer[Multiplexer::MAX_PAYLOAD_SIZE + 1];
         HandshakeForger forger; // forges the guacd handshake toward the web server
         ForwardKeepaliveFilter keepalive_filter; // swallows the browser's sync/nop keepalives
+        ClipboardAckFaker clipboard_faker; // fakes acks for guard-dropped clipboard blobs
         std::shared_ptr<std::atomic<bool>> approved = approvals.Flag(channel);
         bool replayed = false;
 
@@ -170,6 +173,16 @@ std::thread GuacamoleReadHandler::Run(NetQueue &queue, GuacamoleServer &guacamol
             // dropped.
             maybe_replay();
             if (replayed) {
+                // For a clipboard paste the guard will drop (payload over the
+                // cap), fake the success ack back to the browser so its clipboard
+                // stream doesn't stall waiting for guacd. Read the original bytes
+                // before the keepalive filter rewrites the buffer.
+                std::string acks = clipboard_faker.Feed(buffer, received);
+                if (!acks.empty()) {
+                    BridgeMessage ack{channel, ChannelAction::NONE, std::move(acks)};
+                    recv_queue.Enqueue(std::move(ack));
+                }
+
                 // Swallow the browser's keepalives (sync/nop) here so they never
                 // cross the bridge; the guard validates the rest.
                 size_t len = static_cast<size_t>(received);
