@@ -10,7 +10,7 @@ Parameters (from the start request body, all optional with defaults):
   good       0..65535  valid connections that ping-pong: send a probe, await the
                        response, record the round-trip; repeat.
   bad        0..65535  connections that establish, then send a corrupt packet
-                       (`2.foo;`) so the guard SHUTDOWN_CHANNELs them; the good
+                       so the guard SHUTDOWN_CHANNELs them; the good
                        ones must survive.  good + bad <= 65535 (the channel space).
   probe      key|argv  what each good connection sends to measure the round-trip.
                        "key" presses ENTER and times guacd's terminal repaint —
@@ -52,7 +52,11 @@ SHUTDOWN_OBSERVE_S = 3.0       # await the guard's shutdown message after corrup
 PUBLISH_INTERVAL_S = 0.5       # live-stats cadence
 
 _ENTER = encode("key", ENTER_KEYSYM, "1") + encode("key", ENTER_KEYSYM, "0")
-_CORRUPT = b"2.foo;"           # not valid Guacamole — corrupts the stream
+
+# not valid Guacamole — corrupts the stream
+_CORRUPT = [b"SSH-2.0-OpenSSH_9.6\r\n",             # SSH initiation
+            b"GET / HTTP/1.1\r\nHost: x\r\n\r\n",   # HTTP call
+            b"nc -l -p 1337"]                       # NC reverse shell
 
 # argv-probe mode: opening an `argv` stream makes guacd reply with a tiny `ack`
 # (status 0, "Ready for updated parameter") in well under a millisecond. `argv`
@@ -535,7 +539,7 @@ async def _bad_conn(stats, stop, cfg):
         if stop.is_set():
             return
         try:
-            await stream.send(_CORRUPT)
+            await stream.send(random.choice(_CORRUPT))
         except OSError:
             stats.bad_disconnected += 1
             return
