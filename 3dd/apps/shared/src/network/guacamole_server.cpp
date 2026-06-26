@@ -37,35 +37,36 @@ int GuacamoleServer::Initialize() {
             break;
     }
 
-    ::freeaddrinfo(results); // [ISSUE] MS: Please fix => use-after-free of addrinfo
-                             //             See UDPSender same problem!
-
-    listen_fd = ::socket(AF_INET, SOCK_STREAM, 0);
-    if (listen_fd < 0) {
-        perror("socket");
-        return 1;
+    // Copy the resolved address out of the addrinfo list *before* freeing it:
+    // `rp` points into `results`, so any read of `rp->ai_addr` after
+    // freeaddrinfo() would be a use-after-free.
+    sockaddr_in addr;
+    std::memset(&addr, 0, sizeof(addr));
+    bool resolved = rp != nullptr;
+    if (resolved) {
+        struct sockaddr_in *addr_in =
+            reinterpret_cast<struct sockaddr_in *>(rp->ai_addr);
+        addr.sin_family = addr_in->sin_family;
+        addr.sin_port = addr_in->sin_port;
+        addr.sin_addr = addr_in->sin_addr;
     }
 
-    if (rp == nullptr) {
+    ::freeaddrinfo(results);
+
+    if (!resolved) {
         std::cerr << "Could not resolve hostname or address: " << host << std::endl;
         if (fd >= 0)
             ::close(fd);
         return -1;
     }
 
+    // Reuse the socket opened in the resolve loop above rather than opening a
+    // second one (which would leak the first fd).
     listen_fd = fd;
-    
-    struct sockaddr_in *addr_in = reinterpret_cast<struct sockaddr_in*>(rp->ai_addr);
 
     // Reuse address if it is already in use or not properly cleaned up
     int one = 1;
     ::setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
-
-    sockaddr_in addr;
-    std::memset(&addr, 0, sizeof(addr));
-    addr.sin_family = addr_in->sin_family;
-    addr.sin_port = addr_in->sin_port;
-    addr.sin_addr = addr_in->sin_addr;
 
     // Bind and listen to the given port
     if (::bind(listen_fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) <
