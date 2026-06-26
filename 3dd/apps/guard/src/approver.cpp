@@ -8,10 +8,9 @@ ApprovalResult Approver::HandleRequest(const std::string &request_id) {
         return {false, "operator denied the request"};
     }
 
-    // [ISSUE] MS: request_id is not checked. You state this is NUL-free, but that is only
-    //             true for the local hex generator. Nothing is checking this value when 
-    //             received from the UDP channel (external). An attacker could place bytes
-    //             that fake log messages or try to escape the terminal system.
+    // request_id is validated (is_valid_request_id) by the guard's receive loop
+    // before this is called, so it is safe to log: a hex-only id can carry no
+    // terminal escapes or forged log lines even when it arrived over UDP.
     std::cout << "Approver: APPROVE request " << request_id << std::endl;
     return {true, ""};
 }
