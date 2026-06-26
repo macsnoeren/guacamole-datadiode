@@ -201,6 +201,10 @@ int main(int argc, char *argv[]) {
             std::string wire = Multiplexer::Serialize(approval);
             sender.Send(wire.data(), wire.size());
 
+            // [ISSUE] MS: request_id is not checked. You state this is NUL-free, but that is only (same as in approver)
+            //             true for the local hex generator. Nothing is checking this value when 
+            //             received from the UDP channel (external). An attacker could place bytes
+            //             that fake log messages or try to escape the terminal system.
             if (verdict.approved) {
                 approved.insert(msg.channel);
                 std::cout << "guard: channel " << (int)msg.channel

@@ -37,9 +37,12 @@ int UDPSender::Initialize() {
             break;
     }
 
-    ::freeaddrinfo(results);
+    ::freeaddrinfo(results); // [ISSUE] MS: Please fix => use-after-free of addrinfo
+                             //             Impact reduced does not give attack remote possibilities
+                             //             but it it memory unsafe. This will work under low loads,
+                             //             but will segfault/break under high loads is expected.
 
-    if (rp == nullptr) {
+    if (rp == nullptr) {    // [ISSUE] MS: rp still points INTO freed memory
         std::cerr << "Could not resolve hostname or address: " << host << std::endl;
         if (fd >= 0)
             ::close(fd);
@@ -53,9 +56,9 @@ int UDPSender::Initialize() {
     // retransmit).
     set_bridge_sockbuf(sock_fd, SO_SNDBUF, "UDPSender SO_SNDBUF");
 
-    struct sockaddr_in *addr_in = reinterpret_cast<struct sockaddr_in*>(rp->ai_addr);
+    struct sockaddr_in *addr_in = reinterpret_cast<struct sockaddr_in*>(rp->ai_addr); // [TODO] MS: UAF read
     std::memset(&sock_addr, 0, sizeof(sock_addr));
-    sock_addr.sin_family = addr_in->sin_family;
+    sock_addr.sin_family = addr_in->sin_family; // [ISSUE] MS: reads freed memory
     sock_addr.sin_port = addr_in->sin_port;
     sock_addr.sin_addr = addr_in->sin_addr;
 

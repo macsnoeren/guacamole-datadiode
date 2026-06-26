@@ -37,7 +37,8 @@ int GuacamoleServer::Initialize() {
             break;
     }
 
-    ::freeaddrinfo(results);
+    ::freeaddrinfo(results); // [ISSUE] MS: Please fix => use-after-free of addrinfo
+                             //             See UDPSender same problem!
 
     listen_fd = ::socket(AF_INET, SOCK_STREAM, 0);
     if (listen_fd < 0) {

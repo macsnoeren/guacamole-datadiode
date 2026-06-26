@@ -4,6 +4,9 @@
 #include <iostream>
 #include <optional>
 
+// [ISSUE] MS: Also in this case there is no cap on the created threads which opens up DoS possibilties again.
+//             A client that opens many connections (up to 65536) and can exhaust memory.
+
 /*
  * @brief Accepts Guacamole connections, allocating a channel for each
  */
