@@ -9,6 +9,7 @@ services:
       POSTGRES_PASSWORD: guacamole_pass
     volumes:
       - db-data:/var/lib/postgresql/data
+      - "initdb:/docker-entrypoint-initdb.d:ro"
 
   guacamole:
     image: guacamole/guacamole:1.6.0
@@ -29,6 +30,9 @@ services:
       BAN_MAX_INVALID_ATTEMPTS: 9999
     ports:
       - "8080:8080"  # Guacamole web UI
+    volumes:
+      - "initdb:/opt/guacamole/extensions/guacamole-auth-jdbc/postgresql/schema:ro"
 
 volumes:
   db-data:
+  initdb:
