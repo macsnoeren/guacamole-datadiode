@@ -192,3 +192,11 @@ Outputs are written to `3dd/.codeql/` (gitignored):
 - `cpp-db/` — the CodeQL database;
 - `cpp-results.sarif` — the full result set (open in an editor's SARIF viewer);
 - `cpp-results.csv` — a human-readable summary, one row per alert.
+
+## Issues
+
+- Make sure the IP addresses and neighbor table (ARP) are set correctly before running, or the routing will not work.
+- If you are having trouble with running many RDP connections at once, set the following settings to reduce traffic bandwidth: 
+    - Color depth 8 or 16-bit (not 24/32)
+    - Disable wallpaper, theming, font smoothing, full-window drag, menu animations, and desktop composition
+    - A smaller resolution if possible
