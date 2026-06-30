@@ -12,6 +12,7 @@ sources = [
   'src/forward_keepalive_filter.cpp',
   'src/clipboard_ack_faker.cpp',
   'src/approval_registry.cpp',
+  'src/channel_mailbox.cpp',
   'src/nethandlers/guacamole_accept_handler.cpp',
   'src/nethandlers/guacamole_read_handler.cpp',
   'src/nethandlers/guacamole_send_handler.cpp',

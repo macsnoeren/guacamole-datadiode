@@ -11,6 +11,7 @@
 #include "../include/nethandlers/guacamole_send_handler.h"
 #include "../include/nethandlers/udp_recv_handler.h"
 #include "../include/nethandlers/udp_send_handler.h"
+#include "../include/channel_mailbox.h"
 #include "../include/running.h"
 #include <atomic>
 #include <iostream>
@@ -117,6 +118,7 @@ int main(int argc, char *argv[]) {
 
     ChannelTable table; // Shared by accept thread and guacamole_send thread to keep track of connections
     ApprovalRegistry approvals; // Per-channel approval flags
+    MailboxRegistry mailboxes; // Per-channel outbound mailbox: the reader is the sole socket writer
     ReaderGroup readers; // Tracks the per-connection reader threads for shutdown
     NetQueue recv_queue;
     NetQueue send_queue;
@@ -130,9 +132,9 @@ int main(int argc, char *argv[]) {
     UDPRecvHandler udp_recv_handler;
 
     std::thread t_accept =
-        accept_handler.Run(send_queue, recv_queue, gml_server, table, approvals, readers);
+        accept_handler.Run(send_queue, recv_queue, gml_server, table, approvals, mailboxes, readers);
     std::thread t_guacamole_send =
-        guacamole_send_handler.Run(recv_queue, gml_server, table, approvals);
+        guacamole_send_handler.Run(recv_queue, mailboxes, approvals);
     std::thread t_udp_send = udp_send_handler.Run(send_queue, udp_sender);
     std::thread t_udp_recv = udp_recv_handler.Run(recv_queue, udp_receiver);
 

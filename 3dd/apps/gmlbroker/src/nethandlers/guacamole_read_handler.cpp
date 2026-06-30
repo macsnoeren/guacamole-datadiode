@@ -5,11 +5,14 @@
 #include "../../include/handshake_forger.h"
 #include "../../include/running.h"
 #include <atomic>
+#include <cerrno>
 #include <chrono>
 #include <iostream>
 #include <memory>
+#include <poll.h>
 #include <random>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -85,8 +88,9 @@ void replay_handshake(NetQueue &send_queue, uint16_t channel,
 std::thread GuacamoleReadHandler::Run(NetQueue &queue, NetQueue &recv_queue,
                                 GuacamoleServer &guacamole_server,
                                 ChannelTable &table, ApprovalRegistry &approvals,
-                                ReaderGroup &readers, uint16_t channel, int fd) {
-    return std::thread([&queue, &recv_queue, &guacamole_server, &table, &approvals, &readers, channel, fd]() {
+                                MailboxRegistry &mailboxes, ReaderGroup &readers,
+                                uint16_t channel, int fd) {
+    return std::thread([&queue, &recv_queue, &guacamole_server, &table, &approvals, &mailboxes, &readers, channel, fd]() {
         // Declared first so it is destroyed last: Leave() runs only after all
         // shared-state access below is done, letting main's WaitAll() proceed.
         ReaderGroup::Sentinel sentinel(readers);
@@ -96,7 +100,12 @@ std::thread GuacamoleReadHandler::Run(NetQueue &queue, NetQueue &recv_queue,
         ForwardKeepaliveFilter keepalive_filter; // swallows the browser's sync/nop keepalives
         ClipboardAckFaker clipboard_faker; // fakes acks for guard-dropped clipboard blobs
         std::shared_ptr<std::atomic<bool>> approved = approvals.Flag(channel);
+        std::shared_ptr<ChannelMailbox> mailbox = mailboxes.Get(channel);
         bool replayed = false;
+        // Whether to announce SHUTDOWN to the peer on close. Stays true for any
+        // locally-initiated teardown (client close, error, denial); flipped off
+        // only when the peer's own SHUTDOWN drove the teardown (no echo).
+        bool announce = true;
 
         // Once approved, replay the captured handshake across the bridge exactly
         // once. The guard validates it en route; gcdbroker forwards it to guacd.
@@ -110,13 +119,49 @@ std::thread GuacamoleReadHandler::Run(NetQueue &queue, NetQueue &recv_queue,
         };
 
         while (running) {
-            // Poll so we can emit a heartbeat (4.sync,...;) even when the web
-            // server is idle.
-            int ready = guacamole_server.WaitReadable(fd, SYNC_INTERVAL_MS);
-            if (ready < 0)
-                // TODO: error handling
+            // Poll the socket and the mailbox together: the socket carries
+            // browser input, the mailbox carries return traffic / teardown
+            // requests from the guacamole_send thread. A timeout lets us emit a
+            // heartbeat (4.sync,...;) even when both are idle. All socket writes
+            // happen here, on this one thread.
+            struct pollfd pfds[2];
+            pfds[0].fd = fd;
+            pfds[0].events = POLLIN;
+            pfds[0].revents = 0;
+            pfds[1].fd = mailbox ? mailbox->WakeFd() : -1;
+            pfds[1].events = POLLIN;
+            pfds[1].revents = 0;
+
+            int ready = ::poll(pfds, 2, SYNC_INTERVAL_MS);
+            if (ready < 0) {
+                if (errno == EINTR)
+                    continue;
+                perror("poll");
                 break;
-            // If timeout occurred
+            }
+
+            // Outbound: drain return traffic the send thread handed us, writing
+            // it to the browser ourselves, and honour a teardown request.
+            if (mailbox && (pfds[1].revents & POLLIN)) {
+                std::vector<std::string> chunks;
+                bool teardown = false, do_announce = true;
+                mailbox->Drain(chunks, teardown, do_announce);
+                bool write_failed = false;
+                for (const std::string &chunk : chunks) {
+                    if (guacamole_server.Send(fd, chunk.data(), chunk.size()) < 0) {
+                        write_failed = true;
+                        break;
+                    }
+                }
+                if (teardown) {
+                    announce = do_announce;
+                    break;
+                }
+                if (write_failed)
+                    break; // announce stays true: tell the peer the browser died
+            }
+
+            // If neither fd was ready, it was a timeout
             if (ready == 0) {
                 // Keep the waiting screen alive only until approval; afterwards
                 // guacd's own sync drives the keepalive.
@@ -129,7 +174,11 @@ std::thread GuacamoleReadHandler::Run(NetQueue &queue, NetQueue &recv_queue,
                 continue;
             }
 
-            // If no timeout occurred, then there is data waiting
+            // Nothing to read from the browser this wake-up
+            if (!(pfds[0].revents & (POLLIN | POLLHUP | POLLERR)))
+                continue;
+
+            // There is data waiting from the browser
             int received = guacamole_server.Receive(fd, buffer, sizeof(buffer));
             if (received <= 0)
                 break; // 0: client closed, <0: error
@@ -198,9 +247,13 @@ std::thread GuacamoleReadHandler::Run(NetQueue &queue, NetQueue &recv_queue,
         }
 
         approvals.Remove(channel);
+        mailboxes.Remove(channel);
+        table.Remove(channel);
 
-        // Only the side that initiates the close announces SHUTDOWN to the peer
-        if (table.Remove(channel).has_value()) {
+        // The reader is the only thread that removes the channel, so `announce`
+        // alone decides whether to notify the peer: true for a locally-initiated
+        // close, false when the peer's own SHUTDOWN drove this teardown.
+        if (announce) {
             BridgeMessage shutdown;
             shutdown.channel = channel;
             shutdown.action = ChannelAction::SHUTDOWN_CHANNEL;
