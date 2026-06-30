@@ -2,7 +2,7 @@ FROM ubuntu:24.04
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y build-essential meson ninja-build
+RUN apt-get update && apt-get install -y build-essential meson ninja-build libssl-dev
 
 COPY apps/shared/include/ apps/shared/include/
 COPY apps/shared/src/ apps/shared/src/

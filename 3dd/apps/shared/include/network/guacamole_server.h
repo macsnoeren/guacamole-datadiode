@@ -4,6 +4,10 @@
 #include <stdlib.h>
 #include <string>
 
+// Forward-declared so includers don't pull in <openssl/ssl.h>. SSL_CTX is a
+// typedef for `struct ssl_ctx_st`; the .cpp uses the real OpenSSL types.
+struct ssl_ctx_st;
+
 /**
  * @brief A TCP server that accepts and serves multiple simultaneous clients
  *
@@ -11,6 +15,12 @@
  * caller as raw fds; the caller (via a ChannelTable) decides their lifetime.
  * Receive/Send/Shutdown/Close all operate on a caller-supplied fd, so the same
  * server instance can be used from multiple threads, one per client.
+ *
+ * TLS is an optional, maintainer-toggled mode (see util/tls.h). When enabled,
+ * Initialize() builds a server SSL_CTX and each accepted connection is wrapped
+ * in its own SSL object; when disabled, ssl_ctx stays null and every operation
+ * is plaintext — byte-for-byte the original behaviour. The per-connection SSL
+ * object is only ever used from the single thread that owns the fd.
  */
 class GuacamoleServer {
   private:
@@ -18,20 +28,35 @@ class GuacamoleServer {
     int recv_port;
     int listen_fd = -1;
 
+    bool tls_on = false;          // whether this server speaks TLS
+    ssl_ctx_st *ssl_ctx = nullptr; // shared server context (null in plaintext mode)
+
+    /**
+     * @brief Builds the server SSL_CTX and loads the cert/key
+     * @return 0 on success, nonzero on failure (caller must abort startup)
+     */
+    int InitializeTls();
+
   public:
     GuacamoleServer(std::string host, int recv_port)
         : host(host), recv_port(recv_port) {}
 
     /**
-     * @brief Closes the listening socket
+     * @brief Closes the listening socket and frees the TLS context
      */
     ~GuacamoleServer();
 
     /**
-     * @brief Attempts to bind to the server address and listen on it
+     * @brief Attempts to bind to the server address and listen on it, and (when
+     * TLS is enabled) build the server SSL_CTX
      * @return 0 on success, nonzero on failure
      */
     int Initialize();
+
+    /**
+     * @brief Whether this server was initialized in TLS mode
+     */
+    bool TlsEnabled() const { return tls_on; }
 
     /**
      * @brief Waits for a client to connect (blocking)

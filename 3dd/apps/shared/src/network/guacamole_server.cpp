@@ -1,4 +1,5 @@
 #include "../../include/network/guacamole_server.h"
+#include "../../include/util/tls.h"
 #include <arpa/inet.h>
 #include <cerrno>
 #include <cstring>
@@ -8,12 +9,55 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <netdb.h>
+#include <openssl/err.h>
+#include <openssl/ssl.h>
 
 GuacamoleServer::~GuacamoleServer() {
     if (listen_fd >= 0) {
         ::shutdown(listen_fd, SHUT_RDWR);
         ::close(listen_fd);
     }
+    if (ssl_ctx)
+        SSL_CTX_free(ssl_ctx);
+}
+
+int GuacamoleServer::InitializeTls() {
+    // OpenSSL 1.1.0+ initializes itself on first use, so no explicit
+    // library/algorithm setup is needed here.
+    ssl_ctx = SSL_CTX_new(TLS_server_method());
+    if (!ssl_ctx) {
+        std::cerr << "TLS: SSL_CTX_new failed" << std::endl;
+        ERR_print_errors_fp(stderr);
+        return -1;
+    }
+
+    // Refuse anything below TLS 1.2; the web server (TLS client) negotiates up.
+    SSL_CTX_set_min_proto_version(ssl_ctx, TLS1_2_VERSION);
+
+    const std::string cert = tls_cert_path();
+    const std::string key = tls_key_path();
+
+    if (SSL_CTX_use_certificate_chain_file(ssl_ctx, cert.c_str()) != 1) {
+        std::cerr << "TLS: failed to load certificate chain from " << cert
+                  << std::endl;
+        ERR_print_errors_fp(stderr);
+        return -1;
+    }
+    if (SSL_CTX_use_PrivateKey_file(ssl_ctx, key.c_str(), SSL_FILETYPE_PEM) !=
+        1) {
+        std::cerr << "TLS: failed to load private key from " << key << std::endl;
+        ERR_print_errors_fp(stderr);
+        return -1;
+    }
+    if (SSL_CTX_check_private_key(ssl_ctx) != 1) {
+        std::cerr << "TLS: private key does not match certificate" << std::endl;
+        ERR_print_errors_fp(stderr);
+        return -1;
+    }
+
+    std::cout << "TLS enabled: loaded certificate " << cert << " and key " << key
+              << std::endl;
+    return 0;
 }
 
 int GuacamoleServer::Initialize() {
@@ -91,6 +135,21 @@ int GuacamoleServer::Initialize() {
     tv.tv_sec = 0;
     tv.tv_usec = 200000; // 200 ms
     ::setsockopt(listen_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    // Maintainer toggle: stand up the TLS context only when explicitly enabled.
+    // A configured-but-broken TLS setup must abort startup rather than silently
+    // serving plaintext, which would be a security downgrade.
+    tls_on = tls_enabled();
+    if (tls_on) {
+        if (InitializeTls() != 0) {
+            std::cerr << "TLS: initialization failed, refusing to start"
+                      << std::endl;
+            return 1;
+        }
+    } else {
+        std::cout << "TLS disabled: serving the web server in plaintext"
+                  << std::endl;
+    }
 
     return 0;
 }
