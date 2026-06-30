@@ -2,7 +2,7 @@ Iron Bridge: foundation of the 'remote access over a Triple Data Diode architect
 
 Project Iron Bridge created the initial PoC for a secure system that regulates the flow of Guacamole remote access traffic between networks. It was created to give control and security over data streams to the OT (DCS) side. This increases plant operator control over inbound requests. It provides strict filtering on inbound traffic.
 
-![Iron Bridge server rack](docs/rack.webp)
+![Iron Bridge server rack](docs/assets/rack.webp)
 
 ## Architecture
 
@@ -25,7 +25,7 @@ Two receiver proxies were created (low side receive proxy & high side receive pr
 
 The full architecture:
 
-![Full 3DD architecture](docs/5node-arch.webp)
+![Full 3DD architecture](docs/assets/5node-arch.webp)
 
 ## Environment
 
@@ -107,7 +107,7 @@ Click Save, go back to the dashboard, and click the connection.
 
 The screen should turn red and the user is disconnected:
 
-![Connection blocked](docs/connection-denied.webp)
+![Connection blocked](docs/assets/connection-denied.webp)
 
 This shows one of Iron Bridge's strong security measures: by default, no user can connect to, or even reach guacd. The request is stopped by the guard, which denies all connections by default. That means that no traffic will ever reach guacd before an approval is given. This approval is given by the plant operator that controls the guard.
 
@@ -145,7 +145,7 @@ To disable testing on configuration run, add the following to a configuration's 
 
 As part of Iron Bridge, a standalone stress testing environment was built in Python. Although it is not the most representative simulation method for testing real-world use, it can put high stress on the 3DD and measure network statistics.
 
-![Stress testing dashboard](docs/stress-test-dashboard.webp)
+![Stress testing dashboard](docs/assets/stress-test-dashboard.webp)
 
 Test the amount of connections that can be active at once by setting good connections. Set bad connections to 0, and play around with some other parameters. Hovering over a parameter shows its description. When running a test, pay special attention to the timeouts field. During the test, the active connections attempt to simultaneously send key strokes and wait for a screen update back from the remote host. Any time such a reply is not received before a timeout happens (2 seconds), the timeout field increases by one. Divided by the n statistic (amount of key strokes sent), a rough metric of loss can be interpreted.
 
