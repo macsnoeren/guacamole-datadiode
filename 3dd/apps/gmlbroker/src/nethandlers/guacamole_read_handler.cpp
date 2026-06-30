@@ -124,6 +124,10 @@ std::thread GuacamoleReadHandler::Run(NetQueue &queue, NetQueue &recv_queue,
             // requests from the guacamole_send thread. A timeout lets us emit a
             // heartbeat (4.sync,...;) even when both are idle. All socket writes
             // happen here, on this one thread.
+            // Under TLS, OpenSSL may hold a fully-buffered record the socket
+            // poll won't report, so don't block when there's pending plaintext.
+            bool ssl_pending = guacamole_server.HasPending(fd);
+
             struct pollfd pfds[2];
             pfds[0].fd = fd;
             pfds[0].events = POLLIN;
@@ -132,7 +136,7 @@ std::thread GuacamoleReadHandler::Run(NetQueue &queue, NetQueue &recv_queue,
             pfds[1].events = POLLIN;
             pfds[1].revents = 0;
 
-            int ready = ::poll(pfds, 2, SYNC_INTERVAL_MS);
+            int ready = ::poll(pfds, 2, ssl_pending ? 0 : SYNC_INTERVAL_MS);
             if (ready < 0) {
                 if (errno == EINTR)
                     continue;
@@ -161,25 +165,28 @@ std::thread GuacamoleReadHandler::Run(NetQueue &queue, NetQueue &recv_queue,
                     break; // announce stays true: tell the peer the browser died
             }
 
-            // If neither fd was ready, it was a timeout
-            if (ready == 0) {
-                // Keep the waiting screen alive only until approval; afterwards
-                // guacd's own sync drives the keepalive.
-                if (forger.GetHandshakeState() == HandshakeState::ESTABLISHED &&
-                    !(approved && approved->load())) {
-                    std::string s = sync_instruction();
-                    guacamole_server.Send(fd, s.data(), s.size());
+            // Readable if the socket signalled or TLS has a buffered record.
+            bool readable =
+                (pfds[0].revents & (POLLIN | POLLHUP | POLLERR)) || ssl_pending;
+            if (!readable) {
+                // Genuine idle timeout (no socket event, nothing buffered).
+                if (ready == 0) {
+                    // Keep the waiting screen alive only until approval;
+                    // afterwards guacd's own sync drives the keepalive.
+                    if (forger.GetHandshakeState() == HandshakeState::ESTABLISHED &&
+                        !(approved && approved->load())) {
+                        std::string s = sync_instruction();
+                        guacamole_server.Send(fd, s.data(), s.size());
+                    }
+                    maybe_replay();
                 }
-                maybe_replay();
                 continue;
             }
 
-            // Nothing to read from the browser this wake-up
-            if (!(pfds[0].revents & (POLLIN | POLLHUP | POLLERR)))
-                continue;
-
             // There is data waiting from the browser
             int received = guacamole_server.Receive(fd, buffer, sizeof(buffer));
+            if (received == GuacamoleServer::RETRY)
+                continue; // TLS handshake/partial record: nothing yet, retry
             if (received <= 0)
                 break; // 0: client closed, <0: error
 

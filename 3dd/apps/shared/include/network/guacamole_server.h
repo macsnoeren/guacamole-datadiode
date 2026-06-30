@@ -2,11 +2,15 @@
 
 #include <netinet/in.h>
 #include <stdlib.h>
+#include <mutex>
 #include <string>
+#include <unordered_map>
 
-// Forward-declared so includers don't pull in <openssl/ssl.h>. SSL_CTX is a
-// typedef for `struct ssl_ctx_st`; the .cpp uses the real OpenSSL types.
+// Forward-declared so includers don't pull in <openssl/ssl.h>. SSL_CTX and SSL
+// are typedefs for `struct ssl_ctx_st` / `struct ssl_st`; the .cpp uses the real
+// OpenSSL types.
 struct ssl_ctx_st;
+struct ssl_st;
 
 /**
  * @brief A TCP server that accepts and serves multiple simultaneous clients
@@ -31,13 +35,30 @@ class GuacamoleServer {
     bool tls_on = false;          // whether this server speaks TLS
     ssl_ctx_st *ssl_ctx = nullptr; // shared server context (null in plaintext mode)
 
+    // Per-connection SSL objects, keyed by fd. The accept thread inserts on
+    // Accept(); the connection's owning thread looks them up for I/O and erases
+    // on Close(). Guarded by ssl_mtx since accept and reader threads both touch
+    // the map (though any one SSL object is only ever used by its owner thread).
+    std::mutex ssl_mtx;
+    std::unordered_map<int, ssl_st *> ssl_by_fd;
+
     /**
      * @brief Builds the server SSL_CTX and loads the cert/key
      * @return 0 on success, nonzero on failure (caller must abort startup)
      */
     int InitializeTls();
 
+    /**
+     * @brief Looks up the SSL object bound to fd, or nullptr if none/plaintext
+     */
+    ssl_st *SslFor(int fd);
+
   public:
+    // Receive() returns this when the TLS layer has no application data yet
+    // (handshake in progress or a partial record): the caller should retry,
+    // not treat it as a closed connection.
+    static constexpr int RETRY = -2;
+
     GuacamoleServer(std::string host, int recv_port)
         : host(host), recv_port(recv_port) {}
 
@@ -71,8 +92,18 @@ class GuacamoleServer {
     int WaitReadable(int fd, int timeout_ms);
 
     /**
+     * @brief Whether the TLS layer has a buffered record ready to decrypt.
+     *
+     * After SSL_read consumes a record, more may already sit in OpenSSL's buffer
+     * without the socket being readable, so poll() alone would miss them. Always
+     * false in plaintext mode. The caller treats a true result like readability.
+     */
+    bool HasPending(int fd);
+
+    /**
      * @brief Receives traffic from a client fd into buffer (blocking)
-     * @return Bytes received, 0 if the client closed, -1 on error
+     * @return Bytes received, 0 if the client closed, RETRY if the TLS layer has
+     *         no application data yet (retry), -1 on error
      */
     int Receive(int fd, char buffer[], size_t len);
 
