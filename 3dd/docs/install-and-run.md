@@ -18,7 +18,7 @@ This builds and runs the single-node configuration, and shows the logs in the te
 
 > If you do not want to see the logs, press `d`, or run the commmand with the `-d` flag.
 
-2. Navigate to the Guacamole dashboard by entering [http://localhost:8080/guacamole] in your web browser. Log in with username `guacadmin` and password `guacadmin`. On first run, this presents an empty dashboard.
+2. Navigate to the Guacamole dashboard by entering http://localhost:8080/guacamole in your web browser. Log in with username `guacadmin` and password `guacadmin`. On first run, this presents an empty dashboard.
 
 3. The single-node configuration allows users to remotely access `rdp` or `sshd` containers. Create an RDP connection by going to the top-right username button, clicking settings, go to tab Connections, and click on New Connection. Use the following parameters:
 - Name: rdp-docker-tester1 (or anything of your liking)
@@ -38,7 +38,7 @@ Optionally, try to connect from the dashboard now. The guard should block this l
 
 By default, the guard denies requests. In the PoC, a solid approval system was not yet implemented, so a temporary one has taken its place.
 
-5. Navigate to [http://localhost:8082] on the node and click the Approve button. This will approve all future connections. Now try to connect again, and a desktop screen should show up on the browser window. This is remote access! You can create and use multiple connections simultaneously in different browser windows.
+5. Navigate to http://localhost:8082 on the node and click the Approve button. This will approve all future connections. Now try to connect again, and a desktop screen should show up on the browser window. This is remote access! You can create and use multiple connections simultaneously in different browser windows.
 
 Optionally, to force close all open connections, press the Deny button on the guard approval interface.
 
@@ -82,7 +82,7 @@ This builds and runs the configuration, and shows the logs in the terminal.
 
 > If you do not want to see the logs, press `d`, or run the commmand with the `-d` flag.
 
-6. Navigate to the Guacamole dashboard by entering [http://localhost:8080/guacamole] in your web browser. Log in with username `guacadmin` and password `guacadmin`. On first run, this presents an empty dashboard.
+6. Navigate to the Guacamole dashboard by entering http://localhost:8080/guacamole in your web browser. Log in with username `guacadmin` and password `guacadmin`. On first run, this presents an empty dashboard.
 
 7. Create an RDP connection by going to the top-right username button, clicking settings, go to tab Connections, and click on New Connection. Use the following parameters:
 - Name: rdp-terminal-server (or anything of your liking)
@@ -94,7 +94,7 @@ This builds and runs the configuration, and shows the logs in the terminal.
 - Security mode: NLA (or select Any/leave empty if the terminal server does not support NLA)
 - Ignore server certificate: checked
 
-8. Click Save. Then navigate to [http://localhost:8082] on the guard node and click the Approve button. This will approve all future connections. Now try to connect, and a desktop screen should show up on the browser window. This is remote access! You can create and use multiple connections simultaneously in different browser windows.
+8. Click Save. Then navigate to http://localhost:8082 on the guard node and click the Approve button. This will approve all future connections. Now try to connect, and a desktop screen should show up on the browser window. This is remote access! You can create and use multiple connections simultaneously in different browser windows.
 
 ## Autonomous three-node run
 
@@ -209,7 +209,7 @@ Tip: Hardcoded ARP entries may be removed by the kernel on startup/network reloa
 
 ## Usage
 
-Navigate to [http://localhost:8080] which is where the web server listens. Use username `guacadmin` and password `guacadmin` to access the dashboard. This is where all created connections are visible.
+Navigate to http://localhost:8080 which is where the web server listens. Use username `guacadmin` and password `guacadmin` to access the dashboard. This is where all created connections are visible.
 
 ### Create a connection
 
@@ -242,7 +242,7 @@ The screen should turn red and the user is disconnected:
 
 This shows one of Iron Bridge's strong security measures: by default, no user can connect to, or even reach guacd. The request is stopped by the guard, which denies all connections by default. That means that no traffic will ever reach guacd before an approval is given. This approval is given by the plant operator that controls the guard.
 
-To let all connections through, navigate to the Approver dashboard on [http://localhost:8082] on the guard machine. Click on Approve, and try to reconnect. After a while, a desktop should be visible. Access was granted. (Also, the guard can disconnect any active session with the deny button, too)
+To let all connections through, navigate to the Approver dashboard on http://localhost:8082 on the guard machine. Click on Approve, and try to reconnect. After a while, a desktop should be visible. Access was granted. (Also, the guard can disconnect any active session with the deny button, too)
 
 ### File blocking
 
