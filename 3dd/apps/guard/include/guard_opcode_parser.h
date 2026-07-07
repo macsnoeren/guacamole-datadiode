@@ -7,7 +7,7 @@
 #include <string>
 
 /*
- * @brief Guard parser that bounds clipboard payloads.
+ * @brief Guard parser subclass from `OpcodeParser` that bounds clipboard payloads.
  *
  * Guacamole clipboard data arrives as a `clipboard,<stream>,<mime>` open, then
  * one or more `blob,<stream>,<data>` instructions, then `end,<stream>`. This
@@ -21,6 +21,7 @@
  */
 class GuardOpcodeParser : public OpcodeParser {
   public:
+    // Maximum allowed clipboard bytes in plaintext (non-base64) bytes
     static constexpr uint32_t MAX_CLIPBOARD_INPUT_BYTES = 50;
 
     // The maximum amount of base64 characters that can be sent.
@@ -33,6 +34,9 @@ class GuardOpcodeParser : public OpcodeParser {
     bool OnArgument(const GuacElement &arg) override;
 
   private:
+    // The guard's opcode allowlist: only these cross toward guacd.
+    static bool IsAllowedOpcode(const GuacElement &opcode);
+
     std::string current_opcode;
     int clipboard_sidx = -1;   // index of the open clipboard stream, or -1 if none
     size_t current_arg = 0;    // 1-based position of the argument being parsed

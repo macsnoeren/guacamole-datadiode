@@ -3,6 +3,8 @@ services:
     build:
       context: ../../../
       dockerfile: docker/include/gmlbroker/Dockerfile
-    stop_grace_period: 1s
+    environment:
+      QUEUE_STATS_MS: 1000
+    stop_grace_period: 5s
     container_name: gmlbroker
     restart: unless-stopped

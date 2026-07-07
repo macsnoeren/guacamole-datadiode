@@ -32,8 +32,11 @@ std::string cvt_state(ParserState state) {
  */
 void test_parsing(std::string input, ParserState expected,
                   OpcodeParser *parser = nullptr) {
+    // The opcode allowlist now lives in GuardOpcodeParser, so the default parser
+    // is the guard's. Framing-only tests that need the plain base pass an
+    // explicit OpcodeParser.
     if (parser == nullptr)
-        parser = new OpcodeParser();
+        parser = new GuardOpcodeParser();
     ParserState result = parser->Parse(input.data(), input.size());
 
     if (result != expected) {
@@ -50,7 +53,7 @@ void test_parsing(std::string input, ParserState expected,
  * @param expected: expected parse result
  */
 std::string excised_output(std::string input, ParserState expected) {
-    OpcodeParser parser;
+    GuardOpcodeParser parser; // exercises the guard's allowlist + excision
     ParserState result = parser.Parse(input.data(), input.size());
 
     if (result != expected) {
@@ -174,6 +177,10 @@ void test_denied_opcodes() {
     test_parsing("5.cfill;", ParserState::DENIED_DATA);
     test_parsing("10.filesystem;", ParserState::DENIED_DATA);
     test_parsing("4.file;", ParserState::DENIED_DATA);
+    // sync and nop are keepalives blocked on the inbound path (gmlbroker
+    // swallows them at the source; the guard denies them as defense-in-depth).
+    test_parsing("4.sync,2.31;", ParserState::DENIED_DATA);
+    test_parsing("3.nop;", ParserState::DENIED_DATA);
 
     test_parsing("3.key,", ParserState::READING_LENGTH);
     test_parsing("4.size,", ParserState::READING_LENGTH);
@@ -209,6 +216,11 @@ void test_denied_excision() {
     // Several denied instructions in a row are all removed.
     assert(excised_output("4.rect;5.cfill;3.key,3.109,1.1;",
                           ParserState::DENIED_DATA) == "3.key,3.109,1.1;");
+
+    // A client sync (browser -> guacd) is excised; surrounding input survives.
+    assert(excised_output("3.key,3.109,1.1;4.sync,2.31;5.mouse,3.988,3.369,1.0;",
+                          ParserState::DENIED_DATA) ==
+           "3.key,3.109,1.1;5.mouse,3.988,3.369,1.0;");
 
     // A whole datagram of denied content leaves nothing to forward.
     assert(excised_output("5.cfill;", ParserState::DENIED_DATA) == "");

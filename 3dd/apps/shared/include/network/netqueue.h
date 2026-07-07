@@ -17,6 +17,10 @@ class NetQueue {
     std::queue<BridgeMessage> queue;
     bool closed = false;
 
+    // Peak queue depth since the last TakeHighWater(); catches transient bursts a
+    // periodic size sampler would miss. Mutable so monitoring stays const.
+    mutable size_t high_water = 0;
+
   public:
     NetQueue() = default;
 
@@ -27,8 +31,22 @@ class NetQueue {
         {
             std::lock_guard<std::mutex> lock(mtx);
             queue.push(std::move(message));
+            if (queue.size() > high_water)
+                high_water = queue.size();
         }
         cv.notify_one();
+    }
+
+    /**
+     * @brief Returns the peak depth observed since the previous call and resets
+     *        the peak to the current depth. Use to spot transient backlog that a
+     *        point-in-time Size() reading between bursts would not reveal.
+     */
+    size_t TakeHighWater() const {
+        std::lock_guard<std::mutex> lock(mtx);
+        size_t peak = high_water;
+        high_water = queue.size();
+        return peak;
     }
 
     /**

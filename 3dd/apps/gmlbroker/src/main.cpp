@@ -5,6 +5,7 @@
 #include "../../shared/include/network/udpreceiver.h"
 #include "../../shared/include/network/udpsender.h"
 #include "../../shared/include/util/netargs.h"
+#include "../../shared/include/util/queue_monitor.h"
 #include "../include/nethandlers/guacamole_accept_handler.h"
 #include "../include/nethandlers/guacamole_send_handler.h"
 #include "../include/nethandlers/udp_recv_handler.h"
@@ -71,6 +72,7 @@ int main(int argc, char *argv[]) {
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = 0;
     sigaction(SIGINT, &sa, nullptr);
+    sigaction(SIGTERM, &sa, nullptr); // `docker compose down`/`stop` send SIGTERM
 
     // Initialize UDP and TCP infrastructure
     int exit;
@@ -95,6 +97,10 @@ int main(int argc, char *argv[]) {
     std::cout << "Initialized UDP sender for " << udp_send_ip << ":"
               << udp_send_port << std::endl;
 
+    // The approval switch is no longer relayed through here: the operator
+    // commands the guard directly from the OT side (see apps/approver), so
+    // nothing IT-side can influence the gate.
+
     ChannelTable table; // Shared by accept thread and guacamole_send thread to keep track of connections
     ApprovalRegistry approvals; // Per-channel approval flags
     ReaderGroup readers; // Tracks the per-connection reader threads for shutdown
@@ -116,6 +122,11 @@ int main(int argc, char *argv[]) {
     std::thread t_udp_send = udp_send_handler.Run(send_queue, udp_sender);
     std::thread t_udp_recv = udp_recv_handler.Run(recv_queue, udp_receiver);
 
+    // Optional diagnostic (set QUEUE_STATS_MS): watch for the return-path
+    // recv_queue growing, which means the browser side can't drain the bridge.
+    // std::thread t_qstats =
+    //     StartQueueMonitor(recv_queue, send_queue, running, "gmlbroker");
+
     // Shutdown ordering (SIGINT clears `running`): the blocked accept() and
     // recvfrom() time out (SO_RCVTIMEO), so the two producer threads fall out of
     // their loops first. recv_queue then has no producer, so closing it drains
@@ -124,6 +135,8 @@ int main(int argc, char *argv[]) {
     // their fds (each reader still owns its own close()) and WaitAll() for them
     // before destroying the state they capture. Finally send_queue, whose last
     // producers were those readers, is closed to drain t_udp_send.
+    // if (t_qstats.joinable())
+    //     t_qstats.join();
     t_accept.join();
     t_udp_recv.join();
     recv_queue.Close();

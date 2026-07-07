@@ -1,0 +1,22 @@
+# Guacamole-only configuration, without the 3DD
+name: guacamole-bridgeless
+
+include:
+  - ../include/gmwebserver/compose.yml
+  - ../include/guacd/compose.yml
+  - ../include/sshd/compose.yml
+  - ../include/rdp/compose.yml
+  - ../include/nettest/compose.yml
+
+services:
+  guacamole:
+    environment:
+      GUACD_HOSTNAME: guacd
+      GUACD_PORT: 4822
+
+  nettest:
+    environment:
+      GML_HOST: guacd
+      GML_PORT: "4822"
+    volumes:
+      - ./nettest-reports:/var/log/nettest

@@ -1,10 +1,18 @@
 #include "../../shared/include/network/udpreceiver.h"
 #include "../../shared/include/network/udpsender.h"
 #include <arpa/inet.h>
+#include <cstdlib>
 #include <iostream>
 #include <string>
 #include <sys/socket.h>
 #include <unistd.h>
+
+// Per-datagram relay logging is off by default (it floods stdout on a busy
+// bridge). Set RELAY_VERBOSE=1 to enable it.
+static bool relay_verbose() {
+    const char *v = std::getenv("RELAY_VERBOSE");
+    return v && std::string(v) != "0" && std::string(v) != "false";
+}
 
 /**
  * @brief Relays network traffic between the htx_proxy and ltx_proxy
@@ -37,11 +45,15 @@ int main(int argc, char *argv[]) {
 
     char buffer[65535];
 
+    const bool verbose = relay_verbose();
+
     while (true) {
         int received = receiver.Receive(buffer, sizeof(buffer));
         if (received > 0) {
-            std::cout << "Sending " << received << " bytes from :" << src_port
-                      << " -> " << dst_ip << ":" << dst_port << std::endl;
+            if (verbose)
+                std::cout << "Relaying " << received << " bytes (:" << src_port
+                          << " -> " << dst_ip << ":" << dst_port << ")"
+                          << std::endl;
             sender.Send(buffer, received);
         }
     }

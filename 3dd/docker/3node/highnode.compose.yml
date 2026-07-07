@@ -4,6 +4,7 @@ include:
   - ../include/gcdbroker/compose.yml
   - ../include/guacd/compose.yml
   - ../include/sshd/compose.yml
+  - ../include/rdp/compose.yml
 
 services:
   gcdbroker:

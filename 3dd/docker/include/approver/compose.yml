@@ -1,0 +1,21 @@
+services:
+  approver:
+    build:
+      context: ../../../
+      dockerfile: docker/include/approver/Dockerfile
+    stop_grace_period: 1s
+    container_name: approver
+    restart: unless-stopped
+    # Co-located with the guard (OT-side): commands the global approval switch
+    # directly on the guard's control port. Nothing IT-side can reach here.
+    environment:
+      GUARD_HOST: guard
+      GUARD_CONTROL_PORT: "4999"
+      HTTP_PORT: "8082"
+    ports:
+      - "8082:8082"
+    healthcheck:
+      test: ["CMD", "python3", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8082/api/state', timeout=2)"]
+      interval: 30s
+      timeout: 5s

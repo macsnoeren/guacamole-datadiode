@@ -7,11 +7,17 @@ loop so it can hold many connections at once; cumulative latency stats are
 published every poll for the UI dashboard.
 
 Parameters (from the start request body, all optional with defaults):
-  good       0..65535  valid connections that ping-pong: send input, await a
-                       guacd paint-back, record the round-trip; repeat.
+  good       0..65535  valid connections that ping-pong: send a probe, await the
+                       response, record the round-trip; repeat.
   bad        0..65535  connections that establish, then send a corrupt packet
                        (`2.foo;`) so the guard SHUTDOWN_CHANNELs them; the good
                        ones must survive.  good + bad <= 65535 (the channel space).
+  probe      key|argv  what each good connection sends to measure the round-trip.
+                       "key" presses ENTER and times guacd's terminal repaint —
+                       a realistic, heavy (multi-KB, multi-frame) return load.
+                       "argv" opens an argv stream and times guacd's tiny `ack` —
+                       a light, single-frame round-trip that stresses the forward
+                       path and connection count rather than return-path volume.
   delay      0.0..10.0 seconds a connection waits between sends (0 = as fast as
                        possible).
   randomize  bool      stagger each connection's start by a random offset
@@ -40,11 +46,30 @@ from guacclient import encode
 CHANNEL_LIMIT = 65535
 CONNECT_TIMEOUT_S = 5.0        # TCP connect (generous under high fan-out)
 RESPONSE_TIMEOUT_S = 2.0       # await a paint instruction from guacd
+QUIET_GAP_S = 0.05            # stream counts as "quiet" after 50 ms with no instruction
+DRAIN_BUDGET_S = 1.0          # cap on draining so a chatty stream can't stall the loop
 SHUTDOWN_OBSERVE_S = 3.0       # await the guard's shutdown message after corrupting the stream
 PUBLISH_INTERVAL_S = 0.5       # live-stats cadence
 
 _ENTER = encode("key", ENTER_KEYSYM, "1") + encode("key", ENTER_KEYSYM, "0")
 _CORRUPT = b"2.foo;"           # not valid Guacamole — corrupts the stream
+
+# argv-probe mode: opening an `argv` stream makes guacd reply with a tiny `ack`
+# (status 0, "Ready for updated parameter") in well under a millisecond. `argv`
+# is already on the guard's allowlist and the ack returns on the bridge's
+# return path (which bypasses the guard), so nothing in the guard changes. We
+# never send a value (no blob), so no parameter is actually altered, and we
+# `end` the stream each round so the index can be reused (guacd caps open
+# streams). The ack is ~45 bytes and single-frame, versus a key->paint redraw of
+# several KB across many frames — far less return-path volume to drop under load.
+_PROBE_IDX = "1"
+_ARGV_OPEN = encode("argv", _PROBE_IDX, "text/plain", "color-scheme")
+_ARGV_END = encode("end", _PROBE_IDX)
+
+
+def _is_argv_ack(instr):
+    """Whether an instruction is the ack for our argv probe stream."""
+    return instr[0] == "ack" and len(instr) > 1 and instr[1] == _PROBE_IDX
 
 
 def run_custom(ctx):
@@ -79,8 +104,8 @@ def _parse_params(params):
     Returns
     -------
     types.SimpleNamespace
-        ``good``, ``bad`` (int), ``delay``, ``duration`` (float), ``randomize``
-        (bool).
+        ``good``, ``bad`` (int), ``probe`` ("key"|"argv"), ``delay``,
+        ``duration`` (float), ``randomize`` (bool).
 
     Raises
     ------
@@ -105,8 +130,11 @@ def _parse_params(params):
             f"good + bad = {good + bad} exceeds the {CHANNEL_LIMIT}-channel limit")
     if good + bad == 0:
         raise TestFailure("nothing to run: set good and/or bad connections")
+    probe = str(params.get("probe", "key"))
+    if probe not in ("key", "argv"):
+        raise TestFailure(f"probe = {probe!r} must be 'key' or 'argv'")
     return SimpleNamespace(
-        good=good, bad=bad,
+        good=good, bad=bad, probe=probe,
         delay=num("delay", 0.0, 0.0, 10.0, float),
         duration=num("duration", 10.0, 0.1, 3600.0, float),
         randomize=bool(params.get("randomize", False)))
@@ -268,8 +296,9 @@ async def _main(ctx):
         "hostname": ctx.cfg["E2E_SSH_HOST"], "port": ctx.cfg["E2E_SSH_PORT"],
         "username": ctx.cfg["E2E_SSH_USER"], "password": ctx.cfg["E2E_SSH_PASS"],
     })
-    log(f"[custom] {p.good} good + {p.bad} bad connection(s), {p.delay:.1f}s "
-        f"send delay, {'randomized' if p.randomize else 'lockstep'} offsets, "
+    log(f"[custom] {p.good} good ({p.probe} probe) + {p.bad} bad connection(s), "
+        f"{p.delay:.1f}s send delay, "
+        f"{'randomized' if p.randomize else 'lockstep'} offsets, "
         f"{p.duration:.0f}s — guacd SSH target {ctx.cfg['E2E_SSH_HOST']}")
 
     stats = _Stats(p.good, p.bad)
@@ -364,6 +393,62 @@ async def _publisher(ctx, stats, stop):
             pass
 
 
+async def _probe_key(stream, loop):
+    """One key->paint round: time guacd's terminal repaint after an ENTER.
+
+    Drains the stream quiet first so the timed paint is a genuine response to
+    *our* keypress — not a stale trailing frame from the previous redraw, the
+    initial terminal render, or guacd's ~1 Hz sync heartbeat. Without the drain
+    the next read can return an already-buffered paint immediately, recording an
+    RTT near 0 ms.
+
+    Returns
+    -------
+    tuple[str, float | None]
+        ``("ok", rtt_ms)``, ``("timeout", None)`` (alive but no paint in time),
+        or ``("disconnect", None)`` (peer closed).
+    """
+    if not await _drain_quiet(stream, QUIET_GAP_S, DRAIN_BUDGET_S):
+        return "disconnect", None
+    t0 = loop.time()
+    try:
+        await stream.send(_ENTER)  # press and immediately release the ENTER key
+    except OSError:
+        return "disconnect", None
+    frame = await _read_until(stream, _is_paint, RESPONSE_TIMEOUT_S)
+    if frame is None:
+        return ("disconnect" if stream.eof else "timeout"), None
+    return "ok", (loop.time() - t0) * 1000
+
+
+async def _probe_argv(stream, loop):
+    """One argv->ack round: time guacd's tiny ack for an argv stream open.
+
+    No drain is needed — the ack predicate matches only the ack for our own
+    stream index, so buffered paints or syncs can't be mistaken for the
+    response. The stream is ended each round so its index can be reused.
+
+    Returns
+    -------
+    tuple[str, float | None]
+        ``("ok", rtt_ms)``, ``("timeout", None)``, or ``("disconnect", None)``.
+    """
+    t0 = loop.time()
+    try:
+        await stream.send(_ARGV_OPEN)
+    except OSError:
+        return "disconnect", None
+    ack = await _read_until(stream, _is_argv_ack, RESPONSE_TIMEOUT_S)
+    rtt = (loop.time() - t0) * 1000
+    try:
+        await stream.send(_ARGV_END)  # free the stream index for the next round
+    except OSError:
+        pass  # the measurement is already taken; a failed end is a disconnect below
+    if ack is None:
+        return ("disconnect" if stream.eof else "timeout"), None
+    return "ok", rtt
+
+
 async def _good_conn(stats, stop, cfg):
     """One good connection: establish, then ping-pong, recording each RTT.
 
@@ -393,25 +478,16 @@ async def _good_conn(stats, stop, cfg):
             return
         stats.good_established += 1
 
+        probe = _probe_argv if cfg.p.probe == "argv" else _probe_key
         while not stop.is_set():
-            t0 = loop.time()
-            try:
-                # Send input: pressing and immediately letting go of the ENTER key
-                await stream.send(_ENTER)
-            except OSError:
+            status, rtt = await probe(stream, loop)
+            if status == "disconnect":
                 stats.good_disconnected += 1
                 return
-
-            # Wait for next paint frame (e.g. rect, cfill)
-            frame = await _read_until(stream, _is_paint, RESPONSE_TIMEOUT_S)
-            if frame is None:
-                # If channel is closed, no reply back from guacd
-                if stream.eof:
-                    stats.good_disconnected += 1
-                    return
+            if status == "timeout":
                 stats.good_timeouts += 1
             else:
-                stats.record_rtt((loop.time() - t0) * 1000)
+                stats.record_rtt(rtt)
 
             # Wait a delay before sending again
             await _interruptible_sleep(cfg.p.delay, stop)
@@ -580,6 +656,38 @@ def _is_paint(instr):
         True if the opcode is in ``GUACD_DRAW_OPS``.
     """
     return instr[0] in GUACD_DRAW_OPS
+
+
+async def _drain_quiet(stream, quiet, budget):
+    """Read and discard instructions until the stream falls silent.
+
+    Called before timing a keypress so the measured paint is a response to that
+    keypress and not a frame already in flight (a multi-frame prompt redraw, the
+    initial terminal render, or guacd's periodic sync).
+
+    Parameters
+    ----------
+    stream : aguacclient.AsyncInstructionStream
+        The connection to drain.
+    quiet : float
+        Seconds of silence that count as drained — once a read waits this long
+        without yielding an instruction, the stream is considered quiet.
+    budget : float
+        Upper bound on total draining, so a continuously chatty stream cannot
+        stall the caller.
+
+    Returns
+    -------
+    bool
+        True if the stream went quiet (still connected); False if the peer
+        closed it during the drain.
+    """
+    loop = asyncio.get_running_loop()
+    end = loop.time() + budget
+    while loop.time() < end:
+        if await stream.read_instruction(quiet) is None:
+            return not stream.eof  # quiet (True) or closed mid-drain (False)
+    return not stream.eof
 
 
 async def _drain_until_eof(stream, timeout):

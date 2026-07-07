@@ -1,5 +1,6 @@
 #include "../../include/nethandlers/guacamole_read_handler.h"
 #include "../../../shared/include/network/multiplexer.h"
+#include "../../include/forward_keepalive_filter.h"
 #include "../../include/handshake_forger.h"
 #include "../../include/running.h"
 #include <atomic>
@@ -90,6 +91,7 @@ std::thread GuacamoleReadHandler::Run(NetQueue &queue, GuacamoleServer &guacamol
 
         char buffer[Multiplexer::MAX_PAYLOAD_SIZE + 1];
         HandshakeForger forger; // forges the guacd handshake toward the web server
+        ForwardKeepaliveFilter keepalive_filter; // swallows the browser's sync/nop keepalives
         std::shared_ptr<std::atomic<bool>> approved = approvals.Flag(channel);
         bool replayed = false;
 
@@ -157,7 +159,7 @@ std::thread GuacamoleReadHandler::Run(NetQueue &queue, GuacamoleServer &guacamol
                     create.payload = req_id;
                     queue.Enqueue(std::move(create));
                     std::cout << "guacamole_reader: channel " << (int)channel
-                              << " requesting approval (id " << req_id << ")"
+                              << " requesting approval"
                               << std::endl;
                 }
                 continue;
@@ -168,11 +170,17 @@ std::thread GuacamoleReadHandler::Run(NetQueue &queue, GuacamoleServer &guacamol
             // dropped.
             maybe_replay();
             if (replayed) {
-                BridgeMessage msg;
-                msg.channel = channel;
-                msg.action = ChannelAction::NONE;
-                msg.payload.assign(buffer, received);
-                queue.Enqueue(std::move(msg));
+                // Swallow the browser's keepalives (sync/nop) here so they never
+                // cross the bridge; the guard validates the rest.
+                size_t len = static_cast<size_t>(received);
+                keepalive_filter.Filter(buffer, len);
+                if (len > 0) {
+                    BridgeMessage msg;
+                    msg.channel = channel;
+                    msg.action = ChannelAction::NONE;
+                    msg.payload.assign(buffer, len);
+                    queue.Enqueue(std::move(msg));
+                }
             }
         }
 

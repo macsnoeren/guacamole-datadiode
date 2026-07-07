@@ -1,13 +1,29 @@
 #include "../../include/network/guacd_client.h"
 #include <arpa/inet.h>
 #include <cerrno>
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
+
+namespace {
+// How long a write to guacd may block before it fails. A single thread
+// (GuacdSendHandler) writes to every guacd connection; without a bound, one
+// stalled connection (guacd not reading its input) would block that thread
+// indefinitely and starve other channels' sync acks, so guacd reports them
+// "not responding". On timeout the write fails and only that channel is torn
+// down, leaving the others healthy. Tunable via GUACD_SEND_TIMEOUT_MS.
+int guacd_send_timeout_ms() {
+    const char *env = std::getenv("GUACD_SEND_TIMEOUT_MS");
+    int v = env ? std::atoi(env) : 0;
+    return v > 0 ? v : 2000;
+}
+} // namespace
 
 int GuacdClient::Connect() {
     struct addrinfo hints, *res, *p;
@@ -40,6 +56,17 @@ int GuacdClient::Connect() {
         fd = -1;
     }
     freeaddrinfo(res);
+
+    if (fd >= 0) {
+        // Bound how long a write to this guacd connection may block, so a
+        // stalled connection can't head-of-line block the shared writer thread
+        // and starve other channels' sync acks.
+        int ms = guacd_send_timeout_ms();
+        struct timeval tv{};
+        tv.tv_sec = ms / 1000;
+        tv.tv_usec = (ms % 1000) * 1000;
+        ::setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+    }
 
     return fd;
 }
@@ -76,7 +103,11 @@ ssize_t GuacdClient::Send(int fd, const char *buffer, size_t len) {
         if (sent < 0) {
             if (errno == EINTR)
                 continue;
-            perror("send");
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+                std::cerr << "guacd_client: send to fd " << fd << " timed out "
+                             "(connection stalled); tearing it down" << std::endl;
+            else
+                perror("send");
             return -1;
         }
 

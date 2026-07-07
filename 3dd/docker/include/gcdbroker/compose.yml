@@ -3,6 +3,8 @@ services:
     build:
       context: ../../../
       dockerfile: docker/include/gcdbroker/Dockerfile
-    stop_grace_period: 1s
+    environment:
+      QUEUE_STATS_MS: 1000
+    stop_grace_period: 5s
     container_name: gcdbroker
     restart: unless-stopped

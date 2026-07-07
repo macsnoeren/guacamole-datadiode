@@ -8,5 +8,5 @@
 
 class GuacdReadHandler {
     public:
-        std::thread Run(NetQueue &send_queue, GuacdClient &guacd_client, ChannelTable &table, ReaderGroup &readers, uint16_t channel, int fd);
+        std::thread Run(NetQueue &recv_queue, NetQueue &send_queue, GuacdClient &guacd_client, ChannelTable &table, ReaderGroup &readers, uint16_t channel, int fd);
 };

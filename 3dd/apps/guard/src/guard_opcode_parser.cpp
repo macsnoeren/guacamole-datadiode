@@ -1,5 +1,6 @@
 #include "../include/guard_opcode_parser.h"
 #include <charconv>
+#include <cstring>
 #include <system_error>
 
 namespace {
@@ -16,6 +17,49 @@ int parse_stream_index(const GuacElement &arg) {
 
 } // namespace
 
+bool GuardOpcodeParser::IsAllowedOpcode(const GuacElement &opcode) {
+    /*
+     * Only connection-setup, input and stream-control opcodes may cross toward
+     * guacd. `sync` is deliberately NOT allowed: it is blocked on the inbound
+     * path and the brokers fake the keepalive instead.
+     *
+     * 3.key   3.ack   3.end
+     * 4.size  4.name  4.argv  4.blob
+     * 5.audio 5.video 5.image 5.mouse
+     * 6.select 7.connect 8.timezone 9.clipboard 10.disconnect
+     *
+     * `sync` and `nop` are NOT allowed: they are keepalives that gmlbroker
+     * swallows on the forward path (ForwardKeepaliveFilter) and the brokers fake.
+     */
+    switch (opcode.len) {
+    case 3:
+        return !memcmp(opcode.ptr, "key", 3) || !memcmp(opcode.ptr, "ack", 3) ||
+               !memcmp(opcode.ptr, "end", 3);
+    case 4:
+        return !memcmp(opcode.ptr, "blob", 4) ||
+               !memcmp(opcode.ptr, "size", 4) ||
+               !memcmp(opcode.ptr, "name", 4) ||
+               !memcmp(opcode.ptr, "argv", 4);
+    case 5:
+        return !memcmp(opcode.ptr, "audio", 5) ||
+               !memcmp(opcode.ptr, "video", 5) ||
+               !memcmp(opcode.ptr, "image", 5) ||
+               !memcmp(opcode.ptr, "mouse", 5);
+    case 6:
+        return !memcmp(opcode.ptr, "select", 6);
+    case 7:
+        return !memcmp(opcode.ptr, "connect", 7);
+    case 8:
+        return !memcmp(opcode.ptr, "timezone", 8);
+    case 9:
+        return !memcmp(opcode.ptr, "clipboard", 9);
+    case 10:
+        return !memcmp(opcode.ptr, "disconnect", 10);
+    default:
+        return false;
+    }
+}
+
 bool GuardOpcodeParser::OnInstructionBegin(const GuacElement &instr) {
     current_opcode.assign(instr.ptr, instr.len);
 
@@ -25,7 +69,7 @@ bool GuardOpcodeParser::OnInstructionBegin(const GuacElement &instr) {
     current_arg = 0;
     cap_next_arg = false;
 
-    return OpcodeParser::OnInstructionBegin(instr);
+    return IsAllowedOpcode(instr);
 }
 
 bool GuardOpcodeParser::OnArgument(const GuacElement &arg) {

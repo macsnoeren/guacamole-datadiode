@@ -1,4 +1,5 @@
 #include "../../include/network/udpsender.h"
+#include "../../include/util/sockbuf.h"
 #include <arpa/inet.h>
 #include <cerrno>
 #include <cstring>
@@ -46,7 +47,12 @@ int UDPSender::Initialize() {
     }
 
     sock_fd = fd;
-    
+
+    // Enlarge the send buffer so a burst of datagrams doesn't overflow it (a
+    // failed sendto silently drops the datagram, and the bridge has no
+    // retransmit).
+    set_bridge_sockbuf(sock_fd, SO_SNDBUF, "UDPSender SO_SNDBUF");
+
     struct sockaddr_in *addr_in = reinterpret_cast<struct sockaddr_in*>(rp->ai_addr);
     std::memset(&sock_addr, 0, sizeof(sock_addr));
     sock_addr.sin_family = addr_in->sin_family;

@@ -1,12 +1,9 @@
 #include "../include/approver.h"
-#include <cstdlib>
-#include <cstring>
 #include <iostream>
 
 ApprovalResult Approver::HandleRequest(const std::string &request_id) {
-    // PoC operator stand-in: deny everything when asked to, otherwise approve.
-    const char *policy = std::getenv("GUARD_APPROVE");
-    if (policy && std::strcmp(policy, "deny") == 0) {
+    // PoC operator stand-in: honour the runtime global approve/deny switch.
+    if (!approve_.load(std::memory_order_relaxed)) {
         std::cout << "Approver: DENY request " << request_id << std::endl;
         return {false, "operator denied the request"};
     }

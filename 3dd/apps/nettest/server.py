@@ -53,6 +53,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     # Set once in main() before the server starts.
     runner = None
     log_buffer = None
+    cfg = None
 
     def log_message(self, *args):
         pass  # the UI polls every 500 ms; default logging would flood stdout
@@ -105,6 +106,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif url.path == "/api/stop":
             self.runner.stop()
             self._json(200, {"stopping": True})
+        elif url.path == "/api/reports/clear":
+            deleted, errors = self.runner.clear_reports()
+            if errors:
+                self._json(500, {"deleted": deleted, "errors": errors})
+            else:
+                self._json(200, {"deleted": deleted})
         else:
             self._json(404, {"error": "not found"})
 
@@ -182,6 +189,7 @@ def main():
               f"will be skipped: {e}", flush=True)
     Handler.log_buffer = runner.LogBuffer()
     Handler.runner = runner.TestRunner(flows.TESTS, cfg, Handler.log_buffer)
+    Handler.cfg = cfg
 
     srv = http.server.ThreadingHTTPServer(("0.0.0.0", cfg["HTTP_PORT"]), Handler)
     srv.daemon_threads = True

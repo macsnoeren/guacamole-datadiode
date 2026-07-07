@@ -2,6 +2,7 @@ name: 3dd-3node-guardnode
 
 include:
   - ../include/guard/compose.yml
+  - ../include/approver/compose.yml
 
 services:
   guard:
@@ -13,3 +14,4 @@ services:
       ]
     ports:
       - "5500:5500/udp"
+      - "4999:4999/udp" # Approval-toggle control port
