@@ -19,7 +19,7 @@ services:
       # Flow 4 (e2e): the SSH backend guacd dials, matching the sshd container.
       E2E_SSH_HOST: sshd
       E2E_SSH_PORT: "22"
-      E2E_SSH_USER: tester
+      E2E_SSH_USER: tester1
       E2E_SSH_PASS: testpass
     ports:
       - "8081:8081"

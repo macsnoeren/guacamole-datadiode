@@ -71,6 +71,12 @@ ParserState OpcodeParser::Parse(const char *data, size_t len) {
             // ASCII-checked, since the hooks never see it).
             if (current_read < MAX_ELEMENT_SIZE) {
                 // byte MUST be ascii value
+                // [ISSUE] MS: This is untrue. The Guacamole wire protocol defines element lengths as number of Unicode characters.
+            //             Here you count bytes. The consequence is that any good multi-byte UTF-8 (non-ASCII clibboard text, usernames,
+            //             file names, etc.) fail and this function marks it as stream_corrupted.
+            //             Another observation is that the count is in bytes, a length prefix that is correct in characters and with a
+            //             multibyte (UTF-8) content will break synchronisation of the parser. But this is not seen, while
+            //             your >127 if statement will fail first. I think this is possibly also a problem with RDP sessions.
                 if (static_cast<unsigned char>(c) > 127) {
                     state = ParserState::STREAM_CORRUPTED;
                     return state;

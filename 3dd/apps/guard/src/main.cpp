@@ -28,6 +28,25 @@ std::atomic<bool> running = true;
  */
 void interrupt_handler(int) { running = false; }
 
+// A request id is gmlbroker's inert connection identifier: exactly
+// REQUEST_ID_LEN lowercase hex characters (see make_request_id in gmlbroker).
+// The guard receives it over UDP and cannot trust the sender, so its shape is
+// validated before it is logged, echoed back, or acted on — otherwise an
+// attacker could pack terminal escapes or fake log lines into the CREATE
+// payload, which the guard prints and relays.
+constexpr size_t REQUEST_ID_LEN = 12;
+
+bool is_valid_request_id(const std::string &id) {
+    if (id.size() != REQUEST_ID_LEN)
+        return false;
+    for (unsigned char c : id) {
+        bool hex = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+        if (!hex)
+            return false;
+    }
+    return true;
+}
+
 /*
  * @brief Human-readable name for a parser state, for logging
  */
@@ -179,13 +198,23 @@ int main(int argc, char *argv[]) {
         switch (msg.action) {
         // CREATE is the inert approval request: the operator decides here.
         case ChannelAction::CREATE_CHANNEL: {
+            // The CREATE payload is the inert request id (never Guacamole). It
+            // arrives over UDP, so validate its shape before trusting it or
+            // mutating any per-channel state — a malformed id is dropped like a
+            // malformed datagram, so a forged CREATE can't reset a live channel.
+            const std::string &request_id = msg.payload;
+            if (!is_valid_request_id(request_id)) {
+                std::cerr << "guard: dropped CREATE with malformed request id on "
+                             "channel "
+                          << (int)msg.channel << std::endl;
+                break;
+            }
+
             // Fresh state for a (possibly reused) channel id
             parsers[msg.channel] = GuardOpcodeParser{};
             poisoned.erase(msg.channel);
             approved.erase(msg.channel);
 
-            // The CREATE payload is the inert request id (never Guacamole).
-            const std::string &request_id = msg.payload;
             ApprovalResult verdict = approver.HandleRequest(request_id);
 
             // Forward the CREATE downstream (gcdbroker dials guacd only when it

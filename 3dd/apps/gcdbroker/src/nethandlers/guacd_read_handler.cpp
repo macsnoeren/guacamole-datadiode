@@ -2,9 +2,22 @@
 #include "../../../shared/include/network/multiplexer.h"
 #include "../../include/running.h"
 #include "../../include/sync_faker.h"
+#include <chrono>
+#include <cstdlib>
 #include <iostream>
 #include <sstream>
 #include <string>
+
+namespace {
+// How long guacd may go without a sync from us before we re-send the last one
+// as a keepalive. Must stay well under guacd's "user not responding" timeout.
+// Matches the GUACD_KEEPALIVE_MS used for the socket receive timeout.
+std::chrono::milliseconds keepalive_interval() {
+    const char *env = std::getenv("GUACD_KEEPALIVE_MS");
+    int v = env ? std::atoi(env) : 0;
+    return std::chrono::milliseconds(v > 0 ? v : 3000);
+}
+} // namespace
 
 /*
  * @brief Reads one guacd connection and wraps each read as a NONE message
@@ -30,24 +43,46 @@ std::thread GuacdReadHandler::Run(NetQueue &recv_queue, NetQueue &send_queue,
 
         char buffer[Multiplexer::MAX_PAYLOAD_SIZE + 1];
         SyncFaker sync_faker; // synthesises the client's sync ack toward guacd
+        std::string last_ack; // most recent sync ack, re-sent as a keepalive
+        const auto keepalive = keepalive_interval();
+        auto last_sent = std::chrono::steady_clock::now(); // last sync sent to guacd
 
         while (running) {
             int received = guacd_client.Receive(fd, buffer, sizeof(buffer));
-            if (received <= 0)
+            auto now = std::chrono::steady_clock::now();
+
+            if (received > 0) {
+                BridgeMessage msg;
+                msg.channel = channel;
+                msg.action = ChannelAction::NONE;
+                msg.payload.assign(buffer, received);
+                send_queue.Enqueue(std::move(msg));
+
+                // Fake the client's sync acknowledgement toward guacd for every
+                // sync guacd just emitted (the guard dropped the real one).
+                std::string ack = sync_faker.Feed(buffer, received);
+                if (!ack.empty()) {
+                    last_ack = ack; // remember for the keepalive below
+                    BridgeMessage sync{channel, ChannelAction::NONE, std::move(ack)};
+                    recv_queue.Enqueue(std::move(sync));
+                    last_sent = now;
+                    continue; // a real ack just went out; no keepalive needed
+                }
+                // Data arrived but carried no sync to echo — fall through to the
+                // time-based keepalive so a busy-but-syncless trickle (panel
+                // clock, cursor) still can't starve guacd.
+            } else if (received != GuacdClient::RECV_TIMEOUT) {
                 break; // 0: guacd closed, <0: error
+            }
 
-            BridgeMessage msg;
-            msg.channel = channel;
-            msg.action = ChannelAction::NONE;
-            msg.payload.assign(buffer, received);
-            send_queue.Enqueue(std::move(msg));
-
-            // Fake the client's sync acknowledgement toward guacd for every sync
-            // guacd just emitted (the guard dropped the real one).
-            std::string ack = sync_faker.Feed(buffer, received);
-            if (!ack.empty()) {
-                BridgeMessage sync{channel, ChannelAction::NONE, std::move(ack)};
-                recv_queue.Enqueue(std::move(sync));
+            // Time-based keepalive: if guacd hasn't heard a sync from us within
+            // `keepalive`, re-send the last one. The browser's own periodic
+            // keepalive was swallowed on the forward path, so without this an idle
+            // (or syncless-trickle) session trips guacd's read timeout.
+            if (!last_ack.empty() && now - last_sent >= keepalive) {
+                BridgeMessage ka{channel, ChannelAction::NONE, last_ack};
+                recv_queue.Enqueue(std::move(ka));
+                last_sent = now;
             }
         }
 

@@ -4,14 +4,19 @@
 #include <iostream>
 #include <optional>
 
+// [ISSUE] MS: Also in this case there is no cap on the created threads which opens up DoS possibilties again.
+//             A client that opens many connections (up to 65536) and can exhaust memory.
+
 /*
  * @brief Accepts Guacamole connections, allocating a channel for each
  */
-std::thread GuacamoleAcceptHandler::Run(NetQueue &queue, GuacamoleServer &guacamole_server,
+std::thread GuacamoleAcceptHandler::Run(NetQueue &queue, NetQueue &recv_queue,
+                                  GuacamoleServer &guacamole_server,
                                   ChannelTable &table,
                                   ApprovalRegistry &approvals,
+                                  MailboxRegistry &mailboxes,
                                   ReaderGroup &readers) {
-    return std::thread([&queue, &guacamole_server, &table, &approvals, &readers]() {
+    return std::thread([&queue, &recv_queue, &guacamole_server, &table, &approvals, &mailboxes, &readers]() {
         while (running) {
             int fd = guacamole_server.Accept();
             if (fd < 0) {
@@ -30,11 +35,13 @@ std::thread GuacamoleAcceptHandler::Run(NetQueue &queue, GuacamoleServer &guacam
                 continue;
             }
 
-            // Register the channel's approval state before its reader can run.
-            // The CREATE (approval request) is sent later, once the forged
+            // Register the channel's approval state and outbound mailbox before
+            // its reader can run, so the guacamole_send thread can always route
+            // to it. The CREATE (approval request) is sent later, once the forged
             // handshake is done — nothing crosses the bridge for an incomplete
             // handshake.
             approvals.Create(channel.value());
+            mailboxes.Create(channel.value());
             std::cout << "accept_handler: new channel " << (int)channel.value()
                       << std::endl;
 
@@ -46,7 +53,7 @@ std::thread GuacamoleAcceptHandler::Run(NetQueue &queue, GuacamoleServer &guacam
             // WaitAll runs, so the count is final by then).
             readers.Enter();
             GuacamoleReadHandler reader;
-            reader.Run(queue, guacamole_server, table, approvals, readers, channel.value(), fd)
+            reader.Run(queue, recv_queue, guacamole_server, table, approvals, mailboxes, readers, channel.value(), fd)
                 .detach();
         }
     });

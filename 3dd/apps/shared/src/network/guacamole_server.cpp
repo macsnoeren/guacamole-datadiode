@@ -1,6 +1,8 @@
 #include "../../include/network/guacamole_server.h"
+#include "../../include/util/tls.h"
 #include <arpa/inet.h>
 #include <cerrno>
+#include <csignal>
 #include <cstring>
 #include <iostream>
 #include <poll.h>
@@ -8,12 +10,74 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <netdb.h>
+#include <openssl/err.h>
+#include <openssl/ssl.h>
 
 GuacamoleServer::~GuacamoleServer() {
     if (listen_fd >= 0) {
         ::shutdown(listen_fd, SHUT_RDWR);
         ::close(listen_fd);
     }
+    if (ssl_ctx)
+        SSL_CTX_free(ssl_ctx);
+}
+
+ssl_st *GuacamoleServer::SslFor(int fd) {
+    std::lock_guard<std::mutex> lock(ssl_mtx);
+    auto it = ssl_by_fd.find(fd);
+    return it == ssl_by_fd.end() ? nullptr : it->second;
+}
+
+bool GuacamoleServer::HasPending(int fd) {
+    if (!tls_on)
+        return false;
+    SSL *ssl = SslFor(fd);
+    return ssl && SSL_pending(ssl) > 0;
+}
+
+int GuacamoleServer::InitializeTls() {
+    // A write to a peer that has gone away raises SIGPIPE, which defaults to
+    // terminating the process. SSL_write (and the plaintext Send loop) can both
+    // hit that on an abrupt browser disconnect, so ignore it and rely on the
+    // EPIPE return instead.
+    ::signal(SIGPIPE, SIG_IGN);
+
+    // OpenSSL 1.1.0+ initializes itself on first use, so no explicit
+    // library/algorithm setup is needed here.
+    ssl_ctx = SSL_CTX_new(TLS_server_method());
+    if (!ssl_ctx) {
+        std::cerr << "TLS: SSL_CTX_new failed" << std::endl;
+        ERR_print_errors_fp(stderr);
+        return -1;
+    }
+
+    // Refuse anything below TLS 1.2; the web server (TLS client) negotiates up.
+    SSL_CTX_set_min_proto_version(ssl_ctx, TLS1_2_VERSION);
+
+    const std::string cert = tls_cert_path();
+    const std::string key = tls_key_path();
+
+    if (SSL_CTX_use_certificate_chain_file(ssl_ctx, cert.c_str()) != 1) {
+        std::cerr << "TLS: failed to load certificate chain from " << cert
+                  << std::endl;
+        ERR_print_errors_fp(stderr);
+        return -1;
+    }
+    if (SSL_CTX_use_PrivateKey_file(ssl_ctx, key.c_str(), SSL_FILETYPE_PEM) !=
+        1) {
+        std::cerr << "TLS: failed to load private key from " << key << std::endl;
+        ERR_print_errors_fp(stderr);
+        return -1;
+    }
+    if (SSL_CTX_check_private_key(ssl_ctx) != 1) {
+        std::cerr << "TLS: private key does not match certificate" << std::endl;
+        ERR_print_errors_fp(stderr);
+        return -1;
+    }
+
+    std::cout << "TLS enabled: loaded certificate " << cert << " and key " << key
+              << std::endl;
+    return 0;
 }
 
 int GuacamoleServer::Initialize() {
@@ -37,34 +101,36 @@ int GuacamoleServer::Initialize() {
             break;
     }
 
-    ::freeaddrinfo(results);
-
-    listen_fd = ::socket(AF_INET, SOCK_STREAM, 0);
-    if (listen_fd < 0) {
-        perror("socket");
-        return 1;
+    // Copy the resolved address out of the addrinfo list *before* freeing it:
+    // `rp` points into `results`, so any read of `rp->ai_addr` after
+    // freeaddrinfo() would be a use-after-free.
+    sockaddr_in addr;
+    std::memset(&addr, 0, sizeof(addr));
+    bool resolved = rp != nullptr;
+    if (resolved) {
+        struct sockaddr_in *addr_in =
+            reinterpret_cast<struct sockaddr_in *>(rp->ai_addr);
+        addr.sin_family = addr_in->sin_family;
+        addr.sin_port = addr_in->sin_port;
+        addr.sin_addr = addr_in->sin_addr;
     }
 
-    if (rp == nullptr) {
+    ::freeaddrinfo(results);
+
+    if (!resolved) {
         std::cerr << "Could not resolve hostname or address: " << host << std::endl;
         if (fd >= 0)
             ::close(fd);
         return -1;
     }
 
+    // Reuse the socket opened in the resolve loop above rather than opening a
+    // second one (which would leak the first fd).
     listen_fd = fd;
-    
-    struct sockaddr_in *addr_in = reinterpret_cast<struct sockaddr_in*>(rp->ai_addr);
 
     // Reuse address if it is already in use or not properly cleaned up
     int one = 1;
     ::setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
-
-    sockaddr_in addr;
-    std::memset(&addr, 0, sizeof(addr));
-    addr.sin_family = addr_in->sin_family;
-    addr.sin_port = addr_in->sin_port;
-    addr.sin_addr = addr_in->sin_addr;
 
     // Bind and listen to the given port
     if (::bind(listen_fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) <
@@ -89,6 +155,21 @@ int GuacamoleServer::Initialize() {
     tv.tv_sec = 0;
     tv.tv_usec = 200000; // 200 ms
     ::setsockopt(listen_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    // Maintainer toggle: stand up the TLS context only when explicitly enabled.
+    // A configured-but-broken TLS setup must abort startup rather than silently
+    // serving plaintext, which would be a security downgrade.
+    tls_on = tls_enabled();
+    if (tls_on) {
+        if (InitializeTls() != 0) {
+            std::cerr << "TLS: initialization failed, refusing to start"
+                      << std::endl;
+            return 1;
+        }
+    } else {
+        std::cout << "TLS disabled: serving the web server in plaintext"
+                  << std::endl;
+    }
 
     return 0;
 }
@@ -115,6 +196,23 @@ int GuacamoleServer::Accept() {
               << ntohs(client_addr.sin_port) << " (fd " << fd << ")"
               << std::endl;
 
+    // In TLS mode, wrap the connection now but don't drive the handshake here:
+    // SSL_set_accept_state() lets the first SSL_read/SSL_write on the owning
+    // thread negotiate it, so a slow client can't stall the accept loop.
+    if (tls_on) {
+        SSL *ssl = SSL_new(ssl_ctx);
+        if (!ssl) {
+            std::cerr << "TLS: SSL_new failed for fd " << fd << std::endl;
+            ERR_print_errors_fp(stderr);
+            ::close(fd);
+            return -1;
+        }
+        SSL_set_fd(ssl, fd);
+        SSL_set_accept_state(ssl);
+        std::lock_guard<std::mutex> lock(ssl_mtx);
+        ssl_by_fd[fd] = ssl;
+    }
+
     return fd;
 }
 
@@ -134,6 +232,27 @@ int GuacamoleServer::WaitReadable(int fd, int timeout_ms) {
 }
 
 int GuacamoleServer::Receive(int fd, char *buffer, size_t len) {
+    if (tls_on) {
+        SSL *ssl = SslFor(fd);
+        if (!ssl)
+            return -1;
+        int n = SSL_read(ssl, buffer, static_cast<int>(len - 1));
+        if (n > 0) {
+            buffer[n] = '\0'; // make it a C-string for printing
+            return n;
+        }
+        switch (SSL_get_error(ssl, n)) {
+        case SSL_ERROR_WANT_READ:
+        case SSL_ERROR_WANT_WRITE:
+            // Handshake in progress or a partial record: nothing to deliver yet.
+            return RETRY;
+        case SSL_ERROR_ZERO_RETURN:
+            return 0; // peer sent close_notify: orderly TLS shutdown
+        default:
+            return -1;
+        }
+    }
+
     ssize_t received = ::recv(fd, buffer, len - 1, 0);
 
     if (received < 0) {
@@ -158,6 +277,21 @@ ssize_t GuacamoleServer::Send(int fd, const char *buffer, size_t len) {
         return -1;
     }
 
+    if (tls_on) {
+        if (len == 0)
+            return 0;
+        SSL *ssl = SslFor(fd);
+        if (!ssl)
+            return -1;
+        // The fd is blocking and partial writes aren't enabled, so SSL_write
+        // either writes everything or fails. (Renegotiation, which could ask to
+        // read mid-write, doesn't occur in TLS 1.2/1.3 here.)
+        int n = SSL_write(ssl, buffer, static_cast<int>(len));
+        if (n <= 0)
+            return -1;
+        return n;
+    }
+
     size_t total = 0;
     while (total < len) {
         ssize_t sent = ::send(fd, buffer + total, len - total, 0);
@@ -175,11 +309,32 @@ ssize_t GuacamoleServer::Send(int fd, const char *buffer, size_t len) {
 }
 
 void GuacamoleServer::Shutdown(int fd) {
+    // Socket-level half-close only: this is the cross-thread wake for a reader
+    // blocked in poll/recv, so it must NOT touch the SSL object (which belongs
+    // to the reader thread). The reader does the SSL teardown in Close().
     if (fd >= 0)
         ::shutdown(fd, SHUT_RDWR);
 }
 
 void GuacamoleServer::Close(int fd) {
+    if (tls_on) {
+        SSL *ssl = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(ssl_mtx);
+            auto it = ssl_by_fd.find(fd);
+            if (it != ssl_by_fd.end()) {
+                ssl = it->second;
+                ssl_by_fd.erase(it);
+            }
+        }
+        if (ssl) {
+            // Best-effort close_notify; don't wait for the peer's. The socket may
+            // already be shut down (EPIPE), which is fine — we free regardless.
+            SSL_shutdown(ssl);
+            SSL_free(ssl);
+        }
+    }
+
     if (fd >= 0)
         ::close(fd);
 }

@@ -7,6 +7,10 @@
 #include <queue>
 #include <stdlib.h>
 
+// [ISSUE]: MS: Has no capacity limit and Enqueue never blocks or drops. 
+//              If more data comes in, the queue grows without bound until the process is OOM-killed.
+//              This creates memory-exhaustion and DoS possibilities.
+
 /**
  * @brief Implements a thread-safe queue intended for queueing bridge messages
  */

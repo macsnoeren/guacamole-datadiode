@@ -37,9 +37,22 @@ int UDPSender::Initialize() {
             break;
     }
 
+    // Copy the resolved address out of the addrinfo list *before* freeing it:
+    // `rp` points into `results`, so any read of `rp->ai_addr` after
+    // freeaddrinfo() would be a use-after-free.
+    bool resolved = rp != nullptr;
+    if (resolved) {
+        struct sockaddr_in *addr_in =
+            reinterpret_cast<struct sockaddr_in *>(rp->ai_addr);
+        std::memset(&sock_addr, 0, sizeof(sock_addr));
+        sock_addr.sin_family = addr_in->sin_family;
+        sock_addr.sin_port = addr_in->sin_port;
+        sock_addr.sin_addr = addr_in->sin_addr;
+    }
+
     ::freeaddrinfo(results);
 
-    if (rp == nullptr) {
+    if (!resolved) {
         std::cerr << "Could not resolve hostname or address: " << host << std::endl;
         if (fd >= 0)
             ::close(fd);
@@ -52,12 +65,6 @@ int UDPSender::Initialize() {
     // failed sendto silently drops the datagram, and the bridge has no
     // retransmit).
     set_bridge_sockbuf(sock_fd, SO_SNDBUF, "UDPSender SO_SNDBUF");
-
-    struct sockaddr_in *addr_in = reinterpret_cast<struct sockaddr_in*>(rp->ai_addr);
-    std::memset(&sock_addr, 0, sizeof(sock_addr));
-    sock_addr.sin_family = addr_in->sin_family;
-    sock_addr.sin_port = addr_in->sin_port;
-    sock_addr.sin_addr = addr_in->sin_addr;
 
     return 0;
 }

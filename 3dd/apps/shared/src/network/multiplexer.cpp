@@ -1,5 +1,6 @@
 #include "../../include/network/multiplexer.h"
 
+// [ISSUE] MS: You have created a constant MAX_PAYLOAD_SIZE but your are not using this in below function.
 std::string Multiplexer::Serialize(const BridgeMessage &message) {
     // Copy message into the out string
     std::string out;

@@ -6,8 +6,10 @@ services:
     stop_grace_period: 1s
     container_name: approver
     restart: unless-stopped
-    # Co-located with the guard (OT-side): commands the global approval switch
-    # directly on the guard's control port. Nothing IT-side can reach here.
+    # Default: co-located with the guard (OT-side), commanding the global approval
+    # switch directly on the guard's control port. A deployment can instead point
+    # this at the broker (GUARD_HOST=gmlbroker) to run the approver on the low side
+    # and reach the isolated guard through gmlbroker's relay — see docker/1node.
     environment:
       GUARD_HOST: guard
       GUARD_CONTROL_PORT: "4999"

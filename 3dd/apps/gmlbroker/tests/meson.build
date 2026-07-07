@@ -21,3 +21,15 @@ keepalive_filter_exe = executable(
   sources: keepalive_filter_sources
 )
 test('forward_keepalive_filter', keepalive_filter_exe)
+
+clipboard_ack_sources = files(
+  'test_clipboard_ack_faker.cpp',
+  '../src/clipboard_ack_faker.cpp',
+  '../../shared/src/parser/opcode_parser.cpp'
+)
+
+clipboard_ack_exe = executable(
+  'test_clipboard_ack_faker',
+  sources: clipboard_ack_sources
+)
+test('clipboard_ack_faker', clipboard_ack_exe)

@@ -28,7 +28,7 @@ int UDPReceiver::Initialize() {
     sockaddr_in addr;
     std::memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_addr.s_addr = htonl(INADDR_ANY); // [ISSUE] MS: No source-address filtering should be an option
     addr.sin_port = htons(static_cast<uint16_t>(port));
 
     // Bind to the given port
@@ -51,6 +51,7 @@ int UDPReceiver::Initialize() {
     return 0;
 }
 
+// [IMPROVEMENT] MS: No source-address filtering, authenticity, or integrity in this function
 int UDPReceiver::Receive(char *buffer, size_t len) {
     sockaddr_in src_addr;
     socklen_t src_len = sizeof(src_addr);

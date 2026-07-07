@@ -9,12 +9,16 @@
 #include <unordered_map>
 
 /*
- * @brief Routes bridge messages to the right client socket by channel
+ * @brief Routes bridge messages to the right client connection by channel.
+ *
+ * This thread never touches a socket: the per-channel reader owns all socket
+ * I/O. Return traffic and teardown requests are handed to the channel's
+ * ChannelMailbox, which wakes the reader to do the actual write/close on its
+ * own thread.
  */
-std::thread GuacamoleSendHandler::Run(NetQueue &queue, GuacamoleServer &guacamole_server,
-                                ChannelTable &table,
+std::thread GuacamoleSendHandler::Run(NetQueue &queue, MailboxRegistry &mailboxes,
                                 ApprovalRegistry &approvals) {
-    return std::thread([&queue, &guacamole_server, &table, &approvals]() {
+    return std::thread([&queue, &mailboxes, &approvals]() {
         // Per-channel return-path filter that swallows guacd's real args/ready.
         std::unordered_map<uint16_t, ReturnFilter> filters;
 
@@ -27,10 +31,10 @@ std::thread GuacamoleSendHandler::Run(NetQueue &queue, GuacamoleServer &guacamol
             switch (msg.action) {
             case ChannelAction::SHUTDOWN_CHANNEL: {
                 filters.erase(msg.channel);
-                // Remove reference to channel
-                std::optional<int> fd = table.Remove(msg.channel);
-                if (fd) {
-                    guacamole_server.Shutdown(*fd); // wakes the reader, which closes it
+                // Ask the reader to tear down without re-announcing: the peer
+                // initiated this SHUTDOWN, so echoing it back would loop.
+                if (auto mailbox = mailboxes.Get(msg.channel)) {
+                    mailbox->RequestTeardown(/*announce=*/false);
                     std::cout << "guacamole_send_handler: received channel "
                               << (int)msg.channel << " SHUTDOWN from peer"
                               << std::endl;
@@ -68,19 +72,19 @@ std::thread GuacamoleSendHandler::Run(NetQueue &queue, GuacamoleServer &guacamol
                     }
                     std::cout << "guacamole_send_handler: channel " << (int)msg.channel
                               << " DENIED" << std::endl;
-                    // Paint the denied screen, then wake the reader to tear down.
-                    if (auto fd = table.Get(msg.channel)) {
-                        std::string screen = HandshakeForger::DeniedScreen();
-                        guacamole_server.Send(*fd, screen.data(), screen.size());
-                        guacamole_server.Shutdown(*fd);
+                    // Paint the denied screen, then have the reader tear down and
+                    // announce SHUTDOWN to the peer.
+                    if (auto mailbox = mailboxes.Get(msg.channel)) {
+                        mailbox->Post(HandshakeForger::DeniedScreen());
+                        mailbox->RequestTeardown(/*announce=*/true);
                     }
                 }
                 break;
             }
             case ChannelAction::NONE:
             default: {
-                std::optional<int> fd = table.Get(msg.channel);
-                if (!fd) {
+                auto mailbox = mailboxes.Get(msg.channel);
+                if (!mailbox) {
                     std::cerr << "guacamole_send_handler: no socket for channel "
                               << (int)msg.channel << ", dropping "
                               << msg.payload.size() << " bytes" << std::endl;
@@ -100,11 +104,7 @@ std::thread GuacamoleSendHandler::Run(NetQueue &queue, GuacamoleServer &guacamol
                 }
                 if (out->empty())
                     break; // fully swallowed (handshake reply)
-                if (guacamole_server.Send(*fd, out->data(), out->size()) < 0) {
-                    std::optional<int> dead = table.Remove(msg.channel);
-                    if (dead)
-                        guacamole_server.Shutdown(*dead);
-                }
+                mailbox->Post(*out);
                 break;
             }
             }

@@ -23,6 +23,11 @@ class GuacdClient {
 
     ~GuacdClient() = default;
 
+    // Returned by Receive() when the socket's receive timeout elapsed with no
+    // data — the connection is idle but alive — as opposed to 0 (peer closed)
+    // or -1 (error). Lets the reader run periodic idle work (keepalives).
+    static constexpr int RECV_TIMEOUT = -2;
+
     /**
      * @brief Opens a new connection to the configured server
      * @return The connected fd, or -1 on failure
@@ -30,8 +35,10 @@ class GuacdClient {
     int Connect();
 
     /**
-     * @brief Receives traffic from a connection fd into buffer (blocking)
-     * @return Bytes received, 0 if the server closed, -1 on error
+     * @brief Receives traffic from a connection fd into buffer (blocking, but
+     *        with a receive timeout — see Connect)
+     * @return Bytes received, 0 if the server closed, RECV_TIMEOUT on an idle
+     *         timeout, -1 on error
      */
     int Receive(int fd, char buffer[], size_t len);
 
