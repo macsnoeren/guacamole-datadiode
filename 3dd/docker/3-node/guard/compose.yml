@@ -1,0 +1,15 @@
+services:
+  guard:
+    build:
+      context: ../../../
+      dockerfile: docker/3-node/guard/Dockerfile
+    stop_grace_period: 1s
+    container_name: guard
+    restart: unless-stopped
+    network_mode: "host"
+    command:
+      [
+        "./build/guard",
+        "5500",
+        "10.0.1.2", "5501"
+      ]
