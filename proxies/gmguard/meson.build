@@ -24,7 +24,7 @@ incdirs = include_directories(
 )
 
 executable(
-  'guard',
+  'gmguard',
   sources: release_sources,
   include_directories: incdirs,
 )
