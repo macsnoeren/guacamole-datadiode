@@ -13,15 +13,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       build-essential meson ninja-build git ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-RUN git clone https://github.com/macsnoeren/guacamole-datadiode.git
+#RUN git clone https://github.com/macsnoeren/guacamole-datadiode.git
+RUN git clone --single-branch --branch dev/refactoring-repo https://github.com/macsnoeren/guacamole-datadiode.git
 
-WORKDIR guacamole-datadiode
+WORKDIR guacamole-datadiode/proxies/gmguard
 
-RUN git switch origin/dev/refactoring-repo
-
-WORKDIR proxies/gmguard
-
-RUN pwd && ls -l && meson setup build && meson compile -C build
+RUN meson setup build && meson compile -C build
 
 # Runtime image: only ship the binary and a slim OS.
 FROM debian:bookworm-slim
