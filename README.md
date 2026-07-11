@@ -2,7 +2,7 @@
 [![build](https://github.com/macsnoeren/guacamole-datadiode/actions/workflows/build_gmdatadiode.yml/badge.svg)](https://github.com/macsnoeren/guacamole-datadiode/actions/workflows/build_gmdatadiode.yml)
 ![release](https://img.shields.io/github/v/release/macsnoeren/guacamole-datadiode)
 
-# <table style="border: 0px solid white"><tr><td><img src="documentation/images/logo-guacamole-data-diode.png" width="200px"></td><td>Guacamole Remote Access over Data-Diodes</td></tr></table>
+# <table><tr><td style="border: 0px solid white"><img src="documentation/images/logo-guacamole-data-diode.png" width="200px"></td><td style="border: 0px solid white">Guacamole Remote Access over Data-Diodes</td></tr></table>
 
 Data-diodes are commonly used for one-way communication only. However, in many cases, bi-directional information flow is also required. Think about file transfer or remote access. In this case, we focused on the remote access use case, which is one of the more complex applications to implement over a data-diode architecture.
 
