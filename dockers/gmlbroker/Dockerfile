@@ -7,13 +7,13 @@ FROM debian:bookworm AS build
 WORKDIR /src
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      build-essential meson ninja-build git ca-certificates libssl-dev \
+      build-essential meson ninja-build libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-#RUN git clone https://github.com/macsnoeren/guacamole-datadiode.git
-RUN git clone --single-branch --branch dev/refactoring-repo https://github.com/macsnoeren/guacamole-datadiode.git
+# Copy the proxies folder from the repo root into the build context.
+COPY proxies /src/proxies
 
-WORKDIR guacamole-datadiode/proxies/gmlbroker
+WORKDIR /src/proxies/gmlbroker
 
 RUN meson setup build && meson compile -C build
 
@@ -23,8 +23,8 @@ FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends libstdc++6 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=build /src/guacamole-datadiode/proxies/gmlbroker/build/gmlbroker /usr/local/bin/gmlbroker
-COPY entrypoint.sh /entrypoint.sh
+COPY --from=build /src/proxies/gmlbroker/build/gmlbroker /usr/local/bin/gmlbroker
+COPY dockers/gmlbroker/entrypoint.sh /entrypoint.sh
 
 RUN chmod +x /entrypoint.sh
 
