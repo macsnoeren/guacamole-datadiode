@@ -1,0 +1,176 @@
+# Guacamole Data Diode - Secure remote access using the Guacamole remote access using data-diodes.
+# Copyright (C) 2020-2026  Maurice Snoeren
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Builds and publishes the Docker Hub images (gcdbroker, gmguard, gmlbroker,
+# nettest). Runs after the "build" workflow succeeds on main.
+#
+# Per image it:
+#   1. Reads the major.minor version (meson.build for the C++ proxies, a
+#      VERSION file for nettest).
+#   2. Compares the relevant source paths against the last release tag of that
+#      image (<image>-v<major.minor.patch>). If nothing changed, the image is
+#      skipped entirely - no rebuild, no new version.
+#   3. Otherwise it auto-increments the patch, builds + pushes the image
+#      (tags: latest, <major.minor>, <major.minor.patch>), syncs the Docker Hub
+#      overview from dockers/<image>/DOCKERHUB.md, and pushes a git tag.
+name: docker
+
+on:
+  workflow_run:
+    workflows: ['build']
+    types: [completed]
+    branches:
+      - main
+  # Allow a manual release run from the Actions tab as well.
+  workflow_dispatch:
+
+# Needed so the workflow can push the per-image release git tags.
+permissions:
+  contents: write
+
+env:
+  # Docker Hub namespace the images are pushed under.
+  NAMESPACE: macsnoeren
+  # Repository-name prefix so the images group together on Docker Hub, e.g.
+  # macsnoeren/gmdatadiode-gcdbroker. The matrix "image" values stay bare
+  # (gcdbroker, ...) because they also drive file paths and git tags.
+  PREFIX: gmdatadiode-
+
+jobs:
+  publish:
+    # Only run when the triggering build succeeded (workflow_dispatch has no
+    # workflow_run payload, so allow that too).
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: gcdbroker
+            version_source: proxies/gcdbroker/meson.build
+            paths: dockers/gcdbroker proxies/gcdbroker proxies/shared
+          - image: gmguard
+            version_source: proxies/gmguard/meson.build
+            paths: dockers/gmguard proxies/gmguard proxies/shared
+          - image: gmlbroker
+            version_source: proxies/gmlbroker/meson.build
+            paths: dockers/gmlbroker proxies/gmlbroker proxies/shared
+          - image: nettest
+            version_source: dockers/nettest/VERSION
+            paths: dockers/nettest proxies/nettest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Check out the commit that triggered the build (falls back to the
+          # branch HEAD for a manual run) and fetch full history + tags so we
+          # can diff against the previous release tag.
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+          fetch-depth: 0
+
+      - name: Determine version and whether a build is needed
+        id: decide
+        run: |
+          set -euo pipefail
+          IMAGE="${{ matrix.image }}"
+          SRC="${{ matrix.version_source }}"
+
+          # major.minor comes from meson.build (version: '0.1') or a VERSION file.
+          case "$IMAGE" in
+            nettest) BASE=$(tr -d ' \t\r\n' < "$SRC") ;;
+            *)       BASE=$(sed -nE "s/.*version:[[:space:]]*'([0-9]+\.[0-9]+)'.*/\1/p" "$SRC" | head -n1) ;;
+          esac
+          if [ -z "${BASE:-}" ]; then
+            echo "::error::Could not read version for $IMAGE from $SRC"; exit 1
+          fi
+
+          # Highest existing patch release for this base (empty on first release).
+          LATEST_TAG=$(git tag --list "${IMAGE}-v${BASE}.*" --sort=-v:refname | head -n1 || true)
+
+          if [ -z "$LATEST_TAG" ]; then
+            VERSION="${BASE}.0"
+            CHANGED=true
+            echo "No previous ${IMAGE} tag for ${BASE}; first release ${VERSION}."
+          else
+            LAST_PATCH="${LATEST_TAG##*.}"
+            if git diff --quiet "$LATEST_TAG" HEAD -- ${{ matrix.paths }}; then
+              VERSION="${BASE}.${LAST_PATCH}"
+              CHANGED=false
+              echo "No changes under '${{ matrix.paths }}' since ${LATEST_TAG}; skipping ${IMAGE}."
+            else
+              VERSION="${BASE}.$((LAST_PATCH + 1))"
+              CHANGED=true
+              echo "Changes since ${LATEST_TAG}; releasing ${IMAGE} ${VERSION}."
+            fi
+          fi
+
+          {
+            echo "changed=$CHANGED"
+            echo "base=$BASE"
+            echo "version=$VERSION"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        if: steps.decide.outputs.changed == 'true'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        if: steps.decide.outputs.changed == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        if: steps.decide.outputs.changed == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DH_USERNAME }}
+          password: ${{ secrets.DH_PASSWORD }}
+
+      - name: Build and push ${{ matrix.image }}
+        if: steps.decide.outputs.changed == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          # Build context is the repo root: the Dockerfiles COPY both proxies/
+          # and dockers/<image>/entrypoint.sh.
+          context: .
+          file: dockers/${{ matrix.image }}/Dockerfile
+          push: true
+          tags: |
+            ${{ env.NAMESPACE }}/${{ env.PREFIX }}${{ matrix.image }}:latest
+            ${{ env.NAMESPACE }}/${{ env.PREFIX }}${{ matrix.image }}:${{ steps.decide.outputs.base }}
+            ${{ env.NAMESPACE }}/${{ env.PREFIX }}${{ matrix.image }}:${{ steps.decide.outputs.version }}
+
+      - name: Sync Docker Hub description
+        if: steps.decide.outputs.changed == 'true'
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DH_USERNAME }}
+          # Requires a Docker Hub password or a PAT with write access.
+          password: ${{ secrets.DH_PASSWORD }}
+          repository: ${{ env.NAMESPACE }}/${{ env.PREFIX }}${{ matrix.image }}
+          readme-filepath: dockers/${{ matrix.image }}/DOCKERHUB.md
+
+      - name: Push release tag
+        if: steps.decide.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          TAG="${{ matrix.image }}-v${{ steps.decide.outputs.version }}"
+          git tag "$TAG"
+          git push origin "$TAG"
+          echo "Tagged release $TAG"
