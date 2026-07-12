@@ -18,5 +18,5 @@ set -- \
   "${DST_IP}" \
   "${DST_PORT:-5501}"
 
-echo "guard $* (GUARD_APPROVE=${GUARD_APPROVE:-<approve>})"
+echo "gmguard $* (GUARD_APPROVE=${GUARD_APPROVE:-<approve>})"
 exec /usr/local/bin/gmguard "$@"

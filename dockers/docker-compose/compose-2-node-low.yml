@@ -1,0 +1,199 @@
+# ================================================================================
+# compose-2-node-low.yml
+#
+# Compose file to run the dockers on the low side (virtual) machine. If you
+# install data-diodes between the machines, you need to make sure that you
+# have updated your local ARP table, so the machines can send UDP to each other.
+# On this low-side node we run the Guacamole webapp, gmlbroker and nettest. If you have
+# your own Guacamole server, you can remove it here. It is also possible to enable
+# TLS on the gmlbroker, so the traffic between the Guacamole server and the gmlbroker
+# is encrypted.
+#
+# Three ways to test:
+# (1) Guacamole -> gmlbroker --> (high-side-node) --> gmguard --> gcdbroker --> guacd -> sshd/rdp
+# (2) nettest   -> gmlbroker --> (high-side-node) --> gmguard --> gcdbroker --> guacd -> sshd/rdp
+# (3) Your own own Guacamole server (or any other client) -> gmlbroker --> (high-side-node) --> gmguard --> gcdbroker --> guacd -> sshd/rdp
+#
+# Guacamole: http://localhost:8080
+# nettest:   http://localhost:8081
+# gmlbroker: http://localhost:4823
+#
+# TODO: Add configuration of SSH and RDP targets in the Guacamole webapp (or via SQL) so you can test
+#
+# Test the docker compose file: docker compose -f .\compose-2-node-low.yml config
+# Run the docker compose file: docker compose -f .\compose-2-node-low.yml up -d --build
+#
+# ================================================================================
+
+volumes:
+  gm-initdb: # Guacamole webapp: postgres data (schema via guacamole-initdb.sql)
+
+services:
+
+  # =============================================================================
+  # GMLBROKER PROXY (low-side) <=> Guacamole (low-side)
+  #                             => GMGUARD PROXY (low-side)
+  # =============================================================================
+  gmlbroker:
+    build:
+      context: ../../
+      dockerfile: dockers/gmlbroker/Dockerfile
+    image: gmlbroker-low-side-proxy:latest
+    container_name: gmlbroker
+    ports:
+      - "4823:4823"   # Guacamole client (or nettest) connects to this port
+    environment:
+      GUAC_LISTEN_IP: 0.0.0.0
+      GUAC_LISTEN_PORT: "4823"
+      UDP_RECV_PORT: "5502"       # from high-side gcdbroker (D3)
+      UDP_SEND_IP: gmguard        # to gmguard (D1)
+      UDP_SEND_PORT: "5500"
+    restart: unless-stopped
+
+  # =============================================================================
+  # GMGUARD PROXY (low-side) => GCDBROKER PROXY (high-side)
+  # =============================================================================
+  gmguard:
+    build:
+      context: ../../
+      dockerfile: dockers/gmguard/Dockerfile
+    image: gmguard-guard-side-proxy:latest
+    container_name: gmguard
+    environment:
+      UDP_RECV_PORT: "5500"       # from low-side gmlbroker (D1)
+      DST_IP: gcdbroker           # to high-side gcdbroker (D2)
+      DST_PORT: "5501"
+      # GUARD_APPROVE: deny       # set to 'deny' to test the denied path
+    restart: unless-stopped
+
+  # =============================================================================
+  # GCDBROKER PROXY (low-side) <=> GUACD (high-side) => SSHD/RDP (high-side)
+  #                             => GMLBROKER (low-side)
+  # =============================================================================
+  gcdbroker:
+    build:
+      context: ../../
+      dockerfile: dockers/gcdbroker/Dockerfile
+    image: gcdbroker-high-side-proxy:latest
+    container_name: gcdbroker
+    environment:
+      GUACD_IP: 127.0.0.1         # guacd shares this netns
+      GUACD_PORT: "4822"
+      UDP_RECV_PORT: "5501"       # from the guard-side gmguard (D2)
+      UDP_SEND_IP: gmlbroker      # to low-side gmlbroker (D3 return)
+      UDP_SEND_PORT: "5502"
+    restart: unless-stopped
+
+  # =============================================================================
+  # GUACD (high-side) => SSHD/RDP (high-side)
+  # This version pins the guacd image to 1.6.0.
+  # =============================================================================
+  guacd:
+    image: guacamole/guacd:1.6.0
+    container_name: guacd
+    depends_on:
+      - gcdbroker
+    environment:
+      LOG_LEVEL: debug
+    restart: unless-stopped
+
+  # =============================================================================
+  # SSHD - test SSH server
+  # Three users are created for testing tester1/2/3 with testpass as password.
+  # =============================================================================
+  sshd:
+    build:
+      context: ../../dockers/test-sshd
+      dockerfile: Dockerfile
+    image: test-sshd-high-side:latest
+    container_name: sshd
+    depends_on:
+      - guacd
+    restart: unless-stopped
+
+  # =============================================================================
+  # RDP - test RDP server
+  # Three users are created for testing tester1/2/3 with testpass as password.
+  # =============================================================================
+  rdp:
+    build:
+      context: ../../dockers/test-rdp
+      dockerfile: Dockerfile
+    container_name: rdp
+    depends_on:
+      - guacd
+    restart: unless-stopped
+
+  # =============================================================================
+  # nettest - the testing tool for the software.
+  # =============================================================================
+  nettest:
+    build:
+      context: ../../
+      dockerfile: dockers/nettest/Dockerfile
+    image: nettest-low-side:latest
+    container_name: nettest
+    depends_on: 
+      - gmlbroker
+      - gmguard
+      - gcdbroker
+    ulimits:
+      nofile:
+        soft: 1048576
+        hard: 1048576
+    environment:
+      GML_HOST: 127.0.0.1         # gmlbroker shares this netns
+      GML_PORT: "4823"
+      HTTP_PORT: "8081"
+      E2E_SSH_HOST: sshd     # guacd (high netns) dials sshd on localhost
+      E2E_SSH_PORT: "22"
+      E2E_SSH_USER: tester1
+      E2E_SSH_PASS: testpass
+    restart: unless-stopped
+
+  # =============================================================================
+  # postgress database for Guacamole.
+  # =============================================================================
+  guac-db:
+    image: postgres:15
+    container_name: guac-db
+    environment:
+      POSTGRES_DB: guacamole_db
+      POSTGRES_USER: guacamole_user
+      POSTGRES_PASSWORD: guacamole_pass
+    volumes:
+      # Schema + default admin are loaded once when the data dir is empty.
+      - "gm-initdb:/docker-entrypoint-initdb.d:ro"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U guacamole_user -d guacamole_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  # =============================================================================
+  # Guacamole server (low-side) => gmlbroker (low-side)
+  # This version pins the guacamole image to 1.6.0.
+  # =============================================================================
+  guacamole:
+    image: guacamole/guacamole:1.6.0
+    container_name: guacamole
+    depends_on:
+      guac-db:
+        condition: service_healthy
+    ports:
+      - "8080:8080"   # Guacamole web UI (8080 belongs to the low-holder receive-endpoint)
+    environment:
+      POSTGRESQL_HOSTNAME: guac-db
+      POSTGRESQL_PORT: "5432"
+      POSTGRESQL_DATABASE: guacamole_db
+      POSTGRESQL_USERNAME: guacamole_user
+      POSTGRESQL_PASSWORD: guacamole_pass
+      GUACD_HOSTNAME: gmlbroker   # gmlbroker in the low-holder netns
+      GUACD_PORT: "4823"
+      BAN_MAX_INVALID_ATTEMPTS: 9999
+    volumes:
+      - "gm-initdb:/opt/guacamole/extensions/guacamole-auth-jdbc/postgresql/schema:ro"
+    restart: unless-stopped
+
+# END of Compose file

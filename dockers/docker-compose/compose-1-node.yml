@@ -11,7 +11,10 @@
 # (2) nettest   -> gmlbroker --> gmguard --> gcdbroker --> guacd -> sshd/rdp
 # (3) Your own own Guacamole server (or any other client) -> gmlbroker --> gmguard --> gcdbroker --> guacd -> sshd/rdp
 #
-# Guacamole: http://localhost:8080
+# Guacamole: http://localhost:8080 => login with guacadmin / guacadmin
+#                                  => To test SSH and RDP, you need to add a connection in the Guacamole server:
+#                                     => SSH with host sshd, user tester1, password testpass
+#                                     => RDP with host rdp, user tester1, password testpass, select option "Ignore server certificate"
 # nettest:   http://localhost:8081
 # gmlbroker: http://localhost:4823
 #
@@ -38,7 +41,8 @@ services:
     image: gmlbroker-low-side-proxy:latest
     container_name: gmlbroker
     ports:
-      - "4823:4823"   # Guacamole client (or nettest) connects to this port
+      - "4823:4823/tcp"   # Guacamole client (or nettest) connects to this port
+      - "4999:4999/udp"   # Approval forwarder - for testing only, not used in production
     environment:
       GUAC_LISTEN_IP: 0.0.0.0
       GUAC_LISTEN_PORT: "4823"
@@ -60,7 +64,7 @@ services:
       UDP_RECV_PORT: "5500"       # from low-side gmlbroker (D1)
       DST_IP: gcdbroker           # to high-side gcdbroker (D2)
       DST_PORT: "5501"
-      # GUARD_APPROVE: deny       # set to 'deny' to test the denied path
+      GUARD_APPROVE: approve #deny       # set to 'deny' to test the denied path
     restart: unless-stopped
 
   # =============================================================================
