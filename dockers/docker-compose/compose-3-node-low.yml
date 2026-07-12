@@ -50,7 +50,7 @@ services:
       GUAC_LISTEN_IP: 0.0.0.0
       GUAC_LISTEN_PORT: "4823"
       UDP_RECV_PORT: "5502"       # from high-side gcdbroker (D3)
-      UDP_SEND_IP: gmguard        # to gmguard (D1)
+      UDP_SEND_IP: gmguard        ### FILL_IN_THE_IP_ADDRESS_OF_GUARD_SIDE ### to gmguard (D1)
       UDP_SEND_PORT: "5500"
     restart: unless-stopped
 
@@ -65,8 +65,6 @@ services:
     container_name: nettest
     depends_on: 
       - gmlbroker
-      - gmguard
-      - gcdbroker
     ulimits:
       nofile:
         soft: 1048576
@@ -75,7 +73,7 @@ services:
       GML_HOST: 127.0.0.1         # gmlbroker shares this netns
       GML_PORT: "4823"
       HTTP_PORT: "8081"
-      E2E_SSH_HOST: sshd     # guacd (high netns) dials sshd on localhost
+      E2E_SSH_HOST: sshd        # guacd (high netns) dials sshd on localhost
       E2E_SSH_PORT: "22"
       E2E_SSH_USER: tester1
       E2E_SSH_PASS: testpass

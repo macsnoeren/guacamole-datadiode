@@ -27,7 +27,7 @@ services:
       - "5500:5500/udp"   # from low-side gmlbroker (D1)
     environment:
       UDP_RECV_PORT: "5500"       # from low-side gmlbroker (D1)
-      DST_IP: gcdbroker           # to high-side gcdbroker (D2)
+      DST_IP: gcdbroker           ### FILL_IN_THE_IP_ADDRESS_OF_HIGH_SIDE ### to high-side gcdbroker (D2)
       DST_PORT: "5501"
       # GUARD_APPROVE: deny       # set to 'deny' to test the denied path
     restart: unless-stopped
