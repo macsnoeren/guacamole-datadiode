@@ -1,22 +1,25 @@
 #!/bin/sh
 #
-# Translate environment variables into CLI arguments for guard.
+# Translate environment variables into CLI arguments for gcdbroker.
 #
-#   gmguard <src_port> <dst_ip> <dst_port>
+#   gcdbroker <guacd_ip> <guacd_port> <udp_recv_port> <udp_send_ip> <udp_send_port>
 #
 # Environment variables:
-#   UDP_RECV_PORT   UDP port the guard receives on (from low)  [default: 5500]
-#   DST_IP          high-side broker's diode IP                [required]
-#   DST_PORT        UDP port on the high-side broker           [default: 5501]
-#   GUARD_APPROVE   read by the binary itself; "deny" denies every request
+#   GUACD_IP        TCP host of the real guacd            [default: guacd-high-side]
+#   GUACD_PORT      TCP port of guacd                     [default: 4822]
+#   UDP_RECV_PORT   UDP port receiving from the guard     [default: 5501]
+#   UDP_SEND_IP     low-side broker's diode IP (return)   [required]
+#   UDP_SEND_PORT   UDP port on the low-side broker       [default: 5502]
 set -eu
 
-: "${DST_IP:?DST_IP is required (the high-side broker's diode IP)}"
+: "${UDP_SEND_IP:?UDP_SEND_IP is required (the low-side broker's return IP)}"
 
 set -- \
-  "${UDP_RECV_PORT:-5500}" \
-  "${DST_IP}" \
-  "${DST_PORT:-5501}"
+  "${GUACD_IP:-guacd-high-side}" \
+  "${GUACD_PORT:-4822}" \
+  "${UDP_RECV_PORT:-5501}" \
+  "${UDP_SEND_IP}" \
+  "${UDP_SEND_PORT:-5502}"
 
-echo "guard $* (GUARD_APPROVE=${GUARD_APPROVE:-<approve>})"
+echo "gcdbroker $*"
 exec /usr/local/bin/gcdbroker "$@"

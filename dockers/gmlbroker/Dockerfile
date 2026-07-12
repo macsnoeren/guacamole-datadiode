@@ -20,7 +20,7 @@ RUN meson setup build && meson compile -C build
 # Runtime image: only ship the binary and a slim OS.
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends libstdc++6 \
+RUN apt-get update && apt-get install -y --no-install-recommends libstdc++6 libssl3 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /src/proxies/gmlbroker/build/gmlbroker /usr/local/bin/gmlbroker

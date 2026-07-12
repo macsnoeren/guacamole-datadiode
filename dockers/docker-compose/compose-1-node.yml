@@ -23,7 +23,7 @@
 # ================================================================================
 
 volumes:
-  guac_db_data: # Guacamole webapp: postgres data (schema via guacamole-initdb.sql)
+  gm-initdb: # Guacamole webapp: postgres data (schema via guacamole-initdb.sql)
 
 services:
 
@@ -160,8 +160,7 @@ services:
       POSTGRES_PASSWORD: guacamole_pass
     volumes:
       # Schema + default admin are loaded once when the data dir is empty.
-      - ./guacamole-initdb.sql:/docker-entrypoint-initdb.d/initdb.sql:ro
-      - guac_db_data:/var/lib/postgresql/data
+      - "gm-initdb:/docker-entrypoint-initdb.d:ro"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U guacamole_user -d guacamole_db"]
       interval: 5s
@@ -191,9 +190,7 @@ services:
       GUACD_PORT: "4823"
       BAN_MAX_INVALID_ATTEMPTS: 9999
     volumes:
-      # Extra debug logging for the webapp; under GUACAMOLE_HOME this
-      # logback.xml is symlinked into the runtime home and overrides the default.
-      - ./guacamole-logback.xml:/etc/guacamole/logback.xml:ro
+      - "gm-initdb:/opt/guacamole/extensions/guacamole-auth-jdbc/postgresql/schema:ro"
     restart: unless-stopped
 
 # END of Compose file
