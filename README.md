@@ -87,3 +87,15 @@ When this repository started, a first concept version was available for testing.
 - gmclient: https://hub.docker.com/r/macsnoeren/gmdatadiode-gmclient
 - gmproxyin: https://hub.docker.com/r/macsnoeren/gmdatadiode-gmproxyin
 - gmproxyout: https://hub.docker.com/r/macsnoeren/gmdatadiode-gmproxyout
+
+# Author and maintainer
+
+This project is created and maintained by Maurice Snoeren. I started the research on data-diodes in 2020 and I keep working on it. If you have questions, ideas, or you found a bug, feel free to open an issue or reach out to me.
+
+- Maurice Snoeren (GitHub: [macsnoeren](https://github.com/macsnoeren))
+
+# Students
+
+During the research a lot of work has also been done by students. I really want to thank them for their contribution to the project. Their work helped to improve and test the solution.
+
+- Simon de Cock (GitHub: [sdcock](https://github.com/sdcock))
