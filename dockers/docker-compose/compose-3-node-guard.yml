@@ -1,0 +1,35 @@
+# ================================================================================
+# compose-3-node-guard.yml
+#
+# Compose file to run the dockers on the guard side (virtual) machine. If you
+# install data-diodes between the machines, you need to make sure that you
+# have updated your local ARP table, so the machines can send UDP to each other.
+# On this guard-side node we run only the gmguard. When this gmguard is between
+# two data-diodes the complexity to compromise the system is significantly increased.
+#
+# Test the docker compose file: docker compose -f .\compose-3-node-guard.yml config
+# Run the docker compose file: docker compose -f .\compose-3-node-guard.yml up -d --build
+#
+# ================================================================================
+
+services:
+
+  # =============================================================================
+  # GMGUARD PROXY (low-side) => GCDBROKER PROXY (high-side)
+  # =============================================================================
+  gmguard:
+    build:
+      context: ../../
+      dockerfile: dockers/gmguard/Dockerfile
+    image: gmguard-guard-side-proxy:latest
+    container_name: gmguard
+    ports:
+      - "5500:5500/udp"   # from low-side gmlbroker (D1)
+    environment:
+      UDP_RECV_PORT: "5500"       # from low-side gmlbroker (D1)
+      DST_IP: gcdbroker           # to high-side gcdbroker (D2)
+      DST_PORT: "5501"
+      # GUARD_APPROVE: deny       # set to 'deny' to test the denied path
+    restart: unless-stopped
+
+# END of Compose file
