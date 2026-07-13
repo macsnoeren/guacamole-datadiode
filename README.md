@@ -64,7 +64,13 @@ Under the assumption that the high-side network is also compromised, it is possi
 
 When both networks are compromised, it is still very complex to compromise the gmguard. It is still able to filter the traffic appropriately. Therefore, this gmguard can be considered independent.
 
-An approval process could also be implemented by this gmguard. This is not part of this implementation and is only a suggestion.
+
+The two figures below show more detail of the 3-node design and the real setup. All ports that are used are the same with the 2-node setup, so you should be fine.
+
+![gm-three-nodes-detail](documentation/images/3-node-architecture.webp)
+![gm-three-nodes-setup](documentation/images/3-node-photo.png)
+
+An approval process could also be implemented by this gmguard. This is not part of this implementation and is only a suggestion. This has been implemented very simple and should not be used in production. However, it shows how it could work.
 
 # Docker
 
