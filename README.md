@@ -70,7 +70,7 @@ The two figures below show more detail of the 3-node design and the real setup. 
 ![gm-three-nodes-detail](documentation/images/3-node-architecture.webp)
 ![gm-three-nodes-setup](documentation/images/3-node-photo.png)
 
-An approval process could also be implemented by this gmguard. This is not part of this implementation and is only a suggestion. This has been implemented very simple and should not be used in production. However, it shows how it could work.
+An approval process could also be implemented by this gmguard. This is not part of the implementation yet, it is only prepared as an example so you can see how it could work. The idea is that an operator on the trusted OT side can decide if connections are allowed or not, so nothing goes through the guard until a person says yes. The guard does not act on it yet, so at the moment nothing is really approved or denied. Have a look at the [proxies README](proxies/README.md) and the `approval.py` example there for the details.
 
 # Docker
 
