@@ -70,12 +70,12 @@ services:
 
       ###########################################################################
       # TLS for the gmlbroker <-> Guacamole web server.
-      # gmlbroker makes its OWN self-signed cert in /tls when TLS is on (see the
-      # entrypoint), you do not have to generate anything by hand. The easiest
-      # way to turn it on with the local Guacamole is to layer compose-tls.yml
-      # on top of this file (see the README).
+      # Set GMLBROKER_TLS to "1" to turn it on. gmlbroker then makes its OWN
+      # self-signed cert in /tls (see the entrypoint), you do not have to
+      # generate anything by hand. On the Guacamole side you have to trust that
+      # cert and set guacd-ssl, see the TLS chapter in the README.
       ###########################################################################
-      GMLBROKER_TLS: "0" # Set to "1" to enable TLS on the gmlbroker
+      GMLBROKER_TLS: "1" # Set to "1" to enable TLS on the gmlbroker
     volumes:
       - ./tls:/tls   # gmlbroker writes its self-signed cert here when TLS is on
 
