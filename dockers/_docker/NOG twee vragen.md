@@ -1,2 +1,0 @@
-- TLS hoe werkt dat precies
-- GMGUARD zegt APPROVE, maar GMLBROKER zegt DENY (hier gaat nog iets fout.)
