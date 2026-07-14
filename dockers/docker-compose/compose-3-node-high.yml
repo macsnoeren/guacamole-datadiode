@@ -44,7 +44,7 @@ services:
     ports:
       - "5501:5501/udp"   # gmguard low-side connects to this port
     environment:
-      GUACD_IP: 127.0.0.1         # guacd shares this netns
+      GUACD_IP: guacd             # guacd shares this netns
       GUACD_PORT: "4822"
       UDP_RECV_PORT: "5501"       # from the guard-side gmguard (D2)
       UDP_SEND_IP: gmlbroker      ### FILL_IN_THE_IP_ADDRESS_OF_LOW_SIDE ### to low-side gmlbroker (D3 return)
