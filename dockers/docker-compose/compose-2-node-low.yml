@@ -130,14 +130,21 @@ services:
 
   # =============================================================================
   # Guacamole server (low-side) => gmlbroker (low-side)
-  # This version pins the guacamole image to 1.6.0.
+  # This is our own image (test-guacamole), the normal guacamole 1.6.0 image
+  # plus one startup step so it can trust the self-signed cert of the gmlbroker
+  # when TLS is on. See dockers/test-guacamole.
   # =============================================================================
   guacamole:
-    image: guacamole/guacamole:1.6.0
+    build:
+      context: ../../dockers/test-guacamole
+      dockerfile: Dockerfile
+    image: test-guacamole-low-side:latest
     container_name: guacamole
     depends_on:
       guac-db:
         condition: service_healthy
+      gmlbroker:
+        condition: service_started
     ports:
       - "8080:8080"   # Guacamole web UI (8080 belongs to the low-holder receive-endpoint)
     environment:
@@ -149,8 +156,17 @@ services:
       GUACD_HOSTNAME: gmlbroker   # gmlbroker in the low-holder netns
       GUACD_PORT: "4823"
       BAN_MAX_INVALID_ATTEMPTS: 9999
+
+      ###########################################################################
+      # TLS to the gmlbroker is OFF here (same as GMLBROKER_TLS above). If you
+      # turn on GMLBROKER_TLS on the gmlbroker, also uncomment these two lines,
+      # so the webapp talks TLS and trusts the gmlbroker cert in /tls.
+      ###########################################################################
+      #GUACD_SSL: "true"
+      #GMLBROKER_TLS_CERT: /tls/cert.pem
     volumes:
       - "gm-initdb:/opt/guacamole/extensions/guacamole-auth-jdbc/postgresql/schema:ro"
+      - ./tls:/tls:ro   # reads the gmlbroker cert to build its truststore
     restart: unless-stopped
 
 # END of Compose file

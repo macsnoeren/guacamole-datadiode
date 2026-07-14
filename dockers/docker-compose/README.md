@@ -129,12 +129,28 @@ Important to understand: the `gmlbroker` makes its certificate completely on its
 
 ### Make Guacamole trust the certificate
 
-The only extra work is on the Guacamole side, and this is the same story no matter where your Guacamole runs. Because the certificate is self-signed, two things have to be arranged on Guacamole:
+Because the certificate is self-signed, the Guacamole side still needs two things: it must talk TLS to the `gmlbroker` (`guacd-ssl: true`), and it must trust that self-signed certificate. How you arrange this depends on whether you use the Guacamole from these compose files, or your own Guacamole somewhere else.
 
-1. Guacamole must talk TLS to the `gmlbroker`. In Guacamole this is the `guacd-ssl: true` setting (or the `GUACD_SSL` environment variable on the docker image).
-2. Guacamole must trust the self-signed certificate. For that you import the `cert.pem` into a Java truststore and point the Guacamole JVM to it.
+#### The Guacamole in these compose files (local test)
 
-So first copy the public certificate from the `gmlbroker` machine to your Guacamole machine (only the `cert.pem`, NOT the `key.pem`):
+For the local test this is done for you. The `guacamole` service in the compose files does not use the plain guacamole image, but our own `test-guacamole` image (see `dockers/test-guacamole`). That image has an extra startup step that reads the `gmlbroker` certificate from the shared `./tls` directory, builds the truststore and sets it, all by itself.
+
+So you only turn the two sides on together. On the `gmlbroker` service you set `GMLBROKER_TLS: "1"`, and on the `guacamole` service you set:
+
+```yaml
+GUACD_SSL: "true"
+GMLBROKER_TLS_CERT: /tls/cert.pem
+```
+
+In `compose-1-node.yml` this is already on. In `compose-2-node-low.yml` and `compose-3-node-low.yml` these two lines are there but commented out, you uncomment them when you turn on `GMLBROKER_TLS`. That is all, no `keytool` by hand.
+
+> Note: the `test-guacamole` image rebuilds its truststore on every start. So when the `gmlbroker` made a new certificate (you deleted `./tls`), just restart the `guacamole` container and it trusts the new one again.
+
+#### Your own Guacamole on an other machine (production)
+
+In production your Guacamole normally runs on an other machine than the `gmlbroker`. Then the `test-guacamole` image does not help you, and you do the trust part yourself on your own Guacamole.
+
+First copy the public certificate from the `gmlbroker` machine to your Guacamole machine (only the `cert.pem`, NOT the `key.pem`):
 
 ```bash
 scp ./tls/cert.pem you@your-guacamole-host:/some/path/cert.pem
@@ -148,7 +164,7 @@ keytool -importcert -alias gmlbroker -file cert.pem \
         -keystore truststore.jks -storepass changeit
 ```
 
-And then you point the Guacamole JVM to that truststore, for example with:
+And then you point the Guacamole JVM to that truststore, and set `guacd-ssl: true`, for example with:
 
 ```
 JAVA_OPTS=-Djavax.net.ssl.trustStore=/path/truststore.jks -Djavax.net.ssl.trustStorePassword=changeit
@@ -157,8 +173,6 @@ JAVA_OPTS=-Djavax.net.ssl.trustStore=/path/truststore.jks -Djavax.net.ssl.trustS
 After that the traffic between your Guacamole and the `gmlbroker` is encrypted.
 
 > Note: the `key.pem` is the private key. Keep it on the `gmlbroker` machine and do not copy it around. Only the `cert.pem` (the public one) goes to the Guacamole side.
-
-> Note: if your Guacamole runs on the SAME machine (the local test with the Guacamole in these compose files), it is the same steps. You do the `keytool` import against the `guacamole` image its cacerts (the path in that image is `/opt/java/openjdk/lib/security/cacerts`) and you set `GUACD_SSL=true` and the `JAVA_OPTS` on the `guacamole` service.
 
 ## Which one should I use?
 
