@@ -42,7 +42,7 @@ You normally do not run the proxies by hand. The Docker images and the Docker Co
 
 The 2-node and 3-node setups need some extra network configuration (correct IP addresses and ARP/neighbor entries), otherwise the routing over the diodes will not work.
 
-TLS is used between the Guacamole Server and the gmlbroker. The [scripts/generate-tls.sh](scripts/generate-tls.sh) script generates the certificates for that.
+The link between the Guacamole Server and the gmlbroker can be encrypted with TLS. This is optional and off by default. When you turn it on (`GMLBROKER_TLS=1`), the gmlbroker makes its own self-signed certificate on the first start, so you do not have to generate certificates yourself. The Guacamole side then has to trust that certificate. The full story (how to turn it on and how to make Guacamole trust it) is in the [docker-compose README](../dockers/docker-compose/README.md).
 
 ## Testing
 

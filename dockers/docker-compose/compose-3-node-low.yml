@@ -78,7 +78,7 @@ services:
       # generate anything by hand. On the Guacamole side you have to trust that
       # cert and set guacd-ssl, see the TLS chapter in the README.
       ###########################################################################
-      GMLBROKER_TLS: "0" # Set to "1" to enable TLS on the gmlbroker
+      GMLBROKER_TLS: "false" # Set to "true" to enable TLS on the gmlbroker
     volumes:
       - ./tls:/tls   # gmlbroker writes its self-signed cert here when TLS is on
     restart: unless-stopped

@@ -13,6 +13,8 @@ The following Docker images are created by this project:
 - sshtest: https://hub.docker.com/r/macsnoeren/gmdatadiode-sshtest
 - rdptest: https://hub.docker.com/r/macsnoeren/gmdatadiode-rdptest
 
+There is also a `test-guacamole` image in the [test-guacamole](test-guacamole) folder. This is not a proxy and it is not published on Docker Hub. It is the normal Apache Guacamole webapp image with one small extra startup step, so it can trust the self-signed certificate that the gmlbroker makes when TLS is turned on. It is only used to test the solution.
+
 ## Deprecated
 
 When this repository started, a first concept version was available for testing. These old Docker images can be found here:

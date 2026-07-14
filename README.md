@@ -85,6 +85,14 @@ The following Docker images are created by this project:
 - sshtest: https://hub.docker.com/r/macsnoeren/gmdatadiode-sshtest
 - rdptest: https://hub.docker.com/r/macsnoeren/gmdatadiode-rdptest
 
+Next to these there is also a `test-guacamole` image in this repository. This is not a proxy, it is the normal Apache Guacamole webapp image with one small extra startup step, so it can trust the self-signed certificate that the gmlbroker makes when TLS is on. It is only used to test the solution and it is not published on Docker Hub. See `dockers/test-guacamole` for the details.
+
+## TLS between the Guacamole server and the gmlbroker
+
+The link between the Guacamole server and the gmlbroker can be encrypted with TLS. This is optional and off by default. When you turn it on, you do not have to generate any certificates by hand. The first time the gmlbroker starts with TLS on, it makes its own self-signed certificate. The Guacamole side then has to trust that certificate, so it can talk TLS to the gmlbroker.
+
+For the local test this is all done for you by the `test-guacamole` image. When you run your own Guacamole on an other machine, you import the certificate in the Java truststore yourself. The full steps (how to turn it on, and how to make Guacamole trust the certificate) are in the [docker-compose README](dockers/docker-compose/README.md).
+
 ## Deprecated
 
 When this repository started, a first concept version was available for testing. These old Docker images can be found here:
