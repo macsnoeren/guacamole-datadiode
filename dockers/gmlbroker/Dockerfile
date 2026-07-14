@@ -38,7 +38,9 @@ RUN meson setup build && meson compile -C build
 # Runtime image: only ship the binary and a slim OS.
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends libstdc++6 libssl3 \
+# openssl (the CLI) is used by entrypoint.sh to generate the self-signed TLS
+# cert when GMLBROKER_TLS is enabled. libssl3 is the runtime lib for gmlbroker.
+RUN apt-get update && apt-get install -y --no-install-recommends libstdc++6 libssl3 openssl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /src/proxies/gmlbroker/build/gmlbroker /usr/local/bin/gmlbroker

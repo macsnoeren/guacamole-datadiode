@@ -72,5 +72,5 @@ class Approver {
     ApprovalResult HandleRequest(const std::string &request_id);
 
   private:
-    std::atomic<bool> approve_{false};
+    std::atomic<bool> approve_{false}; // default to deny until an operator explicitly approves
 };
