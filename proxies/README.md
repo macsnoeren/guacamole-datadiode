@@ -44,6 +44,35 @@ The 2-node and 3-node setups need some extra network configuration (correct IP a
 
 The link between the Guacamole Server and the gmlbroker can be encrypted with TLS. This is optional and off by default. When you turn it on (`GMLBROKER_TLS=1`), the gmlbroker makes its own self-signed certificate on the first start, so you do not have to generate certificates yourself. The Guacamole side then has to trust that certificate. The full story (how to turn it on and how to make Guacamole trust it) is in the [docker-compose README](../dockers/docker-compose/README.md).
 
+## Approval process (prepared, not implemented yet)
+
+The idea is that an operator on the OT side can decide if connections are allowed or not. So a connection is only let through when someone actually approves it. This is a security idea: even when someone gets access on the IT side, nothing goes through the guard until a person on the trusted side says yes.
+
+Right now this is **not implemented in the guard yet**, but it is prepared so you can see how it is meant to work. The example is in [scripts/approval.py](scripts/approval.py). It is a small, self-contained Python script (standard library only, no extra packages) that gives the operator a simple web page with two buttons: **Approve** and **Deny**.
+
+You run it like this:
+
+```
+python scripts/approval.py
+```
+
+and then open `http://localhost:8082` in a browser. There are a few environment variables to point it at the guard:
+
+- `GUARD_HOST` — the guard host to command (default `127.0.0.1`).
+- `GUARD_CONTROL_PORT` — the guard UDP control port (default `4999`).
+- `HTTP_PORT` — the port the console itself serves on (default `8082`).
+
+How it is meant to work: when the operator clicks a button, the console sends a plaintext `approve` or `deny` UDP datagram straight to the guard's control port. So the operator talks to the guard directly, there is no broker in between and nothing on the untrusted IT side can touch this switch. The idea is:
+
+- **Approve** — connections are allowed through the guard.
+- **Deny** — connections are blocked. A deny should not only block new requests but also disconnect the sessions that are already running.
+
+For now the switch is meant to be global and coarse (one switch for everything, not per connection). A per-connection decision, where the operator approves each single request, is something for later.
+
+Two more things to keep in mind. The console has **no authentication** on purpose: it is meant to run on a trusted OT-side host that only the operator can reach, so do not expose it to untrusted networks. And the console cannot read the guard's switch back, so it only remembers the last command it sent this session. The guard defaults to APPROVE on startup, so if the console says "none" it just means nothing was set yet this session.
+
+Remember, this is the prepared example. The guard does not act on these datagrams yet, so at the moment nothing is really approved or denied. It is there so you can see on which way this is going to work later.
+
 ## Testing
 
 ### Unit tests

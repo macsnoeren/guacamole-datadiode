@@ -60,7 +60,7 @@ services:
     container_name: gmlbroker
     ports:
       - "4823:4823/tcp"   # Guacamole client (or nettest) connects to this port
-      - "4999:4999/udp"   # Approval forwarder - for testing only, not used in production
+      - "4999:4999/udp"   # Approval forwarder - for testing only, not used in production, see script approval.py
     environment:
       GUAC_LISTEN_IP: 0.0.0.0
       GUAC_LISTEN_PORT: "4823"
@@ -94,7 +94,7 @@ services:
       UDP_RECV_PORT: "5500"       # from low-side gmlbroker (D1)
       DST_IP: gcdbroker           # to high-side gcdbroker (D2)
       DST_PORT: "5501"
-      GUARD_APPROVE: approve #deny       # set to 'deny' to test the denied path
+      GUARD_APPROVE: approve #deny       # set to 'deny' to test the denied path # Q: IS THIS implemented?
     restart: unless-stopped
 
   # =============================================================================
