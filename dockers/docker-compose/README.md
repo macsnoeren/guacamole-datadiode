@@ -33,6 +33,12 @@ To test SSH and RDP you have to add a connection in the Guacamole server:
 
 Tip: on the `gmguard` in this file you can set `GUARD_APPROVE` to `deny` to test the denied path (so what happens when the guard rejects the traffic).
 
+## 1-node (DockerHub)
+
+File: `compose-1-node-dockerhub.yml`
+
+Exactly the same as the 1-node setup described above, but using the latest Docker Hub images for the gmlbroker, gmguard, and gcdbroker. This is for testing purposes and to provide an example of how to use the images available on Docker Hub.
+
 ## 2-node
 
 Files: `compose-2-node-low.yml` and `compose-2-node-high.yml`
