@@ -17,20 +17,17 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # ================================================================================
-# compose-2-node-low.yml
+# compose-1-node-dockerhub.yml
 #
-# Compose file to run the dockers on the low side (virtual) machine. If you
-# install data-diodes between the machines, you need to make sure that you
-# have updated your local ARP table, so the machines can send UDP to each other.
-# On this low-side node we run the Guacamole webapp, gmlbroker and nettest. If you have
-# your own Guacamole server, you can remove it here. It is also possible to enable
-# TLS on the gmlbroker, so the traffic between the Guacamole server and the gmlbroker
-# is encrypted.
+# Local TEST environment of the Guacamole data-diode software running on one
+# host. When docker is installed, you can run the full software on one host
+# including the Guacamole application and some test systems, so you do not
+# require any hassel to setup the test environment yourself.
 #
 # Three ways to test:
-# (1) Guacamole -> gmlbroker --> (high-side-node) --> gmguard --> gcdbroker --> guacd -> sshd/rdp
-# (2) nettest   -> gmlbroker --> (high-side-node) --> gmguard --> gcdbroker --> guacd -> sshd/rdp
-# (3) Your own own Guacamole server (or any other client) -> gmlbroker --> (high-side-node) --> gmguard --> gcdbroker --> guacd -> sshd/rdp
+# (1) Guacamole -> gmlbroker --> gmguard --> gcdbroker --> guacd -> sshd/rdp
+# (2) nettest   -> gmlbroker --> gmguard --> gcdbroker --> guacd -> sshd/rdp
+# (3) Your own own Guacamole server (or any other client) -> gmlbroker --> gmguard --> gcdbroker --> guacd -> sshd/rdp
 #
 # Guacamole: http://localhost:8080 => login with guacadmin / guacadmin
 #                                  => To test SSH and RDP, you need to add a connection in the Guacamole server:
@@ -39,10 +36,8 @@
 # nettest:   http://localhost:8081
 # gmlbroker: http://localhost:4823
 #
-# TODO: Add configuration of SSH and RDP targets in the Guacamole webapp (or via SQL) so you can test
-#
-# Test the docker compose file: docker compose -f .\compose-2-node-low.yml config
-# Run the docker compose file: docker compose -f .\compose-2-node-low.yml up -d --build
+# Test the docker compose file: docker compose -f .\compose-1-node.yml config
+# Run the docker compose file: docker compose -f .\compose-1-node.yml up -d --build
 #
 # ================================================================================
 
@@ -56,19 +51,16 @@ services:
   #                             => GMGUARD PROXY (low-side)
   # =============================================================================
   gmlbroker:
-    build:
-      context: ../../
-      dockerfile: dockers/gmlbroker/Dockerfile
-    image: gmlbroker-low-side-proxy:latest
+    image: macsnoeren/gmdatadiode-gmlbroker:latest
     container_name: gmlbroker
     ports:
       - "4823:4823/tcp"   # Guacamole client (or nettest) connects to this port
-      - "5502:5502/udp"   # from high-side gcdbroker (D3)
+      - "4999:4999/udp"   # Approval forwarder - for testing only, not used in production, see script approval.py
     environment:
       GUAC_LISTEN_IP: 0.0.0.0
       GUAC_LISTEN_PORT: "4823"
       UDP_RECV_PORT: "5502"       # from high-side gcdbroker (D3)
-      UDP_SEND_IP: gmguard        ### FILL_IN_THE_IP_ADDRESS_OF_HIGH_SIDE ### to gmguard (D1)
+      UDP_SEND_IP: gmguard        # to gmguard (D1)
       UDP_SEND_PORT: "5500"
 
       ###########################################################################
@@ -78,22 +70,90 @@ services:
       # generate anything by hand. On the Guacamole side you have to trust that
       # cert and set guacd-ssl, see the TLS chapter in the README.
       ###########################################################################
-      GMLBROKER_TLS: "false" # Set to "true" to enable TLS on the gmlbroker
+      GMLBROKER_TLS: "true" # Set to "true" to enable TLS on the gmlbroker
     volumes:
       - ./tls:/tls   # gmlbroker writes its self-signed cert here when TLS is on
+
+    restart: unless-stopped
+
+  # =============================================================================
+  # GMGUARD PROXY (low-side) => GCDBROKER PROXY (high-side)
+  # =============================================================================
+  gmguard:
+    image: macsnoeren/gmdatadiode-gmguard:latest
+    container_name: gmguard
+    environment:
+      UDP_RECV_PORT: "5500"       # from low-side gmlbroker (D1)
+      DST_IP: gcdbroker           # to high-side gcdbroker (D2)
+      DST_PORT: "5501"
+      GUARD_APPROVE: approve #deny       # set to 'deny' to test the denied path # Q: IS THIS implemented?
+    restart: unless-stopped
+
+  # =============================================================================
+  # GCDBROKER PROXY (low-side) <=> GUACD (high-side) => SSHD/RDP (high-side)
+  #                             => GMLBROKER (low-side)
+  # =============================================================================
+  gcdbroker:
+    image: macsnoeren/gmdatadiode-gcdbroker:latest
+    container_name: gcdbroker
+    environment:
+      GUACD_IP: guacd             # guacd shares this netns
+      GUACD_PORT: "4822"
+      UDP_RECV_PORT: "5501"       # from the guard-side gmguard (D2)
+      UDP_SEND_IP: gmlbroker      # to low-side gmlbroker (D3 return)
+      UDP_SEND_PORT: "5502"
+    restart: unless-stopped
+
+  # =============================================================================
+  # GUACD (high-side) => SSHD/RDP (high-side)
+  # This version pins the guacd image to 1.6.0.
+  # =============================================================================
+  guacd:
+    image: guacamole/guacd:1.6.0
+    container_name: guacd
+    depends_on:
+      - gcdbroker
+    environment:
+      LOG_LEVEL: debug
+    restart: unless-stopped
+
+  # =============================================================================
+  # SSHD - test SSH server
+  # Three users are created for testing tester1/2/3 with testpass as password.
+  # =============================================================================
+  sshd:
+    build:
+      context: ../../dockers/test-sshd
+      dockerfile: Dockerfile
+    image: test-sshd-high-side:latest
+    container_name: sshd
+    depends_on:
+      - guacd
+    restart: unless-stopped
+
+  # =============================================================================
+  # RDP - test RDP server
+  # Three users are created for testing tester1/2/3 with testpass as password.
+  # =============================================================================
+  rdp:
+    build:
+      context: ../../dockers/test-rdp
+      dockerfile: Dockerfile
+    container_name: rdp
+    depends_on:
+      - guacd
     restart: unless-stopped
 
   # =============================================================================
   # nettest - the testing tool for the software.
   # =============================================================================
   nettest:
-    build:
-      context: ../../
-      dockerfile: dockers/nettest/Dockerfile
-    image: nettest-low-side:latest
+    image: macsnoeren/gmdatadiode-nettest:latest
     container_name: nettest
     depends_on: 
       - gmlbroker
+      - gmguard
+      - gcdbroker
     ulimits:
       nofile:
         soft: 1048576
@@ -104,7 +164,7 @@ services:
       GML_HOST: gmlbroker         # gmlbroker shares this netns
       GML_PORT: "4823"
       HTTP_PORT: "8081"
-      E2E_SSH_HOST: sshd          # guacd (high netns) dials sshd on localhost
+      E2E_SSH_HOST: sshd     # guacd (high netns) dials sshd on localhost
       E2E_SSH_PORT: "22"
       E2E_SSH_USER: tester1
       E2E_SSH_PASS: testpass
@@ -132,9 +192,9 @@ services:
 
   # =============================================================================
   # Guacamole server (low-side) => gmlbroker (low-side)
-  # This is our own image (test-guacamole), the normal guacamole 1.6.0 image
-  # plus one startup step so it can trust the self-signed cert of the gmlbroker
-  # when TLS is on. See dockers/test-guacamole.
+  # This is our own image (test-guacamole), which is the normal guacamole 1.6.0
+  # image plus one startup step so it can trust the self-signed cert of the
+  # gmlbroker when TLS is on. See dockers/test-guacamole.
   # =============================================================================
   guacamole:
     build:
@@ -160,12 +220,13 @@ services:
       BAN_MAX_INVALID_ATTEMPTS: 9999
 
       ###########################################################################
-      # TLS to the gmlbroker is OFF here (same as GMLBROKER_TLS above). If you
-      # turn on GMLBROKER_TLS on the gmlbroker, also uncomment these two lines,
-      # so the webapp talks TLS and trusts the gmlbroker cert in /tls.
+      # TLS to the gmlbroker. Keep this in sync with GMLBROKER_TLS on gmlbroker:
+      # both on together, or both off together. GUACD_SSL makes the webapp talk
+      # TLS, GMLBROKER_TLS_CERT tells our image which cert to trust (the one
+      # gmlbroker wrote in /tls). If you turn TLS off, remove these two again.
       ###########################################################################
-      #GUACD_SSL: "true"
-      #GMLBROKER_TLS_CERT: /tls/cert.pem
+      GUACD_SSL: "true"
+      GMLBROKER_TLS_CERT: /tls/cert.pem
     volumes:
       - "gm-initdb:/opt/guacamole/extensions/guacamole-auth-jdbc/postgresql/schema:ro"
       - ./tls:/tls:ro   # reads the gmlbroker cert to build its truststore
