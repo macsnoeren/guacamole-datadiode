@@ -26,7 +26,12 @@ RUN apt-get update \
     # Maximum verbosity (server equivalent of client -vvvv). Via config instead
     # of the -ddd flag, because -ddd puts sshd in single-connection debug mode
     # (stops after one session) — that would break the Guacamole flow.
-    && echo 'LogLevel DEBUG3' >> /etc/ssh/sshd_config
+    && echo 'LogLevel DEBUG3' >> /etc/ssh/sshd_config \
+    # IPv4 only: on Docker Desktop/WSL2 guacd may resolve 'sshd' to an IPv6
+    # address and try that first, which stalls on the (IPv4-only) bridge, so the
+    # SSH connection fails until something wakes the path. Binding sshd to IPv4
+    # only (no '::' listener) removes that ambiguity. See "Known issues".
+    && echo 'AddressFamily inet' >> /etc/ssh/sshd_config
 
 # User tester1
 RUN useradd -m -s /bin/bash tester1 \
