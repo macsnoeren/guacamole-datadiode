@@ -1,8 +1,0 @@
-services:
-  hrx_proxy:
-    build:
-      context: ../../../
-      dockerfile: docker/include/hrx_proxy/Dockerfile
-    stop_grace_period: 1s
-    container_name: hrx_proxy
-    restart: unless-stopped

@@ -1,0 +1,94 @@
+# Guacamole Data Diode - Secure remote access using the Guacamole remote access using data-diodes.
+# Copyright (C) 2020-2026  Maurice Snoeren
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# ================================================================================
+# compose-3-node-high.yml
+#
+# Compose file to run the dockers on the high side (virtual) machine. If you
+# install data-diodes between the machines, you need to make sure that you
+# have updated your local ARP table, so the machines can send UDP to each other.
+# On this high-side node we run the guacd, gcdbroker, ssh and rdp. 
+#
+# Test the docker compose file: docker compose -f .\compose-3-node-high.yml config
+# Run the docker compose file: docker compose -f .\compose-3-node-high.yml up -d --build
+#
+# ================================================================================
+
+services:
+
+  # =============================================================================
+  # GCDBROKER PROXY (low-side) <=> GUACD (high-side) => SSHD/RDP (high-side)
+  #                             => GMLBROKER (low-side)
+  # =============================================================================
+  gcdbroker:
+    build:
+      context: ../../
+      dockerfile: dockers/gcdbroker/Dockerfile
+    image: gcdbroker-high-side-proxy:latest
+    container_name: gcdbroker
+    ports:
+      - "5501:5501/udp"   # gmguard low-side connects to this port
+    environment:
+      GUACD_IP: guacd             # guacd shares this netns
+      GUACD_PORT: "4822"
+      UDP_RECV_PORT: "5501"       # from the guard-side gmguard (D2)
+      UDP_SEND_IP: gmlbroker      ### FILL_IN_THE_IP_ADDRESS_OF_LOW_SIDE ### to low-side gmlbroker (D3 return)
+      UDP_SEND_PORT: "5502"
+    restart: unless-stopped
+
+  # =============================================================================
+  # GUACD (high-side) => SSHD/RDP (high-side)
+  # This version pins the guacd image to 1.6.0.
+  # =============================================================================
+  guacd:
+    image: guacamole/guacd:1.6.0
+    container_name: guacd
+    depends_on:
+      - gcdbroker
+    environment:
+      LOG_LEVEL: debug
+    restart: unless-stopped
+
+  # =============================================================================
+  # SSHD - test SSH server
+  # Three users are created for testing tester1/2/3 with testpass as password.
+  # =============================================================================
+  sshd:
+    build:
+      context: ../../dockers/test-sshd
+      dockerfile: Dockerfile
+    image: test-sshd-high-side:latest
+    container_name: sshd
+    depends_on:
+      - guacd
+    restart: unless-stopped
+
+  # =============================================================================
+  # RDP - test RDP server
+  # Three users are created for testing tester1/2/3 with testpass as password.
+  # =============================================================================
+  rdp:
+    build:
+      context: ../../dockers/test-rdp
+      dockerfile: Dockerfile
+    container_name: rdp
+    depends_on:
+      - guacd
+    restart: unless-stopped
+
+# END of Compose file

@@ -1,3 +1,5 @@
+dockers/docker-compose/tls
+*.pem
 build
 gmtrafficdumper/logs/**
 

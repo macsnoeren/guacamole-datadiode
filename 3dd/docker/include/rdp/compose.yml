@@ -1,6 +1,0 @@
-services:
-  rdp:
-    build: .
-    container_name: rdp
-    restart: unless-stopped
-    stop_grace_period: 1s

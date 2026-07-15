@@ -1,8 +1,0 @@
-services:
-  lrx_proxy:
-    build:
-      context: ../../../
-      dockerfile: docker/include/lrx_proxy/Dockerfile
-    stop_grace_period: 1s
-    container_name: lrx_proxy
-    restart: unless-stopped
