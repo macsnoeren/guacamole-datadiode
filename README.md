@@ -36,6 +36,12 @@ Even with the best security measures, it is still possible that someone with mal
 
 The hardware-based solution should implement its functionality in hardware, ensuring that an attacker cannot bypass it through a new firmware update or a discovered software vulnerability.
 
+# Becoming part of the Apache Guacamole project
+
+I think this solution fits really well with the Apache Guacamole project itself. It only uses the Guacamole protocol between the Guacamole Server and guacd, so it does not change anything to the remote access implementations like VNC, SSH or RDP. Because of this it would be very nice if this software could become part of the bigger Guacamole project of the Apache Foundation and be maintained together with the rest of the project. In that way more people can use it, review it and help to make it more secure.
+
+I already reached out to the Guacamole development team about this idea. You can find the request here: https://issues.apache.org/jira/browse/GUACAMOLE-2044. So if you are from the Apache Guacamole project and you like the idea, please let me know. I would be really happy to help with the integration.
+
 # Design
 
 I assume you already have knowledge of the Guacamole Remote Access project. In this case, the Guacamole Server and guacd communicate with each other using the Guacamole protocol. This protocol is independent of the remote access implementation, such as VNC, SSH, RDP, etc. This makes it perfectly suitable to be used within a data-diode architecture.
