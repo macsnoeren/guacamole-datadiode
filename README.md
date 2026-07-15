@@ -1,5 +1,5 @@
-[![docker](https://github.com/macsnoeren/guacamole-datadiode/actions/workflows/build_docker.yml/badge.svg)](https://github.com/macsnoeren/guacamole-datadiode/actions/workflows/build_docker.yml)
-[![build](https://github.com/macsnoeren/guacamole-datadiode/actions/workflows/build_gmdatadiode.yml/badge.svg)](https://github.com/macsnoeren/guacamole-datadiode/actions/workflows/build_gmdatadiode.yml)
+[![build](https://github.com/macsnoeren/guacamole-datadiode/actions/workflows/build.yml/badge.svg)](https://github.com/macsnoeren/guacamole-datadiode/actions/workflows/build.yml)
+[![docker](https://github.com/macsnoeren/guacamole-datadiode/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/macsnoeren/guacamole-datadiode/actions/workflows/docker-publish.yml)
 ![release](https://img.shields.io/github/v/release/macsnoeren/guacamole-datadiode)
 
 # <table><tr><td><img src="documentation/images/logo-guacamole-data-diode.png" width="200px"></td><td>Guacamole Remote Access over Data-Diodes</td></tr></table>
