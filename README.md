@@ -70,7 +70,7 @@ The two figures below show more detail of the 3-node design and the real setup. 
 ![gm-three-nodes-detail](documentation/images/3-node-architecture.webp)
 ![gm-three-nodes-setup](documentation/images/3-node-photo.png)
 
-An approval process could also be implemented by this gmguard. This is not part of the implementation yet, it is only prepared as an example so you can see how it could work. The idea is that an operator on the trusted OT side can decide if connections are allowed or not, so nothing goes through the guard until a person says yes. The guard does not act on it yet, so at the moment nothing is really approved or denied. Have a look at the [proxies README](proxies/README.md) and the `approval.py` example there for the details.
+An approval process could also be implemented by this gmguard. There is a simple example prepared so you can see how it could work. The idea is that an operator on the trusted OT side can decide if connections are allowed or not. The guard already has a global approve/deny state and an operator can change it, so connections are really let through or blocked. But this is only an example and you should not trust it: it is one global state for everything and it can be changed from outside with a simple UDP message, so there is no real protection around it. In the future I would like a different, trustworthy implementation where you can approve or deny individual connections instead of one global switch. Have a look at the [proxies README](proxies/README.md) and the `approval.py` example there for the details.
 
 # Docker
 
@@ -82,8 +82,6 @@ The following Docker images are created by this project:
 - gmguard: https://hub.docker.com/r/macsnoeren/gmdatadiode-gmguard
 - gcdbroker: https://hub.docker.com/r/macsnoeren/gmdatadiode-gcdbroker
 - nettest: https://hub.docker.com/r/macsnoeren/gmdatadiode-nettest
-- sshtest: https://hub.docker.com/r/macsnoeren/gmdatadiode-sshtest
-- rdptest: https://hub.docker.com/r/macsnoeren/gmdatadiode-rdptest
 
 Next to these there is also a `test-guacamole` image in this repository. This is not a proxy, it is the normal Apache Guacamole webapp image with one small extra startup step, so it can trust the self-signed certificate that the gmlbroker makes when TLS is on. It is only used to test the solution and it is not published on Docker Hub. See `dockers/test-guacamole` for the details.
 

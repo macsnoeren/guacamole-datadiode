@@ -1,7 +1,6 @@
 """approval.py -- a self-contained operator console for the guard's approval switch.
 
-This is a standalone, single-file version of the ``approver`` app. Unlike
-``server.py`` it does NOT read its UI from a ``static/`` directory: the
+This is a standalone, single-file version of the ``approver`` app. The
 Approve/Deny page is embedded directly in this file, so the whole console is
 one drop-in Python script with no other files required. Stdlib only.
 
@@ -28,7 +27,7 @@ RUNNING
 CONFIGURATION (environment variables)
     GUARD_HOST           guard host to command          (default: 127.0.0.1)
     GUARD_CONTROL_PORT   guard UDP control port         (default: 4999)
-    HTTP_PORT            port this console serves on     (default: 8082)
+    HTTP_PORT            port this console serves on    (default: 8082)
 
     Example:
 
@@ -163,7 +162,6 @@ fetch("/api/state").then(r => r.json()).then(d => render(d.mode)).catch(() => {}
 </html>
 """
 
-
 def load_cfg():
     """Read configuration from the environment, applying defaults.
 
@@ -178,7 +176,6 @@ def load_cfg():
         "GUARD_CONTROL_PORT": int(env("GUARD_CONTROL_PORT", "4999")),
         "HTTP_PORT": int(env("HTTP_PORT", "8082")),
     }
-
 
 def send_approval_toggle(host, port, mode):
     """Send a plaintext approval-toggle datagram to the guard's control port.
@@ -199,7 +196,6 @@ def send_approval_toggle(host, port, mode):
     """
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.sendto(mode.encode(), (host, port))
-
 
 class Handler(http.server.BaseHTTPRequestHandler):
     """Serves the operator page and the approve/deny + state endpoints."""
@@ -261,11 +257,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         print(f"[approval] sent {mode.upper()} to {host}:{port}", flush=True)
         self._json(200, {"mode": mode})
 
-
 class ThreadingHTTPServer(http.server.ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
-
 
 def main():
     cfg = load_cfg()
@@ -276,7 +270,6 @@ def main():
         server.serve_forever()
     except KeyboardInterrupt:
         pass
-
 
 if __name__ == "__main__":
     main()

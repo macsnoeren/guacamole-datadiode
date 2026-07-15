@@ -36,8 +36,6 @@
 # nettest:   http://localhost:8081
 # gmlbroker: http://localhost:4823
 #
-# TODO: Add configuration of SSH and RDP targets in the Guacamole webapp (or via SQL) so you can test
-#
 # Test the docker compose file: docker compose -f .\compose-1-node.yml config
 # Run the docker compose file: docker compose -f .\compose-1-node.yml up -d --build
 #
