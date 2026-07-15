@@ -157,7 +157,10 @@ jobs:
             ${{ env.NAMESPACE }}/${{ env.PREFIX }}${{ matrix.image }}:${{ steps.decide.outputs.version }}
 
       - name: Sync Docker Hub description
-        if: steps.decide.outputs.changed == 'true'
+        # Always sync the overview, even when the image itself is unchanged, so
+        # that editing DOCKERHUB.md alone is enough to update the Docker Hub
+        # page. The action authenticates itself via username/password, so it
+        # does not depend on the (conditional) docker/login-action step above.
         uses: peter-evans/dockerhub-description@v5
         with:
           username: ${{ secrets.DH_USERNAME }}
