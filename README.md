@@ -106,6 +106,11 @@ When this repository started, a first concept version was available for testing.
 - gmproxyin: https://hub.docker.com/r/macsnoeren/gmdatadiode-gmproxyin
 - gmproxyout: https://hub.docker.com/r/macsnoeren/gmdatadiode-gmproxyout
 
+# Known issues
+
+## SSH not connecting when Docker Desktop is used
+When Docker Desktop is used the network is not ready on cold start (Windows/WSL2).** On the first `docker compose up`, all containers start, but `guacd` cannot reach the SSH test container and the connection keeps failing. The WSL2 virtual switch has not learned the network path yet (empty ARP table), and `guacd` gives up before it does. Any manual traffic (a `ping`, an SSH attempt, or starting `tcpdump`) wakes the network up, after which the connection works instantly. This does not happen on native Linux. **Solution: click on "reconnect" and move your mouse. Do this a couple of times after each other. That worked for me.**. In production this should not be a problem.
+
 # Author and maintainer
 
 This project is created and maintained by Maurice Snoeren. I started the research on data-diodes in 2020 and I keep working on it. If you have questions, ideas, or you found a bug, feel free to open an issue or reach out to me.
