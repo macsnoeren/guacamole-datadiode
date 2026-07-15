@@ -65,15 +65,19 @@ jobs:
           - image: gcdbroker
             version_source: proxies/gcdbroker/meson.build
             paths: dockers/gcdbroker proxies/gcdbroker proxies/shared
+            short: 'High-side broker for the Guacamole Data Diode: bridges guacd to the return data-diode.'
           - image: gmguard
             version_source: proxies/gmguard/meson.build
             paths: dockers/gmguard proxies/gmguard proxies/shared
+            short: 'Guard for the Guacamole Data Diode: forwards only keystrokes and mouse, rejects the rest.'
           - image: gmlbroker
             version_source: proxies/gmlbroker/meson.build
             paths: dockers/gmlbroker proxies/gmlbroker proxies/shared
+            short: 'Low-side broker for the Guacamole Data Diode: entry point that forwards allowed input only.'
           - image: nettest
             version_source: dockers/nettest/VERSION
             paths: dockers/nettest proxies/nettest
+            short: 'Stress-test suite for the Guacamole Data Diode bridge (stdlib-only Python).'
 
     steps:
       - name: Checkout
@@ -167,6 +171,8 @@ jobs:
           # Requires a Docker Hub password or a PAT with write access.
           password: ${{ secrets.DH_PASSWORD }}
           repository: ${{ env.NAMESPACE }}/${{ env.PREFIX }}${{ matrix.image }}
+          # Fills the one-line "description" field on Docker Hub (max 100 chars).
+          short-description: ${{ matrix.short }}
           readme-filepath: dockers/${{ matrix.image }}/DOCKERHUB.md
 
       - name: Push release tag
