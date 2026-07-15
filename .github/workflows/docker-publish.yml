@@ -158,7 +158,7 @@ jobs:
 
       - name: Sync Docker Hub description
         if: steps.decide.outputs.changed == 'true'
-        uses: peter-evans/dockerhub-description@v4
+        uses: peter-evans/dockerhub-description@v5
         with:
           username: ${{ secrets.DH_USERNAME }}
           # Requires a Docker Hub password or a PAT with write access.
