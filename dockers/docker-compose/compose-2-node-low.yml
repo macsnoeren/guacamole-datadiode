@@ -79,6 +79,7 @@ services:
       # cert and set guacd-ssl, see the TLS chapter in the README.
       ###########################################################################
       GMLBROKER_TLS: "false" # Set to "true" to enable TLS on the gmlbroker
+                             # Note: also set GUACD_SSL on the guacamole to "true" to enable TLS on the guacamole
     volumes:
       - ./tls:/tls   # gmlbroker writes its self-signed cert here when TLS is on
     restart: unless-stopped
@@ -164,8 +165,9 @@ services:
       # turn on GMLBROKER_TLS on the gmlbroker, also uncomment these two lines,
       # so the webapp talks TLS and trusts the gmlbroker cert in /tls.
       ###########################################################################
-      #GUACD_SSL: "true"
-      #GMLBROKER_TLS_CERT: /tls/cert.pem
+      GUACD_SSL: "false" # Set to "true" to enable TLS on the guacamole 
+                         # NOTE: also set GMLBROKER_TLS on the gmlbroker to "true" to enable TLS on the gmlbroker
+      GMLBROKER_TLS_CERT: /tls/cert.pem
     volumes:
       - "gm-initdb:/opt/guacamole/extensions/guacamole-auth-jdbc/postgresql/schema:ro"
       - ./tls:/tls:ro   # reads the gmlbroker cert to build its truststore

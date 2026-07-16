@@ -23,9 +23,6 @@ RUN apt-get update \
     && mkdir -p /run/sshd \
     && ssh-keygen -A \
     && echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config \
-    # Maximum verbosity (server equivalent of client -vvvv). Via config instead
-    # of the -ddd flag, because -ddd puts sshd in single-connection debug mode
-    # (stops after one session) — that would break the Guacamole flow.
     && echo 'LogLevel DEBUG3' >> /etc/ssh/sshd_config
 
 # User tester1

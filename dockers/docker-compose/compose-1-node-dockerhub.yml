@@ -70,7 +70,8 @@ services:
       # generate anything by hand. On the Guacamole side you have to trust that
       # cert and set guacd-ssl, see the TLS chapter in the README.
       ###########################################################################
-      GMLBROKER_TLS: "true" # Set to "true" to enable TLS on the gmlbroker
+      GMLBROKER_TLS: "false" # Set to "true" to enable TLS on the gmlbroker
+                             # Note: also set GUACD_SSL on the guacamole to "true" to enable TLS on the guacamole
     volumes:
       - ./tls:/tls   # gmlbroker writes its self-signed cert here when TLS is on
 
@@ -146,6 +147,7 @@ services:
 
   # =============================================================================
   # nettest - the testing tool for the software.
+  # NOTE: This nettest does not implementt TLS!
   # =============================================================================
   nettest:
     image: macsnoeren/gmdatadiode-nettest:latest
@@ -154,6 +156,7 @@ services:
       - gmlbroker
       - gmguard
       - gcdbroker
+      - sshd
     ulimits:
       nofile:
         soft: 1048576
@@ -225,7 +228,8 @@ services:
       # TLS, GMLBROKER_TLS_CERT tells our image which cert to trust (the one
       # gmlbroker wrote in /tls). If you turn TLS off, remove these two again.
       ###########################################################################
-      GUACD_SSL: "true"
+      GUACD_SSL: "false" # Set to "true" to enable TLS on the guacamole 
+                         # NOTE: also set GMLBROKER_TLS on the gmlbroker to "true" to enable TLS on the gmlbroker
       GMLBROKER_TLS_CERT: /tls/cert.pem
     volumes:
       - "gm-initdb:/opt/guacamole/extensions/guacamole-auth-jdbc/postgresql/schema:ro"
